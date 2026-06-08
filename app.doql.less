@@ -2,7 +2,12 @@
 
 app {
   name: fixos;
-  version: 2.2.28;
+  version: 2.2.29;
+  description: "AI-powered Linux/Windows diagnostics and repair – audio, hardware, system issues";
+  license: Apache-2.0;
+  authors: "fixos contributors, Tom Sapletta <tom@sapletta.com>";
+  keywords: "linux, windows, diagnostics, ai, llm, audio, system-repair, cross-platform";
+  homepage: https://github.com/wronai/fixos;
 }
 
 dependencies {
@@ -38,7 +43,7 @@ interface[type="cli"] {
   framework: click;
 }
 interface[type="cli"] page[name="fixos"] {
-
+  entry: fixos.cli:main;
 }
 
 workflow[name="install"] {
@@ -219,6 +224,14 @@ workflow[name="clean"] {
   step-6: run cmd=echo "✅ Wyczyszczono";
 }
 
+tests {
+  import: testql-scenarios/**/*.testql.toon.yaml;
+}
+
+env_vars {
+  keys: LLM_PROVIDER, OPENROUTER_API_KEY, GROQ_API_KEY, OPENROUTER_MODEL, GEMINI_API_KEY, GEMINI_MODEL, GEMINI_BASE_URL, OPENAI_API_KEY, OPENAI_MODEL, OPENAI_BASE_URL, XAI_API_KEY, XAI_MODEL, XAI_BASE_URL, OPENROUTER_BASE_URL, OLLAMA_BASE_URL, OLLAMA_MODEL, AGENT_MODE, SESSION_TIMEOUT, ENABLE_WEB_SEARCH, SERPAPI_KEY, SHOW_ANONYMIZED_DATA, SAVE_REPORTS, REPORTS_DIR, TEST_DOCKER_COMPOSE;
+}
+
 deploy {
   target: docker-compose;
   compose_file: docker/docker-compose.yml;
@@ -227,5 +240,9 @@ deploy {
 environment[name="local"] {
   runtime: docker-compose;
   env_file: .env;
+  template_file: .env.example;
   python_version: >=3.10;
+  vars: AGENT_MODE, ENABLE_WEB_SEARCH, GEMINI_API_KEY, GEMINI_BASE_URL, GEMINI_MODEL, GROQ_API_KEY, LLM_PROVIDER, OLLAMA_BASE_URL, OLLAMA_MODEL, OPENAI_API_KEY, OPENAI_BASE_URL, OPENAI_MODEL, OPENROUTER_API_KEY, OPENROUTER_BASE_URL, OPENROUTER_MODEL, REPORTS_DIR, SAVE_REPORTS, SERPAPI_KEY, SESSION_TIMEOUT, SHOW_ANONYMIZED_DATA, TEST_DOCKER_COMPOSE, XAI_API_KEY, XAI_BASE_URL, XAI_MODEL;
+  runtime_llm: OPENROUTER_API_KEY, OPENROUTER_BASE_URL, OPENROUTER_MODEL;
+  runtime_ollama: OLLAMA_BASE_URL, OLLAMA_MODEL;
 }
