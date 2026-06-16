@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fixos"
-version = "2.2.32"
+version = "2.2.33"
 description = "AI-powered Linux/Windows diagnostics and repair – audio, hardware, system issues"
 readme = "README.md"
 requires-python = ">=3.10"
