@@ -150,6 +150,15 @@ fix(goal): code analysis engine
 - **refactor(cli):** Usunięto zduplikowany kod ujednolicając funkcje analizy dysku do wspólnego helpera `_run_disk_analysis`.
 - **refactor(ui):** Usunięto ikony Unicode z CLI i sformatowano wyjście `stderr` oraz standardowego logowania na czysty kod Markdown dla poprawy czytelności w oknach terminalowych.
 
+## [2.2.30] - 2026-06-16
+
+### Docs
+- Update README.md
+
+### Other
+- Update nlp2uri.yaml
+- Update uv.lock
+
 ## [2.2.29] - 2026-05-08
 
 ### Docs

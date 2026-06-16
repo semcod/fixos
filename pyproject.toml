@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fixos"
-version = "2.2.29"
+version = "2.2.30"
 description = "AI-powered Linux/Windows diagnostics and repair – audio, hardware, system issues"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -34,9 +34,7 @@ dependencies = [
     "rich>=13.0",
 ]
 
-[project.license]
-text = "Apache-2.0"
-
+license = "Apache-2.0"
 [project.optional-dependencies]
 dev = [
     "pytest>=7.4.0",
