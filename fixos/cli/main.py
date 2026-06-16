@@ -3,6 +3,8 @@ Main CLI entry point for fixOS
 """
 
 import click
+
+from fixos import __version__
 from fixos.cli.shared import BANNER, NaturalLanguageGroup
 from fixos.config import FixOsConfig
 
@@ -38,7 +40,7 @@ def cli(ctx, dry_run, version) -> None:
       fixos fix --help
     """
     if version:
-        click.echo("fixos v2.0.0")
+        click.echo(f"fixos v{__version__}")
         return
 
     if ctx.invoked_subcommand is None:

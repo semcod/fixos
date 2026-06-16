@@ -18,6 +18,8 @@ import yaml
 
 import click
 
+from fixos import __version__
+
 
 class OutputFormat(Enum):
     """Supported output formats."""
@@ -114,7 +116,7 @@ class OutputFormatter:
     ) -> str:
         """Format full diagnostic result with metadata envelope."""
         envelope = {
-            "fixos_version": "2.0.0",
+            "fixos_version": __version__,
             "timestamp": timestamp or datetime.now().isoformat(),
             "format": self.fmt.value,
         }
@@ -132,7 +134,7 @@ class OutputFormatter:
     ) -> str:
         """Format scan results with optional disk analysis."""
         result: dict[str, Any] = {
-            "fixos_version": "2.0.0",
+            "fixos_version": __version__,
             "timestamp": datetime.now().isoformat(),
             "scan": data,
         }

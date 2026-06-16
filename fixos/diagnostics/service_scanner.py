@@ -9,6 +9,7 @@ Refactored: Now uses ServiceDetailsProvider and ServiceCleaner for detailed oper
 import os
 import glob
 import json
+import subprocess
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, field
 from enum import Enum
@@ -98,14 +99,24 @@ class ServiceDataScanner:
 
     SERVICE_PATHS = {
         ServiceType.DOCKER: ["/var/lib/docker", "~/.docker"],
-        ServiceType.OLLAMA: ["~/.ollama", "/usr/share/ollama"],
+        ServiceType.OLLAMA: [
+            "~/.ollama/models",
+            "~/.ollama/blobs",
+            "/usr/share/ollama/.ollama/models",
+        ],
         ServiceType.CONTAINERD: ["/var/lib/containerd", "/run/containerd"],
         ServiceType.PODMAN: ["~/.local/share/containers", "~/.config/containers"],
         ServiceType.NPM: ["~/.npm", "~/.cache/npm"],
         ServiceType.YARN: ["~/.cache/yarn", "~/.yarn", "~/.config/yarn"],
         ServiceType.PNPM: ["~/.pnpm-store", "~/.local/share/pnpm"],
         ServiceType.PIP: ["~/.cache/pip"],
-        ServiceType.CONDA: ["~/anaconda3", "~/miniconda3", "~/.conda"],
+        ServiceType.CONDA: [
+            "~/miniconda3/pkgs",
+            "~/anaconda3/pkgs",
+            "~/.conda/pkgs",
+            "~/miniconda3/envs/*/pkgs",
+            "~/anaconda3/envs/*/pkgs",
+        ],
         ServiceType.POETRY: ["~/.cache/pypoetry"],
         ServiceType.GRADLE: ["~/.gradle", "~/.cache/gradle"],
         ServiceType.MAVEN: ["~/.m2"],
@@ -114,7 +125,11 @@ class ServiceDataScanner:
         ServiceType.FLUTTER: ["~/.flutter-sdk", "~/flutter", "~/.pub-cache"],
         ServiceType.DART: ["~/.pub-cache"],
         ServiceType.ANDROID: ["~/Android/Sdk", "~/.android"],
-        ServiceType.SNAP: ["/var/snap", "/snap"],
+        ServiceType.SNAP: [
+            "/var/lib/snapd/snaps",
+            "/var/snap",
+            "/var/lib/snapd/cache",
+        ],
         ServiceType.FLATPAK: ["~/.local/share/flatpak", "/var/lib/flatpak"],
         ServiceType.APPIMAGE: ["~/.local/share/AppImage", "~/.cache/AppImage"],
         ServiceType.APT: ["/var/cache/apt/archives"],
@@ -140,8 +155,18 @@ class ServiceDataScanner:
         ServiceType.FIREFOX: ["~/.cache/mozilla", "~/.mozilla/firefox/*/cache2"],
         ServiceType.EDGE: ["~/.cache/microsoft-edge"],
         ServiceType.VSCODE: ["~/.vscode/extensions", "~/.config/Code/Cache"],
-        ServiceType.CURSOR: ["~/.cursor/extensions", "~/.config/Cursor"],
-        ServiceType.JETBRAINS: ["~/.JetBrains", "~/.cache/JetBrains"],
+        ServiceType.CURSOR: [
+            "~/.config/Cursor/Cache",
+            "~/.config/Cursor/CachedData",
+            "~/.config/Cursor/CachedExtensionVSIXs",
+            "~/.config/Cursor/logs",
+            "~/.cursor/extensions",
+        ],
+        ServiceType.JETBRAINS: [
+            "~/.cache/JetBrains",
+            "~/.local/share/JetBrains/*/caches",
+            "~/.local/share/JetBrains/*/index",
+        ],
         ServiceType.HUGGINGFACE: ["~/.cache/huggingface"],
         ServiceType.AWS: ["~/.aws/sso/cache", "~/.aws/cli/cache"],
         ServiceType.GCLOUD: ["~/.config/gcloud/logs", "~/.cache/gcloud"],
@@ -185,7 +210,37 @@ class ServiceDataScanner:
                     info = self._analyze_service_path(service_type, path)
                     if info and info.size_mb >= self.threshold_mb:
                         results.append(info)
+        if len(results) > 1:
+            return [self._merge_service_entries(results)]
         return results
+
+    def _merge_service_entries(
+        self, results: List[ServiceDataInfo]
+    ) -> ServiceDataInfo:
+        """Combine multiple paths for the same service into one summary entry."""
+        primary = max(results, key=lambda item: item.size_mb)
+        total_mb = sum(item.size_mb for item in results)
+        paths = [item.path for item in results]
+
+        return ServiceDataInfo(
+            service_type=primary.service_type,
+            name=primary.name,
+            path=primary.path,
+            size_mb=round(total_mb, 2),
+            size_gb=round(total_mb / 1024, 3),
+            description=primary.description,
+            can_cleanup=primary.can_cleanup,
+            cleanup_command=primary.cleanup_command,
+            preview_command=primary.preview_command,
+            safe_to_cleanup=all(item.safe_to_cleanup for item in results),
+            impact="high" if total_mb / 1024 > 1.0 else "medium",
+            items_count=primary.items_count,
+            details={
+                **primary.details,
+                "paths": paths,
+                "merged_count": len(results),
+            },
+        )
 
     def _analyze_service_path(
         self, service_type: ServiceType, path: str
@@ -229,12 +284,36 @@ class ServiceDataScanner:
             )
 
     def _get_path_size_mb(self, path: str) -> float:
-        """Get size of path in MB."""
+        """Get size of path in MB using du, falling back to os.walk."""
+        try:
+            result = subprocess.run(
+                ["du", "-sk", "--", path],
+                capture_output=True,
+                text=True,
+                timeout=120,
+                check=False,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                kb = int(result.stdout.strip().splitlines()[-1].split()[0])
+                return kb / 1024
+        except (OSError, ValueError, subprocess.TimeoutExpired, IndexError):
+            pass
+
         total_size = 0
         if os.path.isfile(path):
             return os.path.getsize(path) / (1024 * 1024)
+
         try:
+            root_dev = os.stat(path).st_dev if os.path.exists(path) else None
             for dirpath, dirnames, filenames in os.walk(path):
+                if root_dev is not None:
+                    dirnames[:] = [
+                        name
+                        for name in dirnames
+                        if self._should_descend(
+                            os.path.join(dirpath, name), root_dev
+                        )
+                    ]
                 for filename in filenames:
                     filepath = os.path.join(dirpath, filename)
                     try:
@@ -244,6 +323,14 @@ class ServiceDataScanner:
         except (OSError, PermissionError):
             pass
         return total_size / (1024 * 1024)
+
+    @staticmethod
+    def _should_descend(path: str, root_dev: int) -> bool:
+        """Skip mount points so loop-mounted snaps are not double-counted."""
+        try:
+            return os.stat(path).st_dev == root_dev
+        except OSError:
+            return False
 
     def get_cleanup_plan(self, selected_services: List[str] = None) -> Dict[str, Any]:
         """Generate cleanup plan for services."""

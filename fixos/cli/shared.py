@@ -4,14 +4,24 @@ Shared utilities for fixOS CLI commands
 
 import click
 
-BANNER = r"""
+from fixos import __version__
+
+_BANNER_TEMPLATE = r"""
   ___  _       ___  ____
  / _(_)_  __  / _ \/ ___|
 | |_| \ \/ / | | | \___ \
 |  _| |>  <  | |_| |___) |
 |_| |_/_/\_\  \___/|____/
-  AI-powered OS Diagnostics  •  v2.0.0
+  AI-powered OS Diagnostics  •  v{version}
 """
+
+
+def get_banner() -> str:
+    """Return the CLI banner with the installed package version."""
+    return _BANNER_TEMPLATE.format(version=__version__)
+
+
+BANNER = get_banner()
 
 COMMON_OPTIONS = [
     click.option(

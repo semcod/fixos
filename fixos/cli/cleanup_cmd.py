@@ -52,7 +52,13 @@ def _display_service_item(svc: dict) -> None:
         f"{safe_icon} {click.style(svc['name'], fg='yellow', bold=True)} - {size_str}"
     )
     click.echo(f"   {svc['description']}")
-    click.echo(f"   Ścieżka: {svc['path']}")
+    paths = svc.get("details", {}).get("paths") or [svc["path"]]
+    if len(paths) > 1:
+        click.echo(f"   Ścieżki ({len(paths)}):")
+        for path in paths:
+            click.echo(f"     • {path}")
+    else:
+        click.echo(f"   Ścieżka: {svc['path']}")
     click.echo(f"   {safe_text}")
 
     # Show details for specific services

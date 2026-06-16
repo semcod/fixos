@@ -19,6 +19,14 @@ class TestChromeCleanup:
         assert "GPUCache" in command
         assert "Service Worker" in command
 
+    def test_chrome_cache_cleanup_does_not_run_find_on_removed_path(self):
+        path = "/home/tom/.cache/google-chrome"
+
+        command = ServiceCleaner.get_cleanup_command(ServiceType.CHROME, path)
+
+        assert command == f"rm -rf {path}"
+        assert "find" not in command
+
     def test_cleanup_service_reports_freed_space_for_chrome(self, monkeypatch):
         path = "/home/tom/.config/google-chrome"
         initial_size_mb = 537.0

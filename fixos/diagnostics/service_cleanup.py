@@ -265,7 +265,7 @@ class ServiceCleaner:
         descriptions = {
             # Containers
             ServiceType.DOCKER: "Docker images, containers, and volumes",
-            ServiceType.OLLAMA: "Ollama AI models and cache",
+            ServiceType.OLLAMA: "Ollama AI model files",
             ServiceType.CONTAINERD: "Containerd container runtime data",
             ServiceType.PODMAN: "Podman containers and images",
             # JS/Node
@@ -274,7 +274,7 @@ class ServiceCleaner:
             ServiceType.PNPM: "PNPM store cache",
             # Python
             ServiceType.PIP: "Python pip cache",
-            ServiceType.CONDA: "Conda/Anaconda environments and packages",
+            ServiceType.CONDA: "Conda package cache (pkgs directories)",
             ServiceType.POETRY: "Poetry virtual environments and cache",
             # Java
             ServiceType.GRADLE: "Gradle build cache",
@@ -410,7 +410,13 @@ class ServiceCleaner:
         largest profile caches untouched, so we remove common cache
         directories under the scanned profile path as well.
         """
-        quoted_path = shlex.quote(path)
+        expanded_path = os.path.expanduser(path).rstrip("/")
+        cache_root = os.path.expanduser("~/.cache/google-chrome").rstrip("/")
+        quoted_path = shlex.quote(expanded_path)
+
+        if expanded_path == cache_root or expanded_path.startswith(f"{cache_root}/"):
+            return f"rm -rf {quoted_path}"
+
         cache_dir_names = [
             "Cache",
             "Code Cache",
@@ -424,8 +430,9 @@ class ServiceCleaner:
             f"-name {shlex.quote(name)}" for name in cache_dir_names
         )
         return (
-            "rm -rf ~/.cache/google-chrome && "
-            f"find {quoted_path} -type d \\( {find_expr} \\) -prune -exec rm -rf {{}} +"
+            "rm -rf ~/.cache/google-chrome 2>/dev/null || true; "
+            f"find {quoted_path} -type d \\( {find_expr} \\) "
+            "-prune -exec rm -rf {} + 2>/dev/null || true"
         )
 
     @staticmethod
