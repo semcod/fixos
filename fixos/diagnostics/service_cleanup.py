@@ -150,6 +150,28 @@ class ServiceCleaner:
 
             return False
 
+        if service_type == ServiceType.BRAVE:
+            normalized_path = os.path.expanduser(path or "").rstrip("/")
+            if "/Cache" in normalized_path or normalized_path.endswith(
+                ("GPUCache", "Code Cache")
+            ):
+                return True
+            return normalized_path.endswith("BraveSoftware") or "/BraveSoftware/" in (
+                normalized_path
+            )
+
+        if service_type == ServiceType.STEAM:
+            normalized_path = os.path.expanduser(path or "").rstrip("/")
+            safe_suffixes = ("shadercache", "appcache")
+            return any(normalized_path.endswith(suffix) for suffix in safe_suffixes)
+
+        if service_type in (ServiceType.GENERIC_CACHE, ServiceType.ELECTRON):
+            base = os.path.basename(os.path.expanduser(path or "").rstrip("/")).lower()
+            return any(
+                hint in base
+                for hint in ("cache", "shader", "tmp", "temp", "log", "crash", "thumb")
+            )
+
         safe_services = {
             # Package caches (can be re-downloaded)
             ServiceType.NPM,
@@ -161,6 +183,19 @@ class ServiceCleaner:
             ServiceType.MAVEN,
             ServiceType.CARGO,
             ServiceType.GO,
+            ServiceType.UV,
+            ServiceType.TORCH,
+            ServiceType.BUN,
+            ServiceType.PLAYWRIGHT,
+            ServiceType.CCACHE,
+            ServiceType.HELM,
+            ServiceType.BAZEL,
+            ServiceType.GH,
+            ServiceType.NVIDIA,
+            ServiceType.DISCORD,
+            ServiceType.SLACK,
+            ServiceType.SPOTIFY,
+            ServiceType.BRAVE,
             # System caches
             ServiceType.APT,
             ServiceType.DNF,
@@ -255,6 +290,57 @@ class ServiceCleaner:
                 ]
             )
 
+        elif service_type == ServiceType.STEAM:
+            hints.extend(
+                [
+                    "🎮 STEAM CLEANUP:",
+                    "  rm -rf ~/.local/share/Steam/steamapps/shadercache",
+                    "  # Safe: shader cache rebuilds automatically",
+                    "",
+                    "  steamcmd +app_update ...",
+                    "  # Games themselves require manual uninstall in Steam UI",
+                    "",
+                    "📊 Check usage:",
+                    "  du -sh ~/.local/share/Steam/steamapps/common/* | sort -hr | head",
+                ]
+            )
+
+        elif service_type == ServiceType.MINIKUBE:
+            hints.extend(
+                [
+                    "☸️ MINIKUBE CLEANUP:",
+                    "  minikube stop",
+                    "  minikube delete --all",
+                    "  # Removes local Kubernetes cluster and VM data",
+                    "",
+                    "💡 Docker driver images may remain in Docker cache",
+                ]
+            )
+
+        elif service_type == ServiceType.LMSTUDIO:
+            hints.extend(
+                [
+                    "🤖 LM STUDIO CLEANUP:",
+                    "  ls ~/.lmstudio/models",
+                    "  # Review downloaded models before deleting",
+                    "",
+                    "  rm -rf ~/.lmstudio/models/<model>",
+                    "  # Remove one model at a time",
+                ]
+            )
+
+        elif service_type == ServiceType.GENERIC_CACHE:
+            hints.extend(
+                [
+                    "📂 UNKNOWN CACHE:",
+                    "  du -sh ~/.cache/<dir>",
+                    "  # Inspect contents before deleting",
+                    "",
+                    "  rm -rf <path>",
+                    "  # Only if you recognize it as rebuildable cache",
+                ]
+            )
+
         return hints
 
     @staticmethod
@@ -326,6 +412,24 @@ class ServiceCleaner:
             ServiceType.THUMBNAILS: "Thumbnail cache",
             ServiceType.TRASH: "Trash/Recycle Bin",
             ServiceType.LOGS: "Application logs",
+            ServiceType.NVIDIA: "NVIDIA and Mesa GPU shader cache",
+            ServiceType.UV: "uv Python package manager cache",
+            ServiceType.TORCH: "PyTorch hub and model cache",
+            ServiceType.BUN: "Bun JavaScript runtime cache",
+            ServiceType.PLAYWRIGHT: "Playwright/Puppeteer browser binaries",
+            ServiceType.CCACHE: "C/C++ compiler cache (ccache/sccache)",
+            ServiceType.HELM: "Helm chart cache",
+            ServiceType.MINIKUBE: "Minikube local Kubernetes cluster data",
+            ServiceType.STEAM: "Steam games, shaders and client cache",
+            ServiceType.LMSTUDIO: "LM Studio local AI models",
+            ServiceType.BRAVE: "Brave browser cache",
+            ServiceType.DISCORD: "Discord client cache",
+            ServiceType.SLACK: "Slack client cache",
+            ServiceType.SPOTIFY: "Spotify offline/cache data",
+            ServiceType.BAZEL: "Bazel build cache",
+            ServiceType.GH: "GitHub CLI cache",
+            ServiceType.ELECTRON: "Electron/Chromium application cache",
+            ServiceType.GENERIC_CACHE: "Discovered cache directory",
         }
         return descriptions.get(service_type, f"{service_type.value} data")
 
@@ -398,6 +502,24 @@ class ServiceCleaner:
             ServiceType.THUMBNAILS: "rm -rf ~/.cache/thumbnails/* ~/.thumbnails/*",
             ServiceType.TRASH: "rm -rf ~/.local/share/Trash/* ~/.Trash/*",
             ServiceType.LOGS: "find ~/.cache/log ~/.local/state -name '*.log' -mtime +7 -delete 2>/dev/null; journalctl --vacuum-time=7d 2>/dev/null || true",
+            ServiceType.NVIDIA: "rm -rf ~/.cache/nvidia ~/.nv/ComputeCache ~/.cache/mesa_shader_cache",
+            ServiceType.UV: "uv cache clean || rm -rf ~/.cache/uv ~/.local/share/uv",
+            ServiceType.TORCH: "rm -rf ~/.cache/torch ~/.torch",
+            ServiceType.BUN: "rm -rf ~/.bun/install/cache",
+            ServiceType.PLAYWRIGHT: "rm -rf ~/.cache/ms-playwright ~/.cache/puppeteer",
+            ServiceType.CCACHE: "ccache -C 2>/dev/null || rm -rf ~/.ccache; rm -rf ~/.cache/sccache",
+            ServiceType.HELM: "helm cache cleanup 2>/dev/null || rm -rf ~/.cache/helm",
+            ServiceType.MINIKUBE: "minikube delete --all 2>/dev/null || rm -rf ~/.minikube",
+            ServiceType.STEAM: ServiceCleaner._steam_cleanup_command(path),
+            ServiceType.LMSTUDIO: "rm -rf ~/.lmstudio/models/* ~/.cache/lm-studio",
+            ServiceType.BRAVE: ServiceCleaner._brave_cleanup_command(path),
+            ServiceType.DISCORD: "rm -rf ~/.config/discord/Cache ~/.config/discord/Code Cache ~/.config/discord/GPUCache",
+            ServiceType.SLACK: "rm -rf ~/.config/Slack/Cache ~/.config/Slack/Code Cache ~/.config/Slack/Service Worker",
+            ServiceType.SPOTIFY: "rm -rf ~/.cache/spotify ~/.config/spotify/Data",
+            ServiceType.BAZEL: "rm -rf ~/.cache/bazel",
+            ServiceType.GH: "rm -rf ~/.cache/gh",
+            ServiceType.ELECTRON: f"rm -rf {shlex.quote(path)}",
+            ServiceType.GENERIC_CACHE: f"rm -rf {shlex.quote(path)}",
         }
         return commands.get(service_type, f"rm -rf {path}")
 
@@ -433,6 +555,29 @@ class ServiceCleaner:
             "rm -rf ~/.cache/google-chrome 2>/dev/null || true; "
             f"find {quoted_path} -type d \\( {find_expr} \\) "
             "-prune -exec rm -rf {} + 2>/dev/null || true"
+        )
+
+    @staticmethod
+    def _brave_cleanup_command(path: str) -> str:
+        expanded_path = os.path.expanduser(path).rstrip("/")
+        quoted_path = shlex.quote(expanded_path)
+        cache_root = os.path.expanduser("~/.cache/BraveSoftware").rstrip("/")
+        if expanded_path == cache_root or expanded_path.startswith(f"{cache_root}/"):
+            return f"rm -rf {quoted_path}"
+        return (
+            "rm -rf ~/.cache/BraveSoftware 2>/dev/null || true; "
+            f"rm -rf {quoted_path} 2>/dev/null || true"
+        )
+
+    @staticmethod
+    def _steam_cleanup_command(path: str) -> str:
+        expanded_path = os.path.expanduser(path).rstrip("/")
+        quoted_path = shlex.quote(expanded_path)
+        if expanded_path.endswith(("shadercache", "appcache")):
+            return f"rm -rf {quoted_path}"
+        return (
+            "rm -rf ~/.local/share/Steam/steamapps/shadercache "
+            "~/.local/share/Steam/appcache 2>/dev/null || true"
         )
 
     @staticmethod
@@ -504,6 +649,22 @@ class ServiceCleaner:
             ServiceType.THUMBNAILS: "du -sh ~/.cache/thumbnails 2>/dev/null && find ~/.cache/thumbnails -type f | wc -l",
             ServiceType.TRASH: "du -sh ~/.local/share/Trash 2>/dev/null || du -sh ~/.Trash",
             ServiceType.LOGS: "find ~/.cache/log ~/.local/state /var/log ~/.var/log 2>/dev/null -name '*.log' | wc -l && du -sh ~/.cache/log 2>/dev/null || du -sh /var/log 2>/dev/null",
+            ServiceType.NVIDIA: "du -sh ~/.cache/nvidia ~/.nv/ComputeCache 2>/dev/null",
+            ServiceType.UV: "uv cache dir 2>/dev/null || du -sh ~/.cache/uv",
+            ServiceType.TORCH: "du -sh ~/.cache/torch 2>/dev/null",
+            ServiceType.BUN: "du -sh ~/.bun/install/cache 2>/dev/null",
+            ServiceType.PLAYWRIGHT: "du -sh ~/.cache/ms-playwright ~/.cache/puppeteer 2>/dev/null",
+            ServiceType.CCACHE: "ccache -s 2>/dev/null || du -sh ~/.ccache",
+            ServiceType.HELM: "helm cache stats 2>/dev/null || du -sh ~/.cache/helm",
+            ServiceType.MINIKUBE: "minikube status 2>/dev/null || du -sh ~/.minikube",
+            ServiceType.STEAM: "du -sh ~/.local/share/Steam/steamapps/common 2>/dev/null | sort -hr | head -10",
+            ServiceType.LMSTUDIO: "du -sh ~/.lmstudio/models 2>/dev/null || ls ~/.lmstudio/models",
+            ServiceType.BRAVE: "du -sh ~/.cache/BraveSoftware 2>/dev/null",
+            ServiceType.DISCORD: "du -sh ~/.config/discord/Cache 2>/dev/null",
+            ServiceType.SLACK: "du -sh ~/.config/Slack/Cache 2>/dev/null",
+            ServiceType.SPOTIFY: "du -sh ~/.cache/spotify 2>/dev/null",
+            ServiceType.BAZEL: "du -sh ~/.cache/bazel 2>/dev/null",
+            ServiceType.GH: "du -sh ~/.cache/gh 2>/dev/null",
         }
         return previews.get(
             service_type, f"du -sh {path} 2>/dev/null && ls -la {path} | head -20"

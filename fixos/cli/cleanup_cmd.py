@@ -148,6 +148,10 @@ def _display_unsafe_services(services: list) -> None:
         "flatpak": ServiceType.FLATPAK,
         "docker": ServiceType.DOCKER,
         "ollama": ServiceType.OLLAMA,
+        "steam": ServiceType.STEAM,
+        "minikube": ServiceType.MINIKUBE,
+        "lmstudio": ServiceType.LMSTUDIO,
+        "generic_cache": ServiceType.GENERIC_CACHE,
     }
 
     for service_type, svcs in service_groups.items():

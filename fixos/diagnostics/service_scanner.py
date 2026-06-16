@@ -70,6 +70,24 @@ class ServiceType(Enum):
     THUMBNAILS = "thumbnails"
     TRASH = "trash"
     LOGS = "logs"
+    NVIDIA = "nvidia"
+    UV = "uv"
+    TORCH = "torch"
+    BUN = "bun"
+    PLAYWRIGHT = "playwright"
+    CCACHE = "ccache"
+    HELM = "helm"
+    MINIKUBE = "minikube"
+    STEAM = "steam"
+    LMSTUDIO = "lmstudio"
+    BRAVE = "brave"
+    DISCORD = "discord"
+    SLACK = "slack"
+    SPOTIFY = "spotify"
+    BAZEL = "bazel"
+    GH = "gh"
+    ELECTRON = "electron"
+    GENERIC_CACHE = "generic_cache"
     UNKNOWN = "unknown"
 
 
@@ -179,7 +197,53 @@ class ServiceDataScanner:
         ServiceType.THUMBNAILS: ["~/.cache/thumbnails", "~/.thumbnails"],
         ServiceType.TRASH: ["~/.local/share/Trash", "~/.Trash"],
         ServiceType.LOGS: ["~/.cache/log", "~/.local/state"],
+        ServiceType.NVIDIA: [
+            "~/.cache/nvidia",
+            "~/.nv/ComputeCache",
+            "~/.cache/mesa_shader_cache",
+        ],
+        ServiceType.UV: ["~/.cache/uv", "~/.local/share/uv"],
+        ServiceType.TORCH: ["~/.cache/torch", "~/.torch"],
+        ServiceType.BUN: ["~/.bun/install/cache"],
+        ServiceType.PLAYWRIGHT: ["~/.cache/ms-playwright", "~/.cache/puppeteer"],
+        ServiceType.CCACHE: ["~/.ccache", "~/.cache/sccache"],
+        ServiceType.HELM: ["~/.cache/helm"],
+        ServiceType.MINIKUBE: ["~/.minikube"],
+        ServiceType.STEAM: [
+            "~/.local/share/Steam/steamapps/shadercache",
+            "~/.local/share/Steam/appcache",
+            "~/.local/share/Steam",
+            "~/.steam",
+        ],
+        ServiceType.LMSTUDIO: [
+            "~/.cache/lm-studio",
+            "~/.lmstudio/models",
+            "~/.lmstudio/.internal/cache",
+        ],
+        ServiceType.BRAVE: [
+            "~/.cache/BraveSoftware",
+            "~/.config/BraveSoftware/Brave-Browser/*/Cache",
+            "~/.config/BraveSoftware/Brave-Browser/*/Code Cache",
+            "~/.config/BraveSoftware/Brave-Browser/*/GPUCache",
+        ],
+        ServiceType.DISCORD: [
+            "~/.config/discord/Cache",
+            "~/.config/discord/Code Cache",
+            "~/.config/discord/GPUCache",
+        ],
+        ServiceType.SLACK: [
+            "~/.config/Slack/Cache",
+            "~/.config/Slack/Code Cache",
+            "~/.config/Slack/Service Worker",
+        ],
+        ServiceType.SPOTIFY: ["~/.cache/spotify", "~/.config/spotify/Data"],
+        ServiceType.BAZEL: ["~/.cache/bazel"],
+        ServiceType.GH: ["~/.cache/gh"],
     }
+
+    _SKIP_ENUM_SCAN = frozenset(
+        {ServiceType.UNKNOWN, ServiceType.GENERIC_CACHE, ServiceType.ELECTRON}
+    )
 
     def __init__(self, threshold_mb: int = None):
         self.threshold_mb = threshold_mb or self.DEFAULT_THRESHOLD_MB
@@ -189,14 +253,38 @@ class ServiceDataScanner:
 
     def scan_all_services(self) -> List[ServiceDataInfo]:
         """Scan all known services for data above threshold."""
-        results = []
+        from .cache_discovery import discover_additional_caches
+
+        results: List[ServiceDataInfo] = []
         for service_type in ServiceType:
-            if service_type == ServiceType.UNKNOWN:
+            if service_type in self._SKIP_ENUM_SCAN:
                 continue
             service_data = self.scan_service(service_type)
             results.extend(service_data)
+
+        covered_paths = self._collect_covered_paths(results)
+        results.extend(
+            discover_additional_caches(
+                self._get_path_size_mb, self.threshold_mb, covered_paths
+            )
+        )
         results.sort(key=lambda x: x.size_mb, reverse=True)
         return results
+
+    def _collect_covered_paths(self, results: List[ServiceDataInfo]) -> set[str]:
+        """Paths already represented by dedicated service scanners."""
+        covered: set[str] = set()
+        for result in results:
+            covered.add(result.path)
+            for path in result.details.get("paths", []):
+                covered.add(path)
+
+        for paths in self.SERVICE_PATHS.values():
+            for pattern in paths:
+                expanded = os.path.expanduser(pattern)
+                for path in glob.glob(expanded) or [expanded]:
+                    covered.add(path)
+        return covered
 
     def scan_service(self, service_type: ServiceType) -> List[ServiceDataInfo]:
         """Scan specific service type for data."""
