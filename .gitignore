@@ -42,3 +42,8 @@ htmlcov/
 # macOS / Windows
 .DS_Store
 Thumbs.db
+.benchmarks/
+.code2llm_cache/
+.github/
+.pyqual/
+.ruff_cache/
