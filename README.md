@@ -20,10 +20,10 @@ AI-powered OS Diagnostics
 ## AI Cost Tracking
 
 ![PyPI](https://img.shields.io/badge/pypi-costs-blue) ![Version](https://img.shields.io/badge/version-2.2.36-blue) ![Python](https://img.shields.io/badge/python-3.9+-blue) ![License](https://img.shields.io/badge/license-Apache--2.0-green)
-![AI Cost](https://img.shields.io/badge/AI%20Cost-$4.58-orange) ![Human Time](https://img.shields.io/badge/Human%20Time-35.7h-blue) ![Model](https://img.shields.io/badge/Model-openrouter%2Fqwen%2Fqwen3--coder--next-lightgrey)
+![AI Cost](https://img.shields.io/badge/AI%20Cost-$4.58-orange) ![Human Time](https://img.shields.io/badge/Human%20Time-35.8h-blue) ![Model](https://img.shields.io/badge/Model-openrouter%2Fqwen%2Fqwen3--coder--next-lightgrey)
 
-- 🤖 **LLM usage:** $4.5847 (141 commits)
-- 👤 **Human dev:** ~$3570 (35.7h @ $100/h, 30min dedup)
+- 🤖 **LLM usage:** $4.5828 (142 commits)
+- 👤 **Human dev:** ~$3579 (35.8h @ $100/h, 30min dedup)
 
 Generated on 2026-07-15 using [openrouter/qwen/qwen3-coder-next](https://openrouter.ai/qwen/qwen3-coder-next)
 
