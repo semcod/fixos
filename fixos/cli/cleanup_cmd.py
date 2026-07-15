@@ -307,21 +307,43 @@ def _cleanup_single_service(
 # ── Interactive cleanup orchestration ─────────────────────────────────────
 
 
+def _size_str(svc: dict) -> str:
+    return f"{svc['size_gb']:.2f} GB" if svc["size_gb"] >= 1 else f"{svc['size_mb']:.0f} MB"
+
+
+def _select_safe_services(safe_services: list) -> list:
+    """Ask what to clean from the safe tier: all of it, hand-picked items, or none."""
+    click.echo(click.style("Bezpieczne do wyczyszczenia:", fg="green"))
+    for svc in safe_services:
+        click.echo(f"  • {svc['name']}: {_size_str(svc)}")
+    safe_total = sum(s["size_gb"] for s in safe_services)
+
+    click.echo()
+    click.echo("Co wyczyścić?")
+    click.echo(f"  [1] Wszystkie bezpieczne (zwolni {safe_total:.2f} GB)")
+    click.echo("  [2] Wybierz pojedyncze usługi")
+    click.echo("  [0] Nic — pomiń")
+    choice = click.prompt(
+        "Wybór", type=click.Choice(["0", "1", "2"]), default="1", show_choices=False
+    )
+
+    if choice == "0":
+        return []
+    if choice == "1":
+        return safe_services
+
+    click.echo(click.style("Wybierz usługi do wyczyszczenia:", fg="cyan"))
+    return [svc for svc in safe_services if click.confirm(f"  {svc['name']} ({_size_str(svc)})")]
+
+
 def _run_interactive_cleanup(plan: dict, list_only: bool, scanner) -> None:
     """Offer interactive safe cleanup and display unsafe services."""
     if not list_only and plan["safe_to_cleanup"]:
-        safe_total = sum(s["size_gb"] for s in plan["safe_to_cleanup"])
-        click.echo(click.style("Bezpieczne do wyczyszczenia:", fg="green"))
-        for svc in plan["safe_to_cleanup"]:
-            size_str = (
-                f"{svc['size_gb']:.2f} GB"
-                if svc["size_gb"] >= 1
-                else f"{svc['size_mb']:.0f} MB"
-            )
-            click.echo(f"  • {svc['name']}: {size_str}")
-        click.echo()
-        if click.confirm(f"Wyczyścić bezpieczne usługi? (zwolni {safe_total:.2f} GB)"):
-            _execute_safe_cleanup(plan["safe_to_cleanup"], scanner)
+        selected = _select_safe_services(plan["safe_to_cleanup"])
+        if selected:
+            _execute_safe_cleanup(selected, scanner)
+        else:
+            click.echo(click.style("Pominięto czyszczenie.", fg="yellow"))
     if plan["requires_review"] and not list_only:
         _display_unsafe_services(plan["requires_review"])
     if plan.get("dangerous") and not list_only:
