@@ -10,7 +10,7 @@ import os
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 CONSTANT_4 = 4
 CONSTANT_8 = 8
@@ -165,6 +165,7 @@ class FixOsConfig:
     provider: str = "gemini"
     api_key: Optional[str] = None
     model: Optional[str] = None
+    model_fallbacks: List[str] = field(default_factory=list)
     base_url: Optional[str] = None
 
     # Agent
@@ -226,6 +227,16 @@ class FixOsConfig:
         # Model
         model_env_key = f"{cfg.provider.upper()}_MODEL"
         cfg.model = model or os.environ.get(model_env_key) or pdef["model"]
+
+        # Fallback models: tried in order if the primary model gets rejected
+        # by the provider (e.g. "not a valid model ID") — never for other
+        # error types (auth/rate-limit/timeout), only an actually-bad model.
+        fallbacks_env_key = f"{cfg.provider.upper()}_MODEL_FALLBACKS"
+        cfg.model_fallbacks = [
+            m.strip()
+            for m in os.environ.get(fallbacks_env_key, "").split(",")
+            if m.strip() and m.strip() != cfg.model
+        ]
 
         # Base URL
         url_env_key = f"{cfg.provider.upper()}_BASE_URL"

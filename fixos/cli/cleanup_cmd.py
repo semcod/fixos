@@ -97,6 +97,19 @@ def _display_service_item(svc: dict) -> None:
     click.echo()
 
 
+def _error_message(result: dict) -> str:
+    """Human-readable failure reason, even when the command's own stderr was
+    empty (e.g. suppressed with 2>/dev/null inside the cleanup command
+    itself) — a bare nonzero exit code beats a silently blank "Błąd: "."""
+    error = result.get("error")
+    if error:
+        return error
+    returncode = result.get("returncode")
+    if returncode is not None:
+        return f"polecenie zakończyło się kodem {returncode} bez komunikatu błędu"
+    return "nieznany błąd"
+
+
 def _execute_safe_cleanup(services: list, scanner) -> float:
     """Execute cleanup for safe-to-remove services. Returns total space freed in GB."""
     total_freed = 0.0
@@ -109,9 +122,7 @@ def _execute_safe_cleanup(services: list, scanner) -> float:
             total_freed += freed
             click.echo(click.style(f"  Zwolniono {freed:.2f} GB", fg="green"))
         else:
-            click.echo(
-                click.style(f"  Błąd: {result.get('error', 'nieznany')}", fg="red")
-            )
+            click.echo(click.style(f"  Błąd: {_error_message(result)}", fg="red"))
     return total_freed
 
 
@@ -297,9 +308,7 @@ def _cleanup_single_service(
         if result["space_freed_gb"] > 0:
             click.echo(f"  Zwolniono: {result['space_freed_gb']:.2f} GB")
     else:
-        click.echo(
-            click.style(f"Błąd: {result.get('error', 'Nieznany błąd')}", fg="red")
-        )
+        click.echo(click.style(f"Błąd: {_error_message(result)}", fg="red"))
         if result.get("output"):
             click.echo(f"Output: {result['output']}")
 

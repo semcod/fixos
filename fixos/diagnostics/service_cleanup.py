@@ -103,6 +103,7 @@ class ServiceCleaner:
             result["success"] = cleanup_result.returncode == 0
             result["output"] = cleanup_result.stdout
             result["error"] = cleanup_result.stderr
+            result["returncode"] = cleanup_result.returncode
             result["space_freed_gb"] = round(freed_gb, 3)
             result["initial_size_gb"] = initial_size
             result["remaining_size_gb"] = round(new_size_gb, 3)
@@ -560,7 +561,7 @@ class ServiceCleaner:
             # IDEs
             ServiceType.VSCODE: "rm -rf ~/.config/Code/Cache ~/.config/Code/CachedData ~/.vscode/extensions/*/out",
             ServiceType.CURSOR: "rm -rf ~/.config/Cursor/Cache ~/.config/Cursor/CachedData ~/.cursor/extensions/*/out",
-            ServiceType.JETBRAINS: "find ~/.cache/JetBrains -name 'index' -type d -exec rm -rf {} + 2>/dev/null; find ~/.JetBrains -name 'caches' -type d -exec rm -rf {} + 2>/dev/null",
+            ServiceType.JETBRAINS: "find ~/.cache/JetBrains -name 'index' -type d -exec rm -rf {} + 2>/dev/null; find ~/.JetBrains -name 'caches' -type d -exec rm -rf {} + 2>/dev/null || true",
             # Cloud/ML
             ServiceType.HUGGINGFACE: "rm -rf ~/.cache/huggingface/hub/*",
             ServiceType.AWS: "rm -rf ~/.aws/sso/cache ~/.aws/cli/cache",

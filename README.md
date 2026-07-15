@@ -70,6 +70,7 @@ fixos fix               – diagnoza + sesja naprawcza z AI (HITL)
 fixos scan              – diagnostyka systemu bez AI
 fixos cleanup           – skanuj i czyść dane usług (Docker, npm, pip, ...)
 fixos cleanup --full    – pełny audit systemu + dev projects
+fixos projects          – skanuj projekty dev (venv, node_modules, ~/github/*/*)
 fixos orchestrate       – zaawansowana orkiestracja (graf problemów DAG)
 fixos llm               – lista 12 providerów LLM + linki do kluczy API
 fixos token set KEY     – zapisz klucz API do .env (auto-detekcja providera)
@@ -106,6 +107,15 @@ fixos cleanup --full
 fixos cleanup --full
 > select
 > 1,3,5-10
+
+# Skanuj ~/github/*/* pod kątem venv/.venv, node_modules, cache kompilacji...
+fixos projects
+
+# Tylko artefakty nieużywane od >60 dni (bez świeżych venv)
+fixos projects --only-stale
+
+# Podgląd bez usuwania
+fixos projects --dry-run
 
 # Napraw audio i thumbnails (HITL – pyta o potwierdzenie)
 fixos fix --modules audio,thumbnails
@@ -173,6 +183,72 @@ Rekomendacje:
 
 Tryb DRY-RUN - żadne akcje nie zostaną wykonane
 ```
+
+### `fixos cleanup` – 3 poziomy ryzyka
+
+Każda znaleziona usługa jest klasyfikowana do jednej z trzech grup:
+
+- **bezpieczne** – cache do odtworzenia jednym poleceniem (docker/pip/npm/cargo/conda/nix/brew...).
+  Jedyna grupa oferowana do automatycznego usunięcia, z menu wyboru: wszystkie / pojedynczo / pomiń.
+- **do rozważenia** – reinstalowalne aplikacje, dane długo nieużywane, nierozpoznane
+  foldery (JetBrains, Snap, Flatpak) – pokazywane z podpowiedziami, nigdy nie usuwane automatycznie.
+- **niebezpieczne** – realne dane aplikacji, nie cache (Ollama, LM Studio, HuggingFace hub,
+  Docker/Podman/containerd, cała biblioteka Steam, `.cursor/extensions`/`.vscode/extensions`
+  – zainstalowane rozszerzenia edytora, nie ich cache). Osobna sekcja z ostrzeżeniem;
+  usunięcie pojedynczej usługi (`fixos cleanup -c <usluga>`) wymaga dodatkowego
+  potwierdzenia z jawnym opisem ryzyka.
+
+### `fixos projects` – skaner artefaktów w projektach deweloperskich
+
+Osobne narzędzie od `fixos cleanup` – zamiast globalnych ścieżek cache (`~/.cache/...`)
+rekurencyjnie skanuje drzewo Twoich projektów (domyślnie `~/github/*/*`, dowolna
+ścieżka przez `--path`) i wykrywa usuwalne artefakty per-projekt: `venv`/`.venv`
+(zweryfikowane po `pyvenv.cfg`, żeby nie trafić na przypadkowy folder o tej
+nazwie), `node_modules`/`.next`/`.turbo` (tylko gdy jest `package.json`),
+`target` (tylko gdy jest `Cargo.toml`), `__pycache__`, `.pytest_cache`,
+`.mypy_cache`, `.ruff_cache`, `.tox`, `.nox`; `dist`/`build` osobno jako
+"do rozważenia" (mogą zawierać coś do opublikowania). Flaguje artefakty
+nieużywane od >60 dni (`--stale-days`) oraz projekty ze zduplikowanymi
+virtualenvami (np. i `venv`, i `.venv` naraz).
+
+```bash
+$ fixos projects --only-stale
+
+Skanowanie projektów w /home/tom/github (próg: 50 MB)...
+════════════════════════════════════════════════════════════
+Znaleziono 91 artefaktów w 68 projektach:
+  Całkowity rozmiar: 91.90 GB
+  Bezpieczne: 91.10 GB
+  Do rozważenia: 0.80 GB
+  Nieużywane od >60 dni: 91.90 GB
+
+  ⚠ 12 projekt(ów) ma więcej niż jeden virtualenv naraz (np. venv + .venv):
+    • /home/tom/github/semcod/fixOS
+
+  streamware/venv - 9.27 GB — nieużywany 216 dni
+   Python virtualenv
+   Ścieżka: /home/tom/github/stream-ware/streamware/venv
+   (bezpieczne)
+  ...
+
+Co wyczyścić?
+  [1] Wszystkie bezpieczne (91.10 GB)
+  [2] Tylko dawno nieużywane (91.90 GB, 91 art.)
+  [3] Wybierz wg ekosystemu (Python/Node/Rust/...)
+  [4] Wybierz wg projektu
+  [5] Wybierz pojedyncze artefakty
+  [0] Nic — pomiń
+Wybór [1]: 4
+
+  [1] stream-ware/streamware — 9.27 GB (1 art.)
+  [2] prototypowanie/raport — 8.30 GB (1 art.)
+  [3] stream-ware/edge — 7.68 GB (1 art.)
+  ...
+Numery po przecinku (np. 1,3,5), 'all' dla wszystkich, Enter by pominąć: 1,3
+```
+
+Inne opcje: `--list` (tylko podgląd bez interakcji), `--json`, `--max-depth`,
+`--threshold`.
 
 ---
 
@@ -310,6 +386,13 @@ SHOW_ANONYMIZED_DATA=true     # pokaż dane przed wysłaniem
 ENABLE_WEB_SEARCH=true        # fallback do zewnętrznych źródeł
 SESSION_TIMEOUT=3600          # timeout sesji (1h)
 SERPAPI_KEY=                  # opcjonalny – lepsze wyniki wyszukiwania
+
+# Opcjonalnie: konkretny model dla danego providera + modele zapasowe.
+# Jeśli główny model zostanie odrzucony przez providera jako nieprawidłowy
+# (błąd 400 "not a valid model ID"), klient automatycznie przechodzi na
+# kolejny z listy – bez żadnej akcji z Twojej strony.
+OPENROUTER_MODEL=openrouter/qwen/qwen3.7-plus
+OPENROUTER_MODEL_FALLBACKS=minimax/minimax-m3,google/gemini-2.5-flash-lite
 ```
 
 ---

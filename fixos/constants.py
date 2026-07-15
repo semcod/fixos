@@ -103,6 +103,12 @@ MAX_HOME_LARGE_FILES_DISPLAY = 30
 MAX_HOME_LARGE_DIRS_DISPLAY = 20
 MIN_STALE_DAYS = 90
 
+# Developer project artifact scanner (venvs, node_modules, build caches, ...)
+PROJECT_SCAN_DEFAULT_PATH = "~/github"
+PROJECT_SCAN_THRESHOLD_MB = 50
+PROJECT_SCAN_STALE_DAYS = 60
+PROJECT_SCAN_MAX_DEPTH = 4
+
 # Package / OS diagnostic limits
 MAX_PKG_HISTORY = 5
 MAX_LOG_ERRORS = 20

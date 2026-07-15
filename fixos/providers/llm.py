@@ -25,10 +25,21 @@ class LLMError(Exception):
     pass
 
 
+class _ModelInvalidError(LLMError):
+    """Internal: the configured model itself was rejected by the provider
+    (e.g. "not a valid model ID") — advance to the next fallback model
+    instead of retrying the same broken one."""
+
+
 class LLMClient:
     """
     Wrapper nad openai.OpenAI kompatybilny z wieloma providerami.
     Obsługuje retry, streaming i zbieranie tokenu zużycia.
+
+    Jeśli `config.model_fallbacks` jest ustawione, a skonfigurowany model
+    zostanie odrzucony przez providera jako nieprawidłowy (błąd 400 "not a
+    valid model ID"), klient automatycznie przechodzi do kolejnego modelu z
+    listy zamiast tylko ponawiać próby z tym samym, zepsutym modelem.
     """
 
     def __init__(self, config: FixOsConfig):
@@ -43,12 +54,49 @@ class LLMClient:
             max_retries=2,
         )
         self._total_tokens = 0
+        self._model_candidates = [config.model] + [
+            m for m in (config.model_fallbacks or []) if m != config.model
+        ]
+        self._active_model_index = 0
+
+    @property
+    def active_model(self) -> str:
+        """Model currently in use — may differ from config.model after a
+        fallback switch."""
+        return self._model_candidates[self._active_model_index]
+
+    def _advance_model(self) -> bool:
+        """Move to the next fallback model. Returns False when exhausted."""
+        if self._active_model_index + 1 >= len(self._model_candidates):
+            return False
+        old = self.active_model
+        self._active_model_index += 1
+        print(
+            f"\n  ⚠️  Model '{old}' nieprawidłowy — próbuję '{self.active_model}'..."
+        )
+        return True
+
+    @staticmethod
+    def _looks_like_invalid_model(e: Exception) -> bool:
+        """True when the error message says the *model itself* is the
+        problem (bad ID, doesn't exist) rather than auth/quota/network."""
+        msg = str(e).lower()
+        return any(
+            phrase in msg
+            for phrase in (
+                "not a valid model",
+                "model not found",
+                "does not exist",
+                "invalid model",
+                "unknown model",
+            )
+        )
 
     def _handle_api_error(self, e: Exception, attempt: int) -> bool:
         """
         Handle a known openai API error.
         Returns True if the caller should retry, False never (raises on fatal errors).
-        Raises LLMError for fatal conditions.
+        Raises LLMError (or _ModelInvalidError) for fatal conditions.
         """
         _type = type(e).__name__
         _mod = type(e).__module__
@@ -59,11 +107,15 @@ class LLMClient:
                 "AuthenticationError",
                 "RateLimitError",
                 "NotFoundError",
+                "BadRequestError",
                 "APIConnectionError",
                 "APITimeoutError",
             )
         ):
             raise LLMError(f"Nieoczekiwany błąd API: {e}") from e
+
+        if _type in ("NotFoundError", "BadRequestError") and self._looks_like_invalid_model(e):
+            raise _ModelInvalidError(str(e)) from e
 
         if _type == "AuthenticationError":
             raise LLMError(f"Błąd autoryzacji – sprawdź klucz API: {e}") from e
@@ -76,7 +128,7 @@ class LLMClient:
             return True
         if _type == "NotFoundError":
             raise LLMError(
-                f"Model '{self.config.model}' nie istnieje dla providera "
+                f"Model '{self.active_model}' nie istnieje dla providera "
                 f"'{self.config.provider}': {e}"
             ) from e
         if _type in ("APIConnectionError", "APITimeoutError"):
@@ -100,12 +152,30 @@ class LLMClient:
     ) -> str:
         """
         Wysyła wiadomości do LLM i zwraca odpowiedź jako string.
-        Automatycznie retry przy rate limit / timeout.
+        Automatycznie retry przy rate limit / timeout, i przełącza się na
+        kolejny model z model_fallbacks jeśli aktualny okaże się nieprawidłowy.
         """
+        last_error: Exception | None = None
+        while True:
+            try:
+                return self._chat_once(
+                    messages, max_tokens=max_tokens, temperature=temperature
+                )
+            except _ModelInvalidError as e:
+                last_error = e
+                if not self._advance_model():
+                    raise LLMError(
+                        "Żaden ze skonfigurowanych modeli nie zadziałał "
+                        f"({', '.join(self._model_candidates)}): {last_error}"
+                    ) from last_error
+
+    def _chat_once(
+        self, messages: list[dict], *, max_tokens: int, temperature: float
+    ) -> str:
         for attempt in range(3):
             try:
                 response = self._client.chat.completions.create(
-                    model=self.config.model,
+                    model=self.active_model,
                     messages=messages,
                     max_tokens=max_tokens,
                     temperature=temperature,
@@ -126,15 +196,28 @@ class LLMClient:
         max_tokens: int = 3000,
         temperature: float = 0.3,
     ) -> Iterator[str]:
-        """Generator streamujący tokeny odpowiedzi."""
+        """Generator streamujący tokeny odpowiedzi.
+
+        Przełącza model przed rozpoczęciem streamu, jeśli obecny okaże się
+        nieprawidłowy (błąd 400 pojawia się od razu przy tworzeniu streamu,
+        zanim jakikolwiek token zostanie zwrócony).
+        """
+        while True:
+            try:
+                stream = self._client.chat.completions.create(
+                    model=self.active_model,
+                    messages=messages,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    stream=True,
+                )
+                break
+            except Exception as e:
+                if self._looks_like_invalid_model(e) and self._advance_model():
+                    continue
+                raise LLMError(f"Błąd streamingu: {e}") from e
+
         try:
-            stream = self._client.chat.completions.create(
-                model=self.config.model,
-                messages=messages,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                stream=True,
-            )
             for chunk in stream:
                 delta = chunk.choices[0].delta
                 if delta and delta.content:

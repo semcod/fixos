@@ -70,6 +70,7 @@ def _print_welcome() -> None:
         ("fixos scan", "", "Diagnostyka systemu bez AI"),
         ("fixos quickfix", "", "Naprawy offline bez API (baza znanych bugów)"),
         ("fixos cleanup", "", "Skanuj i czyść dane usług (Docker, Ollama)"),
+        ("fixos projects", "", "Skanuj projekty dev (venv, node_modules, ~/github/*/*)"),
         ("fixos orchestrate", "", "Zaawansowana orkiestracja napraw (graf problemów)"),
         ("fixos watch", "", "Monitoring w tle z powiadomieniami"),
         ("fixos report", "", "Eksport diagnostyki do HTML/Markdown/JSON"),
@@ -167,6 +168,7 @@ from fixos.cli.scan_cmd import scan
 from fixos.cli.fix_cmd import fix
 from fixos.cli.orchestrate_cmd import orchestrate
 from fixos.cli.cleanup_cmd import cleanup_services
+from fixos.cli.projects_cmd import projects_cmd
 from fixos.cli.features_cmd import features
 
 cli.add_command(rollback)
@@ -185,4 +187,5 @@ cli.add_command(scan)
 cli.add_command(fix)
 cli.add_command(orchestrate)
 cli.add_command(cleanup_services)
+cli.add_command(projects_cmd)
 cli.add_command(features)
