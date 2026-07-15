@@ -20,7 +20,9 @@ class ServiceCleaner:
         self.scanner = scanner
 
     def get_cleanup_plan(self, selected_services: List[str] = None) -> Dict[str, Any]:
-        """Generate cleanup plan for services."""
+        """Generate cleanup plan for services, split into 3 risk tiers."""
+        from .service_scanner import RiskLevel
+
         services = self.scanner.scan_all_services()
 
         if selected_services:
@@ -29,18 +31,25 @@ class ServiceCleaner:
             ]
 
         total_size_gb = sum(s.size_gb for s in services)
-        safe_services = [s for s in services if s.safe_to_cleanup]
-        unsafe_services = [s for s in services if not s.safe_to_cleanup]
+        safe_services = [s for s in services if s.risk_level == RiskLevel.SAFE.value]
+        review_services = [
+            s for s in services if s.risk_level == RiskLevel.REVIEW.value
+        ]
+        dangerous_services = [
+            s for s in services if s.risk_level == RiskLevel.DANGEROUS.value
+        ]
 
         plan = {
             "threshold_mb": self.scanner.threshold_mb,
             "services_found": len(services),
             "total_size_gb": round(total_size_gb, 2),
             "safe_cleanup_gb": round(sum(s.size_gb for s in safe_services), 2),
-            "requires_review_gb": round(sum(s.size_gb for s in unsafe_services), 2),
+            "requires_review_gb": round(sum(s.size_gb for s in review_services), 2),
+            "dangerous_gb": round(sum(s.size_gb for s in dangerous_services), 2),
             "services": [self._service_to_dict(s) for s in services],
             "safe_to_cleanup": [self._service_to_dict(s) for s in safe_services],
-            "requires_review": [self._service_to_dict(s) for s in unsafe_services],
+            "requires_review": [self._service_to_dict(s) for s in review_services],
+            "dangerous": [self._service_to_dict(s) for s in dangerous_services],
         }
 
         return plan
@@ -117,18 +126,32 @@ class ServiceCleaner:
             "cleanup_command": service.cleanup_command,
             "preview_command": service.preview_command,
             "safe_to_cleanup": service.safe_to_cleanup,
+            "risk_level": service.risk_level,
             "impact": service.impact,
             "items_count": service.items_count,
             "details": service.details,
         }
 
     @staticmethod
-    def is_safe_cleanup(service_type, path: str | None = None) -> bool:
-        """Determine if cleanup is generally safe (cache-only, not user data)."""
-        from .service_scanner import ServiceType
+    def get_risk_level(service_type, path: str | None = None) -> str:
+        """Classify cleanup risk for a service path.
+
+        Returns one of ``RiskLevel.SAFE`` / ``REVIEW`` / ``DANGEROUS``
+        (as their string values):
+
+        - safe: rebuildable cache — re-downloads or regenerates itself
+          (package/build caches, browser caches, system package caches).
+        - review: recoverable but worth a look before deleting — reinstallable
+          apps, long-unused tool data, or unrecognized cache directories.
+        - dangerous: real installed application data that is not a simple
+          cache (AI models, containers/volumes, VM disks, editor extensions)
+          and may not be trivially recoverable.
+        """
+        from .service_scanner import RiskLevel, ServiceType
+
+        normalized_path = os.path.expanduser(path or "").rstrip("/")
 
         if service_type == ServiceType.CHROME:
-            normalized_path = os.path.expanduser(path or "").rstrip("/")
             chrome_cache_root = os.path.expanduser("~/.cache/google-chrome").rstrip("/")
             chrome_cache_names = {
                 "Cache",
@@ -143,34 +166,70 @@ class ServiceCleaner:
             if normalized_path == chrome_cache_root or normalized_path.startswith(
                 f"{chrome_cache_root}/"
             ):
-                return True
+                return RiskLevel.SAFE.value
 
             if os.path.basename(normalized_path) in chrome_cache_names:
-                return True
+                return RiskLevel.SAFE.value
 
-            return False
+            return RiskLevel.REVIEW.value
 
         if service_type == ServiceType.BRAVE:
-            normalized_path = os.path.expanduser(path or "").rstrip("/")
             if "/Cache" in normalized_path or normalized_path.endswith(
                 ("GPUCache", "Code Cache")
             ):
-                return True
-            return normalized_path.endswith("BraveSoftware") or "/BraveSoftware/" in (
+                return RiskLevel.SAFE.value
+            if normalized_path.endswith("BraveSoftware") or "/BraveSoftware/" in (
                 normalized_path
-            )
+            ):
+                return RiskLevel.SAFE.value
+            return RiskLevel.REVIEW.value
 
         if service_type == ServiceType.STEAM:
-            normalized_path = os.path.expanduser(path or "").rstrip("/")
             safe_suffixes = ("shadercache", "appcache")
-            return any(normalized_path.endswith(suffix) for suffix in safe_suffixes)
+            if any(normalized_path.endswith(suffix) for suffix in safe_suffixes):
+                return RiskLevel.SAFE.value
+            # Anything else is the actual Steam library/client: installed
+            # games and their save data, not a cache.
+            return RiskLevel.DANGEROUS.value
+
+        if service_type in (ServiceType.CURSOR, ServiceType.VSCODE):
+            # The extensions directory holds real installed extensions (and
+            # any local-only extension data), not a cache — reinstalling
+            # each one by hand is real work and some local state won't come
+            # back. Everything else these two scan (Cache/CachedData/logs)
+            # is a plain, rebuildable cache.
+            if os.path.basename(normalized_path) == "extensions":
+                return RiskLevel.DANGEROUS.value
+            return RiskLevel.SAFE.value
 
         if service_type in (ServiceType.GENERIC_CACHE, ServiceType.ELECTRON):
-            base = os.path.basename(os.path.expanduser(path or "").rstrip("/")).lower()
-            return any(
+            base = os.path.basename(normalized_path).lower()
+            if any(
                 hint in base
                 for hint in ("cache", "shader", "tmp", "temp", "log", "crash", "thumb")
-            )
+            ):
+                return RiskLevel.SAFE.value
+            return RiskLevel.REVIEW.value
+
+        dangerous_services = {
+            # Bulk-wipe commands that remove every installed model/container,
+            # not just unused/old ones.
+            ServiceType.DOCKER,
+            ServiceType.CONTAINERD,
+            ServiceType.PODMAN,
+            ServiceType.OLLAMA,
+            ServiceType.LMSTUDIO,
+            ServiceType.HUGGINGFACE,
+            ServiceType.JUPYTER,
+            ServiceType.MINIKUBE,
+            # Actual installed apps, not a cache directory.
+            ServiceType.APPIMAGE,
+            # VM disks/snapshots: unique state, not redownloadable.
+            ServiceType.VBOX,
+            ServiceType.VMWARE,
+        }
+        if service_type in dangerous_services:
+            return RiskLevel.DANGEROUS.value
 
         safe_services = {
             # Package caches (can be re-downloaded)
@@ -178,6 +237,7 @@ class ServiceCleaner:
             ServiceType.YARN,
             ServiceType.PNPM,
             ServiceType.PIP,
+            ServiceType.CONDA,
             ServiceType.POETRY,
             ServiceType.GRADLE,
             ServiceType.MAVEN,
@@ -196,6 +256,8 @@ class ServiceCleaner:
             ServiceType.SLACK,
             ServiceType.SPOTIFY,
             ServiceType.BRAVE,
+            ServiceType.NIX,
+            ServiceType.BREW,
             # System caches
             ServiceType.APT,
             ServiceType.DNF,
@@ -216,7 +278,20 @@ class ServiceCleaner:
             ServiceType.TERRAFORM,
             ServiceType.PULUMI,
         }
-        return service_type in safe_services
+        if service_type in safe_services:
+            return RiskLevel.SAFE.value
+
+        # Default: reinstallable apps / long-unused tool data / unclassified
+        # (Flatpak, Snap, Android SDK, JetBrains, Vagrant, Unity, ...) —
+        # worth a look before deleting, but not flagged as high-risk.
+        return RiskLevel.REVIEW.value
+
+    @staticmethod
+    def is_safe_cleanup(service_type, path: str | None = None) -> bool:
+        """Backward-compatible bool view of get_risk_level() == SAFE."""
+        from .service_scanner import RiskLevel
+
+        return ServiceCleaner.get_risk_level(service_type, path) == RiskLevel.SAFE.value
 
     @staticmethod
     def get_cleanup_hints(service_type, size_gb: float) -> List[str]:

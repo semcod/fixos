@@ -9,6 +9,7 @@ Refactored: Now uses ServiceDetailsProvider and ServiceCleaner for detailed oper
 import os
 import glob
 import json
+import re
 import subprocess
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, field
@@ -91,6 +92,23 @@ class ServiceType(Enum):
     UNKNOWN = "unknown"
 
 
+class RiskLevel(str, Enum):
+    """How risky it is to delete a scanned service's data.
+
+    SAFE      – rebuildable cache (package/build caches, browser caches, ...).
+    REVIEW    – recoverable but worth a look before deleting (reinstallable
+                apps, long-unused tool data, unrecognized cache dirs).
+    DANGEROUS – real installed application data (models, containers, VM
+                disks, editor extensions) that is not a simple cache and may
+                not be trivially recoverable. Never auto-selected for bulk
+                cleanup and always requires an explicit, individual action.
+    """
+
+    SAFE = "safe"
+    REVIEW = "review"
+    DANGEROUS = "dangerous"
+
+
 @dataclass
 class ServiceDataInfo:
     """Information about service data."""
@@ -108,6 +126,7 @@ class ServiceDataInfo:
     impact: str = "medium"
     items_count: Optional[int] = None
     details: Dict[str, Any] = field(default_factory=dict)
+    risk_level: str = RiskLevel.REVIEW.value
 
 
 class ServiceDataScanner:
@@ -299,13 +318,31 @@ class ServiceDataScanner:
                     if info and info.size_mb >= self.threshold_mb:
                         results.append(info)
         if len(results) > 1:
-            return [self._merge_service_entries(results)]
+            return self._merge_by_risk(results)
         return results
+
+    def _merge_by_risk(self, results: List[ServiceDataInfo]) -> List[ServiceDataInfo]:
+        """Merge same-service paths, but never blend risk tiers together.
+
+        A pure cache dir (e.g. Cursor's ``Cache``) and a directory holding
+        real installed data (e.g. Cursor's ``extensions``) must stay separate
+        so the risky one is never hidden inside a "safe" summary entry.
+        """
+        groups: Dict[str, List[ServiceDataInfo]] = {}
+        for item in results:
+            groups.setdefault(item.risk_level, []).append(item)
+
+        merged = [
+            items[0] if len(items) == 1 else self._merge_service_entries(items)
+            for items in groups.values()
+        ]
+        merged.sort(key=lambda item: item.size_mb, reverse=True)
+        return merged
 
     def _merge_service_entries(
         self, results: List[ServiceDataInfo]
     ) -> ServiceDataInfo:
-        """Combine multiple paths for the same service into one summary entry."""
+        """Combine multiple same-risk paths for a service into one summary entry."""
         primary = max(results, key=lambda item: item.size_mb)
         total_mb = sum(item.size_mb for item in results)
         paths = [item.path for item in results]
@@ -328,6 +365,7 @@ class ServiceDataScanner:
                 "paths": paths,
                 "merged_count": len(results),
             },
+            risk_level=primary.risk_level,
         )
 
     def _analyze_service_path(
@@ -336,13 +374,30 @@ class ServiceDataScanner:
         """Analyze a specific service path."""
         try:
             size_mb = self._get_path_size_mb(path)
+
+            if service_type == ServiceType.DOCKER and path == "/var/lib/docker":
+                # /var/lib/docker is normally root-only (0710), so `du` sees
+                # "permission denied" and silently reports ~0 here even when
+                # Docker holds tens/hundreds of GB. Ask the daemon directly
+                # instead — it works regardless of filesystem permissions.
+                daemon_size_mb = self._get_docker_daemon_size_mb()
+                if daemon_size_mb and daemon_size_mb > size_mb:
+                    size_mb = daemon_size_mb
+
             size_gb = size_mb / 1024
             if size_mb < self.threshold_mb:
                 return None
             details = self._details_provider.get_details(service_type, path)
+            risk_level = ServiceCleaner.get_risk_level(service_type, path)
+            name = service_type.value.title()
+            if (
+                service_type in (ServiceType.CURSOR, ServiceType.VSCODE)
+                and os.path.basename(path.rstrip("/")) == "extensions"
+            ):
+                name = f"{name} Extensions"
             return ServiceDataInfo(
                 service_type=service_type,
-                name=service_type.value.title(),
+                name=name,
                 path=path,
                 size_mb=round(size_mb, 2),
                 size_gb=round(size_gb, 3),
@@ -350,10 +405,11 @@ class ServiceDataScanner:
                 can_cleanup=True,
                 cleanup_command=ServiceCleaner.get_cleanup_command(service_type, path),
                 preview_command=ServiceCleaner.get_preview_command(service_type, path),
-                safe_to_cleanup=ServiceCleaner.is_safe_cleanup(service_type, path),
+                safe_to_cleanup=risk_level == RiskLevel.SAFE.value,
                 impact="high" if size_gb > 1.0 else "medium",
                 items_count=details.get("items_count"),
                 details=details,
+                risk_level=risk_level,
             )
         except Exception as e:
             return ServiceDataInfo(
@@ -369,6 +425,7 @@ class ServiceDataScanner:
                 safe_to_cleanup=False,
                 impact="none",
                 details={"error": str(e)},
+                risk_level=RiskLevel.REVIEW.value,
             )
 
     def _get_path_size_mb(self, path: str) -> float:
@@ -411,6 +468,45 @@ class ServiceDataScanner:
         except (OSError, PermissionError):
             pass
         return total_size / (1024 * 1024)
+
+    @staticmethod
+    def _get_docker_daemon_size_mb() -> Optional[float]:
+        """Total Docker disk usage as reported by the daemon itself.
+
+        Asking the daemon (``docker system df``) works even when the caller
+        can't read /var/lib/docker directly (typically root-only, mode 0710).
+        Returns None if the docker CLI/daemon isn't reachable.
+        """
+        try:
+            result = subprocess.run(
+                ["docker", "system", "df", "--format", "{{.Size}}"],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return None
+
+        if result.returncode != 0 or not result.stdout.strip():
+            return None
+
+        total_mb = sum(
+            ServiceDataScanner._parse_human_size_to_mb(line)
+            for line in result.stdout.strip().splitlines()
+        )
+        return total_mb or None
+
+    @staticmethod
+    def _parse_human_size_to_mb(value: str) -> float:
+        """Parse a docker-style human size ("158.3GB", "0B", ...) to MB."""
+        match = re.match(r"\s*([\d.]+)\s*([KMGTP]?B)\s*$", value, re.IGNORECASE)
+        if not match:
+            return 0.0
+        amount = float(match.group(1))
+        unit = match.group(2).upper()
+        multipliers = {"B": 1 / 1024**2, "KB": 1 / 1024, "MB": 1, "GB": 1024, "TB": 1024**2}
+        return amount * multipliers.get(unit, 0.0)
 
     @staticmethod
     def _should_descend(path: str, root_dev: int) -> bool:

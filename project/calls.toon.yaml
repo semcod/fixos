@@ -1,7 +1,7 @@
-# code2llm call graph | /home/tom/github/wronai/fixOS
-# generated in 0.10s
-# nodes: 225 | edges: 227 | modules: 50
-# CC̄=4.3
+# code2llm call graph | /home/tom/github/semcod/fixOS
+# generated in 0.15s
+# nodes: 236 | edges: 239 | modules: 52
+# CC̄=4.4
 
 HUBS[20]:
   fixos.diagnostics.checks._shared._cmd
@@ -20,10 +20,10 @@ HUBS[20]:
     CC=11  in:1  out:49  total:50
   fixos.diagnostics.checks.resources.diagnose_resources
     CC=13  in:0  out:49  total:49
-  fixos.cli._cleanup_system._execute_full_cleanup
-    CC=8  in:1  out:37  total:38
   fixos.cli.config_cmd.config_model
     CC=8  in:0  out:38  total:38
+  fixos.cli._cleanup_system._execute_full_cleanup
+    CC=8  in:1  out:37  total:38
   fixos.platform_utils.run_command
     CC=5  in:33  out:4  total:37
   fixos.diagnostics.checks.security.diagnose_security
@@ -38,10 +38,10 @@ HUBS[20]:
     CC=7  in:0  out:29  total:29
   fixos.anonymizer.anonymize
     CC=5  in:14  out:14  total:28
-  docker.validate-scenario.main
-    CC=7  in:0  out:27  total:27
   scripts.pyqual-calibrate.calibrate
     CC=14  in:1  out:26  total:27
+  docker.validate-scenario.main
+    CC=7  in:0  out:27  total:27
   fixos.config.FixOsConfig.load
     CC=14  in:0  out:26  total:26
 
@@ -146,11 +146,15 @@ MODULES:
     _object_based_match  CC=4  out:1
     _validate_result_with_llm  CC=14  out:16
     ask  CC=1  out:4
-  fixos.cli.cleanup_cmd  [4 funcs]
+  fixos.cli.cleanup_cmd  [8 funcs]
+    _cleanup_single_service  CC=9  out:22
+    _display_dangerous_services  CC=3  out:11
     _display_service_group  CC=8  out:15
-    _display_unsafe_services  CC=4  out:10
+    _display_unsafe_services  CC=2  out:9
     _execute_safe_cleanup  CC=3  out:8
-    _run_interactive_cleanup  CC=9  out:8
+    _group_by_service_type  CC=2  out:3
+    _run_interactive_cleanup  CC=11  out:10
+    _service_has_dangerous_data  CC=3  out:3
   fixos.cli.config_cmd  [7 funcs]
     _display_provider_menu  CC=5  out:21
     _env_path  CC=3  out:5
@@ -184,6 +188,13 @@ MODULES:
     _print_provider_menu  CC=9  out:19
     _save_to_env  CC=8  out:13
     interactive_provider_setup  CC=5  out:10
+  fixos.diagnostics.cache_discovery  [6 funcs]
+    _discover_electron_caches  CC=10  out:14
+    _discover_xdg_cache_dirs  CC=8  out:11
+    discover_additional_caches  CC=5  out:11
+    is_generic_cache_safe  CC=2  out:4
+    normalize_path  CC=1  out:2
+    path_is_covered  CC=5  out:4
   fixos.diagnostics.checks._shared  [2 funcs]
     _cmd  CC=7  out:3
     _psutil_required  CC=1  out:0
@@ -222,8 +233,10 @@ MODULES:
     diagnose_system  CC=11  out:23
   fixos.diagnostics.checks.thumbnails  [1 funcs]
     diagnose_thumbnails  CC=1  out:21
-  fixos.diagnostics.storage_analyzer  [1 funcs]
+  fixos.diagnostics.flatpak_analyzer  [1 funcs]
     _format_size  CC=1  out:1
+  fixos.diagnostics.service_scanner  [1 funcs]
+    scan_all_services  CC=3  out:6
   fixos.llm_shell  [3 funcs]
     _handle_user_turn  CC=8  out:16
     execute_command  CC=10  out:14
@@ -319,40 +332,31 @@ MODULES:
     parse_pyqual_yaml  CC=1  out:1
 
 EDGES:
+  docker.validate-scenario.validate → docker.validate-scenario._get_nested
+  docker.validate-scenario.main → docker.validate-scenario.validate
+  fixos.config.FixOsConfig.load → fixos.config._load_env_files
   fixos.platform_utils.elevate_cmd → fixos.platform_utils.needs_elevation
   fixos.platform_utils.get_package_manager → fixos.platform_utils._cmd_exists
   fixos.platform_utils.install_package_cmd → fixos.platform_utils.get_package_manager
-  fixos.config_interactive.interactive_provider_setup → fixos.config_interactive._print_provider_menu
-  fixos.config_interactive.interactive_provider_setup → fixos.config_interactive._get_user_choice
-  fixos.config_interactive.interactive_provider_setup → fixos.config_interactive._get_api_key
-  fixos.config_interactive.interactive_provider_setup → fixos.config_interactive._save_to_env
   fixos.system_checks.get_fedora_specific → fixos.system_checks.run_cmd
   fixos.system_checks.get_full_diagnostics → fixos.system_checks.get_cpu_info
   fixos.system_checks.get_full_diagnostics → fixos.system_checks.get_memory_info
   fixos.system_checks.get_full_diagnostics → fixos.system_checks.get_disk_info
   fixos.system_checks.get_full_diagnostics → fixos.system_checks.get_network_info
   fixos.system_checks.get_full_diagnostics → fixos.system_checks.get_top_processes
-  docker.validate-scenario.validate → docker.validate-scenario._get_nested
-  docker.validate-scenario.main → docker.validate-scenario.validate
-  fixos.diagnostics.checks.audio.diagnose_audio → fixos.diagnostics.checks._shared._cmd
+  fixos.anonymizer.anonymize → fixos.anonymizer.get_sensitive_values
+  fixos.llm_shell._handle_user_turn → fixos.llm_shell.execute_command
+  fixos.llm_shell.run_llm_shell → fixos.anonymizer.anonymize
+  fixos.config_interactive.interactive_provider_setup → fixos.config_interactive._print_provider_menu
+  fixos.config_interactive.interactive_provider_setup → fixos.config_interactive._get_user_choice
+  fixos.config_interactive.interactive_provider_setup → fixos.config_interactive._get_api_key
+  fixos.config_interactive.interactive_provider_setup → fixos.config_interactive._save_to_env
   fixos.diagnostics.checks.resources.diagnose_resources → fixos.diagnostics.checks._shared._psutil_required
   fixos.diagnostics.checks.system_core._collect_os_info → fixos.diagnostics.checks._shared._cmd
   fixos.diagnostics.checks.system_core._collect_platform_details → fixos.diagnostics.checks._shared._cmd
   fixos.diagnostics.checks.system_core.diagnose_system → fixos.diagnostics.checks.system_core._collect_os_info
   fixos.diagnostics.checks.system_core.diagnose_system → fixos.diagnostics.checks._shared._psutil_required
-  fixos.diagnostics.checks.hardware.diagnose_hardware → fixos.diagnostics.checks._shared._cmd
-  fixos.diagnostics.checks.security.diagnose_security → fixos.diagnostics.checks._shared._cmd
-  fixos.diagnostics.checks.thumbnails.diagnose_thumbnails → fixos.diagnostics.checks._shared._cmd
-  fixos.diagnostics.checks.file_analysis.diagnose_files → fixos.diagnostics.checks.file_analysis._find_large_files
-  fixos.diagnostics.checks.file_analysis.diagnose_files → fixos.diagnostics.checks.file_analysis._find_duplicates
-  fixos.diagnostics.checks.file_analysis.diagnose_files → fixos.diagnostics.checks.file_analysis._find_media_files
-  fixos.diagnostics.checks.file_analysis.diagnose_files → fixos.diagnostics.checks.file_analysis._find_archive_candidates
-  fixos.diagnostics.checks.file_analysis.diagnose_files → fixos.diagnostics.checks.file_analysis._find_downloads_cleanup
-  fixos.diagnostics.checks.file_analysis._find_large_files → fixos.diagnostics.checks._shared._cmd
-  fixos.diagnostics.checks.file_analysis._find_duplicates → fixos.diagnostics.checks._shared._cmd
-  fixos.diagnostics.checks.file_analysis._find_media_files → fixos.diagnostics.checks._shared._cmd
-  fixos.diagnostics.checks.file_analysis._find_archive_candidates → fixos.diagnostics.checks._shared._cmd
-  fixos.diagnostics.checks.file_analysis._find_downloads_cleanup → fixos.diagnostics.checks._shared._cmd
+  fixos.diagnostics.checks.audio.diagnose_audio → fixos.diagnostics.checks._shared._cmd
   fixos.diagnostics.checks.storage_optimization.diagnose_storage → fixos.diagnostics.checks.storage_optimization._diagnose_partitions
   fixos.diagnostics.checks.storage_optimization.diagnose_storage → fixos.diagnostics.checks.storage_optimization._diagnose_btrfs
   fixos.diagnostics.checks.storage_optimization.diagnose_storage → fixos.diagnostics.checks.storage_optimization._diagnose_lvm
@@ -363,9 +367,18 @@ EDGES:
   fixos.diagnostics.checks.storage_optimization._diagnose_lvm → fixos.diagnostics.checks._shared._cmd
   fixos.diagnostics.checks.storage_optimization._diagnose_swap_optimization → fixos.diagnostics.checks._shared._cmd
   fixos.diagnostics.checks.storage_optimization._diagnose_filesystem_health → fixos.diagnostics.checks._shared._cmd
+  fixos.diagnostics.checks.security.diagnose_security → fixos.diagnostics.checks._shared._cmd
+  fixos.diagnostics.checks.hardware.diagnose_hardware → fixos.diagnostics.checks._shared._cmd
+  fixos.diagnostics.checks.file_analysis.diagnose_files → fixos.diagnostics.checks.file_analysis._find_large_files
+  fixos.diagnostics.checks.file_analysis.diagnose_files → fixos.diagnostics.checks.file_analysis._find_duplicates
+  fixos.diagnostics.checks.file_analysis.diagnose_files → fixos.diagnostics.checks.file_analysis._find_media_files
+  fixos.diagnostics.checks.file_analysis.diagnose_files → fixos.diagnostics.checks.file_analysis._find_archive_candidates
+  fixos.diagnostics.checks.file_analysis.diagnose_files → fixos.diagnostics.checks.file_analysis._find_downloads_cleanup
+  fixos.diagnostics.checks.file_analysis._find_large_files → fixos.diagnostics.checks._shared._cmd
+  fixos.diagnostics.checks.file_analysis._find_duplicates → fixos.diagnostics.checks._shared._cmd
+  fixos.diagnostics.checks.file_analysis._find_media_files → fixos.diagnostics.checks._shared._cmd
+  fixos.diagnostics.checks.file_analysis._find_archive_candidates → fixos.diagnostics.checks._shared._cmd
+  fixos.diagnostics.checks.file_analysis._find_downloads_cleanup → fixos.diagnostics.checks._shared._cmd
+  fixos.diagnostics.checks.thumbnails.diagnose_thumbnails → fixos.diagnostics.checks._shared._cmd
   fixos.diagnostics.checks.packages.diagnose_packages → fixos.diagnostics.checks.packages._diagnose_rpm_dnf
   fixos.diagnostics.checks.packages.diagnose_packages → fixos.diagnostics.checks.packages._diagnose_flatpak
-  fixos.diagnostics.checks.packages.diagnose_packages → fixos.diagnostics.checks.packages._diagnose_snap
-  fixos.diagnostics.checks.packages.diagnose_packages → fixos.diagnostics.checks.packages._diagnose_duplicates
-  fixos.diagnostics.checks.packages.diagnose_packages → fixos.diagnostics.checks.packages._diagnose_desktop_apps
-  fixos.diagnostics.checks.packages._diagnose_rpm_dnf → fixos.diagnostics.checks._shared._cmd

@@ -1,294 +1,296 @@
 flowchart LR
-%% generated in 0.01s
+%% generated in 0.02s
     subgraph docker__validate_scenario
-        docker__validate_scenario__main["main"]
         docker__validate_scenario__validate["validate"]
         docker__validate_scenario___get_nested["_get_nested"]
+        docker__validate_scenario__main["main"]
     end
     subgraph docs__examples
         docs__examples__quickstart__run_autonomous_session["run_autonomous_session"]
     end
     subgraph fixos__agent
-        fixos__agent__session_io__print_session_header["print_session_header"]
-        fixos__agent__session_core___pattern_backticks["_pattern_backticks"]
-        fixos__agent__session_handlers___resolve_command_timeout["_resolve_command_timeout"]
-        fixos__agent__hitl_session__HITLSession___process_turn["_process_turn"]
-        fixos__agent__hitl_session__HITLSession___initialize_messages["_initialize_messages"]
-        fixos__agent__session_core___is_diagnostic_only_command["_is_diagnostic_only_command"]
-        fixos__agent__session_core___pattern_no_backticks["_pattern_no_backticks"]
-        fixos__agent__session_io__fmt_time["fmt_time"]
-        fixos__agent__get_remaining_time["get_remaining_time"]
-        fixos__agent__hitl_session__HITLSession___handle_llm_error["_handle_llm_error"]
-        fixos__agent__session_core___is_part_diagnostic_only["_is_part_diagnostic_only"]
-        fixos__agent__hitl_session__HITLSession__remaining["remaining"]
         fixos__agent__session_io__ask_execute_prompt["ask_execute_prompt"]
-        fixos__agent__session_handlers___sort_fixes_by_priority["_sort_fixes_by_priority"]
-        fixos__agent__autonomous_session__AutonomousSession___handle_llm_error["_handle_llm_error"]
-        fixos__agent__session_handlers__handle_skip_all["handle_skip_all"]
-        fixos__agent__autonomous_session__AutonomousSession___initialize_messages["_initialize_messages"]
-        fixos__agent__session_io__print_cmd_result["print_cmd_result"]
-        fixos__agent__hitl_session__HITLSession___clear_timeout["_clear_timeout"]
-        fixos__agent__autonomous_session__AutonomousSession___get_remaining_time["_get_remaining_time"]
-        fixos__agent__session_handlers__handle_fix_by_number["handle_fix_by_number"]
-        fixos__agent__session_io__ask_user_problem["ask_user_problem"]
-        fixos__agent__session_handlers__handle_describe_problem["handle_describe_problem"]
-        fixos__agent__session_io__print_session_summary["print_session_summary"]
-        fixos__agent__session_io__suspend_timeout["suspend_timeout"]
-        fixos__agent__hitl_session__HITLSession___check_low_confidence["_check_low_confidence"]
-        fixos__agent__session_core___extract_co_robi["_extract_co_robi"]
-        fixos__agent__session_handlers__handle_execute_all["handle_execute_all"]
-        fixos__agent__session_handlers__handle_search["handle_search"]
-        fixos__agent__session_io__ask_send_data["ask_send_data"]
-        fixos__agent__session_handlers__handle_direct_command["handle_direct_command"]
-        fixos__agent__hitl_session__HITLSession____init__["__init__"]
-        fixos__agent__hitl_session__HITLSession___setup_timeout["_setup_timeout"]
-        fixos__agent__session_handlers__run_single_command["run_single_command"]
-        fixos__agent__autonomous_session__AutonomousSession___handle_exec["_handle_exec"]
-        fixos__agent__session_core__extract_search_topic["extract_search_topic"]
-        fixos__agent__session_io__get_user_input["get_user_input"]
-        fixos__agent__session_core__extract_fixes["extract_fixes"]
-        fixos__agent__session_core___pattern_strict_bold["_pattern_strict_bold"]
         fixos__agent__autonomous_session__AutonomousSession___handle_search["_handle_search"]
-        fixos__agent__hitl__run_hitl_session["run_hitl_session"]
-        fixos__agent__session_handlers__handle_quit["handle_quit"]
+        fixos__agent__hitl_session__HITLSession___check_low_confidence["_check_low_confidence"]
+        fixos__agent__session_io__print_cmd_result["print_cmd_result"]
+        fixos__agent__session_io__ask_send_data["ask_send_data"]
+        fixos__agent__session_core___pattern_no_backticks["_pattern_no_backticks"]
+        fixos__agent__session_io__print_session_header["print_session_header"]
         fixos__agent__session_core___pattern_fallbacks["_pattern_fallbacks"]
-        fixos__agent__session_io__ask_low_confidence_search["ask_low_confidence_search"]
+        fixos__agent__session_handlers__handle_search["handle_search"]
+        fixos__agent__get_remaining_time["get_remaining_time"]
+        fixos__agent__session_io__print_session_summary["print_session_summary"]
+        fixos__agent__session_core___is_part_diagnostic_only["_is_part_diagnostic_only"]
+        fixos__agent__autonomous_session__AutonomousSession___get_remaining_time["_get_remaining_time"]
+        fixos__agent__session_core___extract_co_robi["_extract_co_robi"]
+        fixos__agent__hitl_session__HITLSession___process_turn["_process_turn"]
+        fixos__agent__session_io__get_user_input["get_user_input"]
+        fixos__agent__session_handlers__handle_fix_by_number["handle_fix_by_number"]
+        fixos__agent__session_handlers___sort_fixes_by_priority["_sort_fixes_by_priority"]
+        fixos__agent__hitl_session__HITLSession__remaining["remaining"]
+        fixos__agent__hitl_session__HITLSession____init__["__init__"]
+        fixos__agent__hitl_session__HITLSession___handle_llm_error["_handle_llm_error"]
         fixos__agent__session_handlers__parse_user_input["parse_user_input"]
+        fixos__agent__session_io__suspend_timeout["suspend_timeout"]
+        fixos__agent__autonomous_session__AutonomousSession___handle_exec["_handle_exec"]
+        fixos__agent__hitl_session__HITLSession___setup_timeout["_setup_timeout"]
+        fixos__agent__session_core__extract_fixes["extract_fixes"]
+        fixos__agent__session_handlers__handle_direct_command["handle_direct_command"]
+        fixos__agent__session_io__ask_user_problem["ask_user_problem"]
+        fixos__agent__session_core___is_diagnostic_only_command["_is_diagnostic_only_command"]
         fixos__agent__session_core___deduplicate["_deduplicate"]
+        fixos__agent__hitl__run_hitl_session["run_hitl_session"]
+        fixos__agent__session_handlers__handle_describe_problem["handle_describe_problem"]
+        fixos__agent__hitl_session__HITLSession___clear_timeout["_clear_timeout"]
+        fixos__agent__session_handlers___resolve_command_timeout["_resolve_command_timeout"]
+        fixos__agent__session_handlers__run_single_command["run_single_command"]
+        fixos__agent__autonomous_session__AutonomousSession___initialize_messages["_initialize_messages"]
+        fixos__agent__session_handlers__handle_quit["handle_quit"]
+        fixos__agent__session_core__extract_search_topic["extract_search_topic"]
+        fixos__agent__session_io__ask_low_confidence_search["ask_low_confidence_search"]
+        fixos__agent__hitl_session__HITLSession___initialize_messages["_initialize_messages"]
+        fixos__agent__session_io__fmt_time["fmt_time"]
+        fixos__agent__session_handlers__handle_execute_all["handle_execute_all"]
+        fixos__agent__autonomous_session__AutonomousSession___handle_llm_error["_handle_llm_error"]
+        fixos__agent__session_core___pattern_strict_bold["_pattern_strict_bold"]
+        fixos__agent__session_handlers__handle_skip_all["handle_skip_all"]
+        fixos__agent__session_core___pattern_backticks["_pattern_backticks"]
     end
     subgraph fixos__anonymizer
-        fixos__anonymizer__anonymize["anonymize"]
         fixos__anonymizer__get_sensitive_values["get_sensitive_values"]
+        fixos__anonymizer__anonymize["anonymize"]
     end
     subgraph fixos__cli
-        fixos__cli___cleanup_utils___build_dep_types["_build_dep_types"]
+        fixos__cli___cleanup_system___filter_by_prefix_category["_filter_by_prefix_category"]
+        fixos__cli__config_cmd___set_env_key["_set_env_key"]
+        fixos__cli__ask_cmd___format_command["_format_command"]
+        fixos__cli__ask_cmd___build_output_dict["_build_output_dict"]
+        fixos__cli___cleanup_system___handle_interactive_select["_handle_interactive_select"]
+        fixos__cli___cleanup_utils___parse_numeric_range_set["_parse_numeric_range_set"]
         fixos__cli___cleanup_system___filter_by_age["_filter_by_age"]
-        fixos__cli__cleanup_cmd___run_interactive_cleanup["_run_interactive_cleanup"]
-        fixos__cli__ask_cmd__ask["ask"]
-        fixos__cli___cleanup_home___resolve_home_selection["_resolve_home_selection"]
-        fixos__cli___cleanup_snap___snap_select_packages["_snap_select_packages"]
-        fixos__cli___cleanup_system___select_cleanup_items_by_filter["_select_cleanup_items_by_filte"]
-        fixos__cli__config_cmd__config_provider["config_provider"]
-        fixos__cli__cleanup_cmd___execute_safe_cleanup["_execute_safe_cleanup"]
-        fixos__cli__ask_cmd___validate_result_with_llm["_validate_result_with_llm"]
-        fixos__cli___cleanup_snap___handle_snap_management["_handle_snap_management"]
         fixos__cli___cleanup_system___display_full_system_menu["_display_full_system_menu"]
-        fixos__cli___cleanup_flatpak___display_flatpak_status["_display_flatpak_status"]
+        fixos__cli___cleanup_utils___build_dep_types["_build_dep_types"]
+        fixos__cli__ask_cmd___match_heuristic_command["_match_heuristic_command"]
+        fixos__cli___cleanup_system___select_cleanup_items_by_filter["_select_cleanup_items_by_filte"]
+        fixos__cli__cleanup_cmd___display_dangerous_services["_display_dangerous_services"]
+        fixos__cli___cleanup_home___resolve_home_selection["_resolve_home_selection"]
+        fixos__cli__config_cmd___save_provider_choice["_save_provider_choice"]
+        fixos__cli__cleanup_cmd___execute_safe_cleanup["_execute_safe_cleanup"]
         fixos__cli___cleanup_home___handle_home_analysis["_handle_home_analysis"]
-        fixos__cli___cleanup_system___show_dep_types["_show_dep_types"]
-        fixos__cli___cleanup_snap___snap_display_packages["_snap_display_packages"]
-        fixos__cli__ask_cmd___handle_natural_command["_handle_natural_command"]
+        fixos__cli__config_cmd__config_model["config_model"]
+        fixos__cli__scan_cmd___display_disk_fix_mode["_display_disk_fix_mode"]
         fixos__cli__cleanup_cmd___display_unsafe_services["_display_unsafe_services"]
-        fixos__cli___cleanup_home___display_home_items["_display_home_items"]
-        fixos__cli__features_cmd__features_audit["features_audit"]
-        fixos__cli___cleanup_system___filter_large["_filter_large"]
-        fixos__cli___cleanup_snap___snap_warn_dangerous["_snap_warn_dangerous"]
-        fixos__cli___cleanup_system___execute_full_cleanup["_execute_full_cleanup"]
-        fixos__cli__cleanup_cmd___display_service_group["_display_service_group"]
         fixos__cli___cleanup_snap___snap_remove_packages["_snap_remove_packages"]
+        fixos__cli___cleanup_snap___snap_select_packages["_snap_select_packages"]
+        fixos__cli___cleanup_system___dispatch_system_selection["_dispatch_system_selection"]
+        fixos__cli__fix_cmd___collect_diagnostics["_collect_diagnostics"]
+        fixos__cli___cleanup_flatpak___display_flatpak_status["_display_flatpak_status"]
+        fixos__cli__fix_cmd___run_agent_session["_run_agent_session"]
+        fixos__cli__ask_cmd__ask["ask"]
+        fixos__cli__ask_cmd___validate_result_with_llm["_validate_result_with_llm"]
+        fixos__cli__cleanup_cmd___cleanup_single_service["_cleanup_single_service"]
+        fixos__cli___cleanup_flatpak___cleanup_flatpak_detailed["_cleanup_flatpak_detailed"]
+        fixos__cli___cleanup_snap___snap_warn_dangerous["_snap_warn_dangerous"]
+        fixos__cli___cleanup_system___filter_large["_filter_large"]
+        fixos__cli__config_cmd___prompt_provider_choice["_prompt_provider_choice"]
+        fixos__cli___cleanup_system___filter_by_prefix_type["_filter_by_prefix_type"]
+        fixos__cli__ask_cmd___handle_natural_command["_handle_natural_command"]
+        fixos__cli___cleanup_system___cleanup_full_system["_cleanup_full_system"]
+        fixos__cli__cleanup_cmd___display_service_group["_display_service_group"]
+        fixos__cli__cleanup_cmd___run_interactive_cleanup["_run_interactive_cleanup"]
+        fixos__cli___cleanup_home___display_home_items["_display_home_items"]
+        fixos__cli__scan_cmd___run_disk_analysis["_run_disk_analysis"]
+        fixos__cli__ask_cmd___execute_with_llm["_execute_with_llm"]
+        fixos__cli___cleanup_system___execute_full_cleanup["_execute_full_cleanup"]
+        fixos__cli__main___print_welcome["_print_welcome"]
+        fixos__cli__cleanup_cmd___group_by_service_type["_group_by_service_type"]
+        fixos__cli___cleanup_snap___snap_display_packages["_snap_display_packages"]
+        fixos__cli__token_cmd__token_set["token_set"]
+        fixos__cli__config_cmd__config_provider["config_provider"]
+        fixos__cli__features_cmd__features_audit["features_audit"]
+        fixos__cli__features_cmd___interactive_profile_select["_interactive_profile_select"]
+        fixos__cli__config_cmd___display_provider_menu["_display_provider_menu"]
         fixos__cli__ask_cmd___object_based_match["_object_based_match"]
         fixos__cli__main__cli["cli"]
-        fixos__cli__ask_cmd___format_command["_format_command"]
-        fixos__cli__ask_cmd___execute_with_llm["_execute_with_llm"]
-        fixos__cli__fix_cmd___collect_diagnostics["_collect_diagnostics"]
-        fixos__cli___cleanup_system___dispatch_system_selection["_dispatch_system_selection"]
-        fixos__cli___cleanup_system___filter_by_prefix_type["_filter_by_prefix_type"]
+        fixos__cli___cleanup_snap___handle_snap_management["_handle_snap_management"]
         fixos__cli___cleanup_system___filter_by_prefix_top["_filter_by_prefix_top"]
-        fixos__cli___cleanup_utils___parse_numeric_range_set["_parse_numeric_range_set"]
-        fixos__cli___cleanup_snap___snap_fetch_packages["_snap_fetch_packages"]
-        fixos__cli__config_cmd__config_model["config_model"]
-        fixos__cli___cleanup_system___handle_interactive_select["_handle_interactive_select"]
-        fixos__cli__ask_cmd___build_output_dict["_build_output_dict"]
-        fixos__cli__scan_cmd___run_disk_analysis["_run_disk_analysis"]
-        fixos__cli___cleanup_system___cleanup_full_system["_cleanup_full_system"]
-        fixos__cli__features_cmd___interactive_profile_select["_interactive_profile_select"]
-        fixos__cli__ask_cmd___execute_heuristic_command["_execute_heuristic_command"]
-        fixos__cli__config_cmd___prompt_provider_choice["_prompt_provider_choice"]
-        fixos__cli__main___print_welcome["_print_welcome"]
-        fixos__cli__ask_cmd___match_heuristic_command["_match_heuristic_command"]
-        fixos__cli___cleanup_flatpak___cleanup_flatpak_detailed["_cleanup_flatpak_detailed"]
-        fixos__cli__token_cmd__token_set["token_set"]
-        fixos__cli__config_cmd___display_provider_menu["_display_provider_menu"]
-        fixos__cli___cleanup_system___filter_by_prefix_category["_filter_by_prefix_category"]
+        fixos__cli__cleanup_cmd___service_has_dangerous_data["_service_has_dangerous_data"]
         fixos__cli__main__main["main"]
-        fixos__cli__scan_cmd___display_disk_fix_mode["_display_disk_fix_mode"]
-        fixos__cli__config_cmd___set_env_key["_set_env_key"]
-        fixos__cli__config_cmd___env_path["_env_path"]
         fixos__cli___cleanup_utils___format_bytes["_format_bytes"]
-        fixos__cli__fix_cmd___run_agent_session["_run_agent_session"]
-        fixos__cli__config_cmd___save_provider_choice["_save_provider_choice"]
+        fixos__cli___cleanup_system___show_dep_types["_show_dep_types"]
+        fixos__cli__ask_cmd___execute_heuristic_command["_execute_heuristic_command"]
+        fixos__cli__config_cmd___env_path["_env_path"]
+        fixos__cli___cleanup_snap___snap_fetch_packages["_snap_fetch_packages"]
     end
     subgraph fixos__config
-        fixos__config__FixOsConfig__load["load"]
         fixos__config___load_env_files["_load_env_files"]
         fixos__config__detect_provider_from_key["detect_provider_from_key"]
+        fixos__config__FixOsConfig__load["load"]
     end
     subgraph fixos__config_interactive
-        fixos__config_interactive___save_to_env["_save_to_env"]
-        fixos__config_interactive___get_api_key["_get_api_key"]
-        fixos__config_interactive___print_provider_menu["_print_provider_menu"]
         fixos__config_interactive__interactive_provider_setup["interactive_provider_setup"]
+        fixos__config_interactive___print_provider_menu["_print_provider_menu"]
+        fixos__config_interactive___get_api_key["_get_api_key"]
         fixos__config_interactive___get_user_choice["_get_user_choice"]
+        fixos__config_interactive___save_to_env["_save_to_env"]
     end
     subgraph fixos__diagnostics
-        fixos__diagnostics__checks__storage_optimization___diagnose_lvm["_diagnose_lvm"]
-        fixos__diagnostics__checks__packages__diagnose_packages["diagnose_packages"]
-        fixos__diagnostics__storage_analyzer__StorageItem___format_size["_format_size"]
-        fixos__diagnostics__checks__system_core__diagnose_system["diagnose_system"]
-        fixos__diagnostics__checks__file_analysis___find_downloads_cleanup["_find_downloads_cleanup"]
-        fixos__diagnostics__checks__audio__diagnose_audio["diagnose_audio"]
-        fixos__diagnostics__checks__packages___diagnose_desktop_apps["_diagnose_desktop_apps"]
-        fixos__diagnostics__checks__packages___diagnose_snap["_diagnose_snap"]
+        fixos__diagnostics__cache_discovery___discover_electron_caches["_discover_electron_caches"]
         fixos__diagnostics__checks__packages___diagnose_duplicates["_diagnose_duplicates"]
-        fixos__diagnostics__checks__file_analysis___find_media_files["_find_media_files"]
-        fixos__diagnostics__checks__packages___diagnose_rpm_dnf["_diagnose_rpm_dnf"]
+        fixos__diagnostics__checks__packages___diagnose_snap["_diagnose_snap"]
         fixos__diagnostics__checks__file_analysis___find_large_files["_find_large_files"]
-        fixos__diagnostics__checks__system_core___collect_os_info["_collect_os_info"]
-        fixos__diagnostics__checks__storage_optimization___diagnose_swap_optimization["_diagnose_swap_optimization"]
-        fixos__diagnostics__checks__resources__diagnose_resources["diagnose_resources"]
-        fixos__diagnostics__checks__security__diagnose_security["diagnose_security"]
-        fixos__diagnostics__checks__file_analysis___find_duplicates["_find_duplicates"]
+        fixos__diagnostics__cache_discovery__discover_additional_caches["discover_additional_caches"]
         fixos__diagnostics__checks___shared___cmd["_cmd"]
-        fixos__diagnostics__checks__hardware__diagnose_hardware["diagnose_hardware"]
-        fixos__diagnostics__checks___shared___psutil_required["_psutil_required"]
+        fixos__diagnostics__flatpak_analyzer__FlatpakAnalyzer___format_size["_format_size"]
+        fixos__diagnostics__cache_discovery___discover_xdg_cache_dirs["_discover_xdg_cache_dirs"]
+        fixos__diagnostics__checks__file_analysis___find_media_files["_find_media_files"]
         fixos__diagnostics__checks__storage_optimization___diagnose_btrfs["_diagnose_btrfs"]
-        fixos__diagnostics__checks__system_core___collect_platform_details["_collect_platform_details"]
+        fixos__diagnostics__checks__packages___diagnose_desktop_apps["_diagnose_desktop_apps"]
+        fixos__diagnostics__checks__resources__diagnose_resources["diagnose_resources"]
         fixos__diagnostics__checks__file_analysis__diagnose_files["diagnose_files"]
-        fixos__diagnostics__checks__storage_optimization___diagnose_partitions["_diagnose_partitions"]
+        fixos__diagnostics__checks__storage_optimization___diagnose_lvm["_diagnose_lvm"]
+        fixos__diagnostics__cache_discovery__is_generic_cache_safe["is_generic_cache_safe"]
+        fixos__diagnostics__service_scanner__ServiceDataScanner__scan_all_services["scan_all_services"]
+        fixos__diagnostics__checks__system_core___collect_platform_details["_collect_platform_details"]
         fixos__diagnostics__checks__packages___diagnose_flatpak["_diagnose_flatpak"]
-        fixos__diagnostics__checks__thumbnails__diagnose_thumbnails["diagnose_thumbnails"]
-        fixos__diagnostics__checks__storage_optimization__diagnose_storage["diagnose_storage"]
-        fixos__diagnostics__checks__storage_optimization___diagnose_filesystem_health["_diagnose_filesystem_health"]
+        fixos__diagnostics__checks__hardware__diagnose_hardware["diagnose_hardware"]
         fixos__diagnostics__checks__file_analysis___find_archive_candidates["_find_archive_candidates"]
+        fixos__diagnostics__checks__thumbnails__diagnose_thumbnails["diagnose_thumbnails"]
+        fixos__diagnostics__checks__storage_optimization___diagnose_partitions["_diagnose_partitions"]
+        fixos__diagnostics__checks__storage_optimization___diagnose_filesystem_health["_diagnose_filesystem_health"]
+        fixos__diagnostics__checks__system_core___collect_os_info["_collect_os_info"]
+        fixos__diagnostics__checks__security__diagnose_security["diagnose_security"]
+        fixos__diagnostics__cache_discovery__normalize_path["normalize_path"]
+        fixos__diagnostics__checks__file_analysis___find_downloads_cleanup["_find_downloads_cleanup"]
+        fixos__diagnostics__checks___shared___psutil_required["_psutil_required"]
+        fixos__diagnostics__cache_discovery__path_is_covered["path_is_covered"]
+        fixos__diagnostics__checks__storage_optimization__diagnose_storage["diagnose_storage"]
+        fixos__diagnostics__checks__packages___diagnose_rpm_dnf["_diagnose_rpm_dnf"]
+        fixos__diagnostics__checks__packages__diagnose_packages["diagnose_packages"]
+        fixos__diagnostics__checks__audio__diagnose_audio["diagnose_audio"]
+        fixos__diagnostics__checks__file_analysis___find_duplicates["_find_duplicates"]
+        fixos__diagnostics__checks__system_core__diagnose_system["diagnose_system"]
+        fixos__diagnostics__checks__storage_optimization___diagnose_swap_optimization["_diagnose_swap_optimization"]
     end
     subgraph fixos__llm_shell
         fixos__llm_shell__execute_command["execute_command"]
-        fixos__llm_shell___handle_user_turn["_handle_user_turn"]
         fixos__llm_shell__run_llm_shell["run_llm_shell"]
+        fixos__llm_shell___handle_user_turn["_handle_user_turn"]
     end
     subgraph fixos__orchestrator
-        fixos__orchestrator__orchestrator__FixOrchestrator___default_progress["_default_progress"]
         fixos__orchestrator__orchestrator__FixOrchestrator___default_confirm["_default_confirm"]
-        fixos__orchestrator__orchestrator__FixOrchestrator__load_from_diagnostics["load_from_diagnostics"]
         fixos__orchestrator__orchestrator__FixOrchestrator___evaluate_and_rediagnose["_evaluate_and_rediagnose"]
+        fixos__orchestrator__orchestrator__FixOrchestrator___default_progress["_default_progress"]
+        fixos__orchestrator__orchestrator__FixOrchestrator__load_from_diagnostics["load_from_diagnostics"]
     end
     subgraph fixos__platform_utils
-        fixos__platform_utils__is_interactive_blocker["is_interactive_blocker"]
-        fixos__platform_utils__needs_elevation["needs_elevation"]
-        fixos__platform_utils___cmd_exists["_cmd_exists"]
         fixos__platform_utils__get_package_manager["get_package_manager"]
+        fixos__platform_utils__install_package_cmd["install_package_cmd"]
+        fixos__platform_utils__elevate_cmd["elevate_cmd"]
+        fixos__platform_utils__setup_signal_timeout["setup_signal_timeout"]
+        fixos__platform_utils___cmd_exists["_cmd_exists"]
+        fixos__platform_utils__is_dangerous["is_dangerous"]
+        fixos__platform_utils__run_command["run_command"]
+        fixos__platform_utils__is_interactive_blocker["is_interactive_blocker"]
         fixos__platform_utils__get_os_info["get_os_info"]
         fixos__platform_utils__cancel_signal_timeout["cancel_signal_timeout"]
-        fixos__platform_utils__install_package_cmd["install_package_cmd"]
-        fixos__platform_utils__run_command["run_command"]
-        fixos__platform_utils__elevate_cmd["elevate_cmd"]
-        fixos__platform_utils__is_dangerous["is_dangerous"]
-        fixos__platform_utils__setup_signal_timeout["setup_signal_timeout"]
+        fixos__platform_utils__needs_elevation["needs_elevation"]
     end
     subgraph fixos__plugins
         fixos__plugins__builtin__thumbnails__Plugin___check_ffmpegthumbnailer["_check_ffmpegthumbnailer"]
-        fixos__plugins__builtin__hardware__Plugin___check_camera["_check_camera"]
-        fixos__plugins__builtin__disk__Plugin___check_inodes["_check_inodes"]
-        fixos__plugins__builtin__security__Plugin___check_fail2ban["_check_fail2ban"]
-        fixos__plugins__builtin__security__Plugin___check_open_ports["_check_open_ports"]
-        fixos__plugins__builtin__thumbnails__Plugin___check_totem["_check_totem"]
         fixos__plugins__builtin__security__Plugin___check_firewall["_check_firewall"]
-        fixos__plugins__builtin__security__Plugin___check_ssh["_check_ssh"]
-        fixos__plugins__builtin__thumbnails__Plugin___check_cache["_check_cache"]
-        fixos__plugins__builtin__hardware__Plugin___check_dmi["_check_dmi"]
-        fixos__plugins__builtin__hardware__Plugin___check_gpu["_check_gpu"]
         fixos__plugins__builtin__audio__Plugin___check_wireplumber["_check_wireplumber"]
-        fixos__plugins__builtin__resources__Plugin___check_top_processes["_check_top_processes"]
-        fixos__plugins__builtin__audio__Plugin___check_pipewire["_check_pipewire"]
-        fixos__plugins__builtin__disk__Plugin___check_usage["_check_usage"]
+        fixos__plugins__builtin__thumbnails__Plugin___check_cache["_check_cache"]
         fixos__plugins__builtin__hardware__Plugin___check_battery["_check_battery"]
-        fixos__plugins__builtin__disk__Plugin___check_readonly["_check_readonly"]
-        fixos__plugins__builtin__resources__Plugin___check_zombies["_check_zombies"]
-        fixos__plugins__builtin__resources__Plugin___check_cpu["_check_cpu"]
-        fixos__plugins__builtin__thumbnails__Plugin___check_gstreamer["_check_gstreamer"]
+        fixos__plugins__builtin__audio__Plugin___check_pipewire["_check_pipewire"]
+        fixos__plugins__builtin__hardware__Plugin___check_gpu["_check_gpu"]
         fixos__plugins__builtin__audio__Plugin___check_sof["_check_sof"]
+        fixos__plugins__builtin__disk__Plugin___check_readonly["_check_readonly"]
+        fixos__plugins__builtin__resources__Plugin___check_cpu["_check_cpu"]
         fixos__plugins__builtin__audio__Plugin___check_alsa["_check_alsa"]
+        fixos__plugins__builtin__security__Plugin___check_fail2ban["_check_fail2ban"]
+        fixos__plugins__builtin__resources__Plugin___check_top_processes["_check_top_processes"]
         fixos__plugins__builtin__hardware__Plugin___check_touchpad["_check_touchpad"]
+        fixos__plugins__builtin__disk__Plugin___check_usage["_check_usage"]
+        fixos__plugins__builtin__disk__Plugin___check_inodes["_check_inodes"]
+        fixos__plugins__builtin__security__Plugin___check_open_ports["_check_open_ports"]
+        fixos__plugins__builtin__resources__Plugin___check_zombies["_check_zombies"]
+        fixos__plugins__builtin__thumbnails__Plugin___check_gstreamer["_check_gstreamer"]
+        fixos__plugins__builtin__hardware__Plugin___check_camera["_check_camera"]
+        fixos__plugins__builtin__thumbnails__Plugin___check_totem["_check_totem"]
+        fixos__plugins__builtin__hardware__Plugin___check_dmi["_check_dmi"]
         fixos__plugins__builtin__security__Plugin___check_selinux["_check_selinux"]
+        fixos__plugins__builtin__security__Plugin___check_ssh["_check_ssh"]
     end
     subgraph fixos__system_checks
+        fixos__system_checks__get_memory_info["get_memory_info"]
+        fixos__system_checks__get_full_diagnostics["get_full_diagnostics"]
         fixos__system_checks__get_disk_info["get_disk_info"]
+        fixos__system_checks__get_cpu_info["get_cpu_info"]
         fixos__system_checks__get_top_processes["get_top_processes"]
         fixos__system_checks__run_cmd["run_cmd"]
-        fixos__system_checks__get_fedora_specific["get_fedora_specific"]
-        fixos__system_checks__get_cpu_info["get_cpu_info"]
-        fixos__system_checks__get_full_diagnostics["get_full_diagnostics"]
-        fixos__system_checks__get_memory_info["get_memory_info"]
         fixos__system_checks__get_network_info["get_network_info"]
+        fixos__system_checks__get_fedora_specific["get_fedora_specific"]
     end
     subgraph fixos__utils
-        fixos__utils__anonymizer___get_sensitive["_get_sensitive"]
-        fixos__utils__anonymizer___dict_to_markdown["_dict_to_markdown"]
-        fixos__utils__anonymizer__deanonymize["deanonymize"]
-        fixos__utils__web_search__search_serpapi["search_serpapi"]
-        fixos__utils__web_search__search_arch_wiki["search_arch_wiki"]
-        fixos__utils__terminal___is_divider_line["_is_divider_line"]
         fixos__utils__web_search__search_fedora_bugzilla["search_fedora_bugzilla"]
-        fixos__utils__anonymizer___apply_regex_replacements["_apply_regex_replacements"]
         fixos__utils__web_search__format_results_for_llm["format_results_for_llm"]
-        fixos__utils__web_search__search_all["search_all"]
-        fixos__utils__web_search__search_ask_fedora["search_ask_fedora"]
-        fixos__utils__web_search__search_github_issues["search_github_issues"]
-        fixos__utils__anonymizer___render_dict_list_value["_render_dict_list_value"]
-        fixos__utils__terminal__print_stdout_box["print_stdout_box"]
         fixos__utils__anonymizer___format_diagnostics_markdown["_format_diagnostics_markdown"]
-        fixos__utils__web_search___http_get["_http_get"]
-        fixos__utils__terminal__print_stderr_box["print_stderr_box"]
-        fixos__utils__terminal__print_problem_header["print_problem_header"]
+        fixos__utils__terminal__print_cmd_block["print_cmd_block"]
         fixos__utils__anonymizer___format_key_title["_format_key_title"]
+        fixos__utils__terminal__print_problem_header["print_problem_header"]
+        fixos__utils__terminal__print_stderr_box["print_stderr_box"]
+        fixos__utils__anonymizer___get_sensitive["_get_sensitive"]
         fixos__utils__anonymizer__anonymize["anonymize"]
+        fixos__utils__terminal___is_divider_line["_is_divider_line"]
+        fixos__utils__web_search__search_github_issues["search_github_issues"]
+        fixos__utils__web_search__search_serpapi["search_serpapi"]
+        fixos__utils__anonymizer__deanonymize["deanonymize"]
+        fixos__utils__web_search__search_ddg["search_ddg"]
         fixos__utils__terminal___print_output_box["_print_output_box"]
+        fixos__utils__web_search__search_ask_fedora["search_ask_fedora"]
+        fixos__utils__anonymizer___apply_regex_replacements["_apply_regex_replacements"]
+        fixos__utils__anonymizer___render_dict_list_value["_render_dict_list_value"]
+        fixos__utils__web_search__search_arch_wiki["search_arch_wiki"]
+        fixos__utils__web_search__search_all["search_all"]
+        fixos__utils__terminal___get_severity_style["_get_severity_style"]
+        fixos__utils__terminal__print_stdout_box["print_stdout_box"]
         fixos__utils__terminal__render_md["render_md"]
         fixos__utils__anonymizer__display_anonymized_preview["display_anonymized_preview"]
-        fixos__utils__terminal__print_cmd_block["print_cmd_block"]
-        fixos__utils__terminal___get_severity_style["_get_severity_style"]
-        fixos__utils__web_search__search_ddg["search_ddg"]
+        fixos__utils__anonymizer___dict_to_markdown["_dict_to_markdown"]
+        fixos__utils__web_search___http_get["_http_get"]
     end
     subgraph scripts__pyqual_calibrate
         scripts__pyqual_calibrate__parse_pyqual_yaml["parse_pyqual_yaml"]
-        scripts__pyqual_calibrate__extract_current_metrics["extract_current_metrics"]
-        scripts__pyqual_calibrate__main["main"]
         scripts__pyqual_calibrate__calibrate["calibrate"]
+        scripts__pyqual_calibrate__main["main"]
+        scripts__pyqual_calibrate__extract_current_metrics["extract_current_metrics"]
     end
+    docker__validate_scenario__validate --> docker__validate_scenario___get_nested
+    docker__validate_scenario__main --> docker__validate_scenario__validate
+    fixos__config__FixOsConfig__load --> fixos__config___load_env_files
     fixos__platform_utils__elevate_cmd --> fixos__platform_utils__needs_elevation
     fixos__platform_utils__get_package_manager --> fixos__platform_utils___cmd_exists
     fixos__platform_utils__install_package_cmd --> fixos__platform_utils__get_package_manager
-    fixos__config_interactive__interactive_provider_setup --> fixos__config_interactive___print_provider_menu
-    fixos__config_interactive__interactive_provider_setup --> fixos__config_interactive___get_user_choice
-    fixos__config_interactive__interactive_provider_setup --> fixos__config_interactive___get_api_key
-    fixos__config_interactive__interactive_provider_setup --> fixos__config_interactive___save_to_env
     fixos__system_checks__get_fedora_specific --> fixos__system_checks__run_cmd
     fixos__system_checks__get_full_diagnostics --> fixos__system_checks__get_cpu_info
     fixos__system_checks__get_full_diagnostics --> fixos__system_checks__get_memory_info
     fixos__system_checks__get_full_diagnostics --> fixos__system_checks__get_disk_info
     fixos__system_checks__get_full_diagnostics --> fixos__system_checks__get_network_info
     fixos__system_checks__get_full_diagnostics --> fixos__system_checks__get_top_processes
-    docker__validate_scenario__validate --> docker__validate_scenario___get_nested
-    docker__validate_scenario__main --> docker__validate_scenario__validate
-    fixos__diagnostics__checks__audio__diagnose_audio --> fixos__diagnostics__checks___shared___cmd
+    fixos__anonymizer__anonymize --> fixos__anonymizer__get_sensitive_values
+    fixos__llm_shell___handle_user_turn --> fixos__llm_shell__execute_command
+    fixos__llm_shell__run_llm_shell --> fixos__anonymizer__anonymize
+    fixos__config_interactive__interactive_provider_setup --> fixos__config_interactive___print_provider_menu
+    fixos__config_interactive__interactive_provider_setup --> fixos__config_interactive___get_user_choice
+    fixos__config_interactive__interactive_provider_setup --> fixos__config_interactive___get_api_key
+    fixos__config_interactive__interactive_provider_setup --> fixos__config_interactive___save_to_env
     fixos__diagnostics__checks__resources__diagnose_resources --> fixos__diagnostics__checks___shared___psutil_required
     fixos__diagnostics__checks__system_core___collect_os_info --> fixos__diagnostics__checks___shared___cmd
     fixos__diagnostics__checks__system_core___collect_platform_details --> fixos__diagnostics__checks___shared___cmd
     fixos__diagnostics__checks__system_core__diagnose_system --> fixos__diagnostics__checks__system_core___collect_os_info
     fixos__diagnostics__checks__system_core__diagnose_system --> fixos__diagnostics__checks___shared___psutil_required
-    fixos__diagnostics__checks__hardware__diagnose_hardware --> fixos__diagnostics__checks___shared___cmd
-    fixos__diagnostics__checks__security__diagnose_security --> fixos__diagnostics__checks___shared___cmd
-    fixos__diagnostics__checks__thumbnails__diagnose_thumbnails --> fixos__diagnostics__checks___shared___cmd
-    fixos__diagnostics__checks__file_analysis__diagnose_files --> fixos__diagnostics__checks__file_analysis___find_large_files
-    fixos__diagnostics__checks__file_analysis__diagnose_files --> fixos__diagnostics__checks__file_analysis___find_duplicates
-    fixos__diagnostics__checks__file_analysis__diagnose_files --> fixos__diagnostics__checks__file_analysis___find_media_files
-    fixos__diagnostics__checks__file_analysis__diagnose_files --> fixos__diagnostics__checks__file_analysis___find_archive_candidates
-    fixos__diagnostics__checks__file_analysis__diagnose_files --> fixos__diagnostics__checks__file_analysis___find_downloads_cleanup
-    fixos__diagnostics__checks__file_analysis___find_large_files --> fixos__diagnostics__checks___shared___cmd
-    fixos__diagnostics__checks__file_analysis___find_duplicates --> fixos__diagnostics__checks___shared___cmd
-    fixos__diagnostics__checks__file_analysis___find_media_files --> fixos__diagnostics__checks___shared___cmd
-    fixos__diagnostics__checks__file_analysis___find_archive_candidates --> fixos__diagnostics__checks___shared___cmd
-    fixos__diagnostics__checks__file_analysis___find_downloads_cleanup --> fixos__diagnostics__checks___shared___cmd
+    fixos__diagnostics__checks__audio__diagnose_audio --> fixos__diagnostics__checks___shared___cmd
     fixos__diagnostics__checks__storage_optimization__diagnose_storage --> fixos__diagnostics__checks__storage_optimization___diagnose_partitions
     fixos__diagnostics__checks__storage_optimization__diagnose_storage --> fixos__diagnostics__checks__storage_optimization___diagnose_btrfs
     fixos__diagnostics__checks__storage_optimization__diagnose_storage --> fixos__diagnostics__checks__storage_optimization___diagnose_lvm
@@ -299,6 +301,19 @@ flowchart LR
     fixos__diagnostics__checks__storage_optimization___diagnose_lvm --> fixos__diagnostics__checks___shared___cmd
     fixos__diagnostics__checks__storage_optimization___diagnose_swap_optimization --> fixos__diagnostics__checks___shared___cmd
     fixos__diagnostics__checks__storage_optimization___diagnose_filesystem_health --> fixos__diagnostics__checks___shared___cmd
+    fixos__diagnostics__checks__security__diagnose_security --> fixos__diagnostics__checks___shared___cmd
+    fixos__diagnostics__checks__hardware__diagnose_hardware --> fixos__diagnostics__checks___shared___cmd
+    fixos__diagnostics__checks__file_analysis__diagnose_files --> fixos__diagnostics__checks__file_analysis___find_large_files
+    fixos__diagnostics__checks__file_analysis__diagnose_files --> fixos__diagnostics__checks__file_analysis___find_duplicates
+    fixos__diagnostics__checks__file_analysis__diagnose_files --> fixos__diagnostics__checks__file_analysis___find_media_files
+    fixos__diagnostics__checks__file_analysis__diagnose_files --> fixos__diagnostics__checks__file_analysis___find_archive_candidates
+    fixos__diagnostics__checks__file_analysis__diagnose_files --> fixos__diagnostics__checks__file_analysis___find_downloads_cleanup
+    fixos__diagnostics__checks__file_analysis___find_large_files --> fixos__diagnostics__checks___shared___cmd
+    fixos__diagnostics__checks__file_analysis___find_duplicates --> fixos__diagnostics__checks___shared___cmd
+    fixos__diagnostics__checks__file_analysis___find_media_files --> fixos__diagnostics__checks___shared___cmd
+    fixos__diagnostics__checks__file_analysis___find_archive_candidates --> fixos__diagnostics__checks___shared___cmd
+    fixos__diagnostics__checks__file_analysis___find_downloads_cleanup --> fixos__diagnostics__checks___shared___cmd
+    fixos__diagnostics__checks__thumbnails__diagnose_thumbnails --> fixos__diagnostics__checks___shared___cmd
     fixos__diagnostics__checks__packages__diagnose_packages --> fixos__diagnostics__checks__packages___diagnose_rpm_dnf
     fixos__diagnostics__checks__packages__diagnose_packages --> fixos__diagnostics__checks__packages___diagnose_flatpak
     fixos__diagnostics__checks__packages__diagnose_packages --> fixos__diagnostics__checks__packages___diagnose_snap
@@ -309,9 +324,6 @@ flowchart LR
     fixos__diagnostics__checks__packages___diagnose_snap --> fixos__diagnostics__checks___shared___cmd
     fixos__diagnostics__checks__packages___diagnose_duplicates --> fixos__diagnostics__checks___shared___cmd
     fixos__diagnostics__checks__packages___diagnose_desktop_apps --> fixos__diagnostics__checks___shared___cmd
-    fixos__llm_shell___handle_user_turn --> fixos__llm_shell__execute_command
-    fixos__llm_shell__run_llm_shell --> fixos__anonymizer__anonymize
-    fixos__anonymizer__anonymize --> fixos__anonymizer__get_sensitive_values
     fixos__agent__session_handlers__handle_execute_all --> fixos__agent__session_handlers___sort_fixes_by_priority
     fixos__agent__session_handlers__handle_execute_all --> fixos__anonymizer__anonymize
     fixos__agent__session_handlers__handle_fix_by_number --> fixos__anonymizer__anonymize
@@ -329,19 +341,23 @@ flowchart LR
     fixos__agent__session_handlers__parse_user_input --> fixos__agent__session_handlers__handle_execute_all
     fixos__agent__session_handlers__parse_user_input --> fixos__agent__session_handlers__handle_fix_by_number
     fixos__agent__session_handlers__parse_user_input --> fixos__agent__session_handlers__handle_direct_command
-    fixos__agent__session_io__suspend_timeout --> fixos__platform_utils__cancel_signal_timeout
-    fixos__agent__session_io__suspend_timeout --> fixos__agent__get_remaining_time
-    fixos__agent__session_io__suspend_timeout --> fixos__platform_utils__setup_signal_timeout
-    fixos__agent__session_io__print_session_header --> fixos__agent__session_io__fmt_time
-    fixos__agent__session_io__ask_user_problem --> fixos__agent__session_io__suspend_timeout
-    fixos__agent__session_io__print_cmd_result --> fixos__utils__terminal__print_stdout_box
-    fixos__agent__session_io__print_cmd_result --> fixos__utils__terminal__print_stderr_box
-    fixos__agent__session_io__print_session_summary --> fixos__agent__session_io__fmt_time
-    fixos__agent__session_io__ask_execute_prompt --> fixos__agent__session_io__suspend_timeout
-    fixos__agent__session_io__ask_low_confidence_search --> fixos__agent__session_io__suspend_timeout
-    fixos__agent__session_io__ask_send_data --> fixos__agent__session_io__suspend_timeout
-    fixos__agent__session_io__get_user_input --> fixos__agent__session_io__suspend_timeout
-    fixos__agent__session_io__get_user_input --> fixos__agent__session_io__fmt_time
+    fixos__agent__autonomous_session__AutonomousSession___initialize_messages --> fixos__anonymizer__anonymize
+    fixos__agent__autonomous_session__AutonomousSession___initialize_messages --> fixos__utils__anonymizer__display_anonymized_preview
+    fixos__agent__autonomous_session__AutonomousSession___get_remaining_time --> fixos__agent__get_remaining_time
+    fixos__agent__autonomous_session__AutonomousSession___handle_llm_error --> fixos__utils__web_search__search_all
+    fixos__agent__autonomous_session__AutonomousSession___handle_llm_error --> fixos__utils__web_search__format_results_for_llm
+    fixos__agent__autonomous_session__AutonomousSession___handle_search --> fixos__utils__web_search__search_all
+    fixos__agent__autonomous_session__AutonomousSession___handle_search --> fixos__utils__web_search__format_results_for_llm
+    fixos__agent__autonomous_session__AutonomousSession___handle_exec --> fixos__utils__anonymizer__deanonymize
+    fixos__agent__session_core___is_diagnostic_only_command --> fixos__agent__session_core___is_part_diagnostic_only
+    fixos__agent__session_core___pattern_backticks --> fixos__agent__session_core___extract_co_robi
+    fixos__agent__session_core___pattern_no_backticks --> fixos__agent__session_core___extract_co_robi
+    fixos__agent__session_core___deduplicate --> fixos__agent__session_core___is_diagnostic_only_command
+    fixos__agent__session_core__extract_fixes --> fixos__agent__session_core___deduplicate
+    fixos__agent__session_core__extract_fixes --> fixos__agent__session_core___pattern_strict_bold
+    fixos__agent__session_core__extract_fixes --> fixos__agent__session_core___pattern_backticks
+    fixos__agent__session_core__extract_fixes --> fixos__agent__session_core___pattern_no_backticks
+    fixos__agent__session_core__extract_fixes --> fixos__agent__session_core___pattern_fallbacks
     fixos__agent__hitl_session__HITLSession____init__ --> fixos__platform_utils__get_os_info
     fixos__agent__hitl_session__HITLSession____init__ --> fixos__platform_utils__get_package_manager
     fixos__agent__hitl_session__HITLSession___setup_timeout --> fixos__platform_utils__setup_signal_timeout
@@ -355,19 +371,23 @@ flowchart LR
     fixos__agent__hitl_session__HITLSession___check_low_confidence --> fixos__utils__web_search__search_all
     fixos__agent__hitl_session__HITLSession___check_low_confidence --> fixos__utils__web_search__format_results_for_llm
     fixos__agent__hitl_session__HITLSession___process_turn --> fixos__agent__session_core__extract_fixes
-    fixos__cli___cleanup_utils___format_bytes --> fixos__diagnostics__storage_analyzer__StorageItem___format_size
-    fixos__agent__session_core___is_diagnostic_only_command --> fixos__agent__session_core___is_part_diagnostic_only
-    fixos__agent__session_core___pattern_backticks --> fixos__agent__session_core___extract_co_robi
-    fixos__agent__session_core___pattern_no_backticks --> fixos__agent__session_core___extract_co_robi
-    fixos__agent__session_core___deduplicate --> fixos__agent__session_core___is_diagnostic_only_command
-    fixos__agent__session_core__extract_fixes --> fixos__agent__session_core___deduplicate
-    fixos__agent__session_core__extract_fixes --> fixos__agent__session_core___pattern_strict_bold
-    fixos__agent__session_core__extract_fixes --> fixos__agent__session_core___pattern_backticks
-    fixos__agent__session_core__extract_fixes --> fixos__agent__session_core___pattern_no_backticks
-    fixos__agent__session_core__extract_fixes --> fixos__agent__session_core___pattern_fallbacks
-    fixos__cli__scan_cmd___run_disk_analysis --> fixos__cli__scan_cmd___display_disk_fix_mode
+    fixos__agent__session_io__suspend_timeout --> fixos__platform_utils__cancel_signal_timeout
+    fixos__agent__session_io__suspend_timeout --> fixos__agent__get_remaining_time
+    fixos__agent__session_io__suspend_timeout --> fixos__platform_utils__setup_signal_timeout
+    fixos__agent__session_io__print_session_header --> fixos__agent__session_io__fmt_time
+    fixos__agent__session_io__ask_user_problem --> fixos__agent__session_io__suspend_timeout
+    fixos__agent__session_io__print_cmd_result --> fixos__utils__terminal__print_stdout_box
+    fixos__agent__session_io__print_cmd_result --> fixos__utils__terminal__print_stderr_box
+    fixos__agent__session_io__print_session_summary --> fixos__agent__session_io__fmt_time
+    fixos__agent__session_io__ask_execute_prompt --> fixos__agent__session_io__suspend_timeout
+    fixos__agent__session_io__ask_low_confidence_search --> fixos__agent__session_io__suspend_timeout
+    fixos__agent__session_io__ask_send_data --> fixos__agent__session_io__suspend_timeout
+    fixos__agent__session_io__get_user_input --> fixos__agent__session_io__suspend_timeout
+    fixos__agent__session_io__get_user_input --> fixos__agent__session_io__fmt_time
     fixos__cli___cleanup_home___resolve_home_selection --> fixos__cli___cleanup_utils___parse_numeric_range_set
     fixos__cli___cleanup_home___handle_home_analysis --> fixos__cli___cleanup_home___display_home_items
+    fixos__cli___cleanup_utils___format_bytes --> fixos__diagnostics__flatpak_analyzer__FlatpakAnalyzer___format_size
+    fixos__cli__scan_cmd___run_disk_analysis --> fixos__cli__scan_cmd___display_disk_fix_mode
     fixos__cli___cleanup_snap___snap_display_packages --> fixos__cli___cleanup_utils___format_bytes
     fixos__cli___cleanup_snap___snap_select_packages --> fixos__cli___cleanup_utils___parse_numeric_range_set
     fixos__cli___cleanup_snap___handle_snap_management --> fixos__cli___cleanup_snap___snap_fetch_packages
@@ -375,19 +395,6 @@ flowchart LR
     fixos__cli___cleanup_snap___handle_snap_management --> fixos__cli___cleanup_snap___snap_select_packages
     fixos__cli___cleanup_snap___handle_snap_management --> fixos__cli___cleanup_snap___snap_warn_dangerous
     fixos__cli___cleanup_snap___handle_snap_management --> fixos__cli___cleanup_snap___snap_remove_packages
-    fixos__cli__cleanup_cmd___display_unsafe_services --> fixos__cli__cleanup_cmd___display_service_group
-    fixos__cli__cleanup_cmd___run_interactive_cleanup --> fixos__cli__cleanup_cmd___display_unsafe_services
-    fixos__cli__cleanup_cmd___run_interactive_cleanup --> fixos__cli__cleanup_cmd___execute_safe_cleanup
-    fixos__cli__ask_cmd__ask --> fixos__cli__ask_cmd___handle_natural_command
-    fixos__cli__ask_cmd___match_heuristic_command --> fixos__cli__ask_cmd___object_based_match
-    fixos__cli__ask_cmd___execute_heuristic_command --> fixos__cli__ask_cmd___build_output_dict
-    fixos__cli__ask_cmd___execute_heuristic_command --> fixos__cli__ask_cmd___validate_result_with_llm
-    fixos__cli__ask_cmd___execute_with_llm --> fixos__cli__ask_cmd___build_output_dict
-    fixos__cli__ask_cmd___execute_with_llm --> fixos__cli__ask_cmd___validate_result_with_llm
-    fixos__cli__ask_cmd___handle_natural_command --> fixos__cli__ask_cmd___match_heuristic_command
-    fixos__cli__ask_cmd___handle_natural_command --> fixos__cli__ask_cmd___execute_with_llm
-    fixos__cli__ask_cmd___handle_natural_command --> fixos__cli__ask_cmd___format_command
-    fixos__cli__ask_cmd___handle_natural_command --> fixos__cli__ask_cmd___execute_heuristic_command
     fixos__cli___cleanup_system___filter_by_age --> fixos__cli___cleanup_utils___format_bytes
     fixos__cli___cleanup_system___filter_by_prefix_top --> fixos__cli___cleanup_utils___format_bytes
     fixos__cli___cleanup_system___filter_by_prefix_category --> fixos__cli___cleanup_utils___format_bytes
@@ -404,10 +411,25 @@ flowchart LR
     fixos__cli___cleanup_system___dispatch_system_selection --> fixos__cli___cleanup_system___execute_full_cleanup
     fixos__cli___cleanup_system___cleanup_full_system --> fixos__cli___cleanup_system___display_full_system_menu
     fixos__cli___cleanup_system___cleanup_full_system --> fixos__cli___cleanup_system___dispatch_system_selection
+    fixos__cli__ask_cmd__ask --> fixos__cli__ask_cmd___handle_natural_command
+    fixos__cli__ask_cmd___match_heuristic_command --> fixos__cli__ask_cmd___object_based_match
+    fixos__cli__ask_cmd___execute_heuristic_command --> fixos__cli__ask_cmd___build_output_dict
+    fixos__cli__ask_cmd___execute_heuristic_command --> fixos__cli__ask_cmd___validate_result_with_llm
+    fixos__cli__ask_cmd___execute_with_llm --> fixos__cli__ask_cmd___build_output_dict
+    fixos__cli__ask_cmd___execute_with_llm --> fixos__cli__ask_cmd___validate_result_with_llm
+    fixos__cli__ask_cmd___handle_natural_command --> fixos__cli__ask_cmd___match_heuristic_command
+    fixos__cli__ask_cmd___handle_natural_command --> fixos__cli__ask_cmd___execute_with_llm
+    fixos__cli__ask_cmd___handle_natural_command --> fixos__cli__ask_cmd___format_command
+    fixos__cli__ask_cmd___handle_natural_command --> fixos__cli__ask_cmd___execute_heuristic_command
+    fixos__cli__fix_cmd___collect_diagnostics --> fixos__system_checks__get_full_diagnostics
+    fixos__cli__fix_cmd___collect_diagnostics --> fixos__cli__scan_cmd___run_disk_analysis
+    fixos__cli__fix_cmd___collect_diagnostics --> fixos__anonymizer__anonymize
+    fixos__cli__fix_cmd___run_agent_session --> docs__examples__quickstart__run_autonomous_session
+    fixos__cli__fix_cmd___run_agent_session --> fixos__agent__hitl__run_hitl_session
     fixos__cli__main__cli --> fixos__cli__main___print_welcome
     fixos__cli__main__main --> fixos__cli__main__cli
-    fixos__cli__token_cmd__token_set --> fixos__config__detect_provider_from_key
     fixos__cli___cleanup_flatpak___cleanup_flatpak_detailed --> fixos__cli___cleanup_flatpak___display_flatpak_status
+    fixos__cli__token_cmd__token_set --> fixos__config__detect_provider_from_key
     fixos__cli__features_cmd__features_audit --> fixos__cli__features_cmd___interactive_profile_select
     fixos__cli__config_cmd___set_env_key --> fixos__cli__config_cmd___env_path
     fixos__cli__config_cmd__config_model --> fixos__cli__config_cmd___set_env_key
@@ -415,6 +437,9 @@ flowchart LR
     fixos__cli__config_cmd__config_provider --> fixos__cli__config_cmd___display_provider_menu
     fixos__cli__config_cmd__config_provider --> fixos__cli__config_cmd___prompt_provider_choice
     fixos__cli__config_cmd__config_provider --> fixos__cli__config_cmd___save_provider_choice
+    fixos__plugins__builtin__resources__Plugin___check_cpu --> fixos__platform_utils__run_command
+    fixos__plugins__builtin__resources__Plugin___check_top_processes --> fixos__platform_utils__run_command
+    fixos__plugins__builtin__resources__Plugin___check_zombies --> fixos__platform_utils__run_command
     fixos__plugins__builtin__audio__Plugin___check_alsa --> fixos__platform_utils__run_command
     fixos__plugins__builtin__audio__Plugin___check_pipewire --> fixos__platform_utils__run_command
     fixos__plugins__builtin__audio__Plugin___check_wireplumber --> fixos__platform_utils__run_command
@@ -429,16 +454,13 @@ flowchart LR
     fixos__plugins__builtin__hardware__Plugin___check_touchpad --> fixos__platform_utils__run_command
     fixos__plugins__builtin__hardware__Plugin___check_camera --> fixos__platform_utils__run_command
     fixos__plugins__builtin__hardware__Plugin___check_dmi --> fixos__platform_utils__run_command
-    fixos__plugins__builtin__resources__Plugin___check_cpu --> fixos__platform_utils__run_command
-    fixos__plugins__builtin__resources__Plugin___check_top_processes --> fixos__platform_utils__run_command
-    fixos__plugins__builtin__resources__Plugin___check_zombies --> fixos__platform_utils__run_command
+    fixos__plugins__builtin__disk__Plugin___check_usage --> fixos__platform_utils__run_command
+    fixos__plugins__builtin__disk__Plugin___check_inodes --> fixos__platform_utils__run_command
+    fixos__plugins__builtin__disk__Plugin___check_readonly --> fixos__platform_utils__run_command
     fixos__plugins__builtin__thumbnails__Plugin___check_cache --> fixos__platform_utils__run_command
     fixos__plugins__builtin__thumbnails__Plugin___check_ffmpegthumbnailer --> fixos__platform_utils__run_command
     fixos__plugins__builtin__thumbnails__Plugin___check_totem --> fixos__platform_utils__run_command
     fixos__plugins__builtin__thumbnails__Plugin___check_gstreamer --> fixos__platform_utils__run_command
-    fixos__plugins__builtin__disk__Plugin___check_usage --> fixos__platform_utils__run_command
-    fixos__plugins__builtin__disk__Plugin___check_inodes --> fixos__platform_utils__run_command
-    fixos__plugins__builtin__disk__Plugin___check_readonly --> fixos__platform_utils__run_command
     fixos__utils__anonymizer__anonymize --> fixos__utils__anonymizer___get_sensitive
     fixos__utils__anonymizer__anonymize --> fixos__utils__anonymizer___apply_regex_replacements
     fixos__utils__anonymizer__deanonymize --> fixos__utils__anonymizer___get_sensitive
@@ -465,20 +487,21 @@ flowchart LR
     fixos__orchestrator__orchestrator__FixOrchestrator___default_confirm --> fixos__utils__terminal__print_cmd_block
     fixos__orchestrator__orchestrator__FixOrchestrator___default_progress --> fixos__utils__terminal__print_stdout_box
     fixos__orchestrator__orchestrator__FixOrchestrator___default_progress --> fixos__utils__terminal__print_stderr_box
-    fixos__config__FixOsConfig__load --> fixos__config___load_env_files
     scripts__pyqual_calibrate__calibrate --> scripts__pyqual_calibrate__parse_pyqual_yaml
     scripts__pyqual_calibrate__calibrate --> scripts__pyqual_calibrate__extract_current_metrics
     scripts__pyqual_calibrate__main --> scripts__pyqual_calibrate__calibrate
-    fixos__cli__fix_cmd___collect_diagnostics --> fixos__system_checks__get_full_diagnostics
-    fixos__cli__fix_cmd___collect_diagnostics --> fixos__cli__scan_cmd___run_disk_analysis
-    fixos__cli__fix_cmd___collect_diagnostics --> fixos__anonymizer__anonymize
-    fixos__cli__fix_cmd___run_agent_session --> docs__examples__quickstart__run_autonomous_session
-    fixos__cli__fix_cmd___run_agent_session --> fixos__agent__hitl__run_hitl_session
-    fixos__agent__autonomous_session__AutonomousSession___initialize_messages --> fixos__anonymizer__anonymize
-    fixos__agent__autonomous_session__AutonomousSession___initialize_messages --> fixos__utils__anonymizer__display_anonymized_preview
-    fixos__agent__autonomous_session__AutonomousSession___get_remaining_time --> fixos__agent__get_remaining_time
-    fixos__agent__autonomous_session__AutonomousSession___handle_llm_error --> fixos__utils__web_search__search_all
-    fixos__agent__autonomous_session__AutonomousSession___handle_llm_error --> fixos__utils__web_search__format_results_for_llm
-    fixos__agent__autonomous_session__AutonomousSession___handle_search --> fixos__utils__web_search__search_all
-    fixos__agent__autonomous_session__AutonomousSession___handle_search --> fixos__utils__web_search__format_results_for_llm
-    fixos__agent__autonomous_session__AutonomousSession___handle_exec --> fixos__utils__anonymizer__deanonymize
+    fixos__diagnostics__service_scanner__ServiceDataScanner__scan_all_services --> fixos__diagnostics__cache_discovery__discover_additional_caches
+    fixos__diagnostics__cache_discovery__path_is_covered --> fixos__diagnostics__cache_discovery__normalize_path
+    fixos__diagnostics__cache_discovery__discover_additional_caches --> fixos__diagnostics__cache_discovery___discover_xdg_cache_dirs
+    fixos__diagnostics__cache_discovery__discover_additional_caches --> fixos__diagnostics__cache_discovery___discover_electron_caches
+    fixos__diagnostics__cache_discovery__discover_additional_caches --> fixos__diagnostics__cache_discovery__normalize_path
+    fixos__diagnostics__cache_discovery___discover_xdg_cache_dirs --> fixos__diagnostics__cache_discovery__path_is_covered
+    fixos__diagnostics__cache_discovery___discover_xdg_cache_dirs --> fixos__diagnostics__cache_discovery__is_generic_cache_safe
+    fixos__diagnostics__cache_discovery___discover_electron_caches --> fixos__diagnostics__cache_discovery__path_is_covered
+    fixos__cli__cleanup_cmd___display_unsafe_services --> fixos__cli__cleanup_cmd___display_service_group
+    fixos__cli__cleanup_cmd___display_unsafe_services --> fixos__cli__cleanup_cmd___group_by_service_type
+    fixos__cli__cleanup_cmd___display_dangerous_services --> fixos__cli__cleanup_cmd___display_service_group
+    fixos__cli__cleanup_cmd___cleanup_single_service --> fixos__cli__cleanup_cmd___service_has_dangerous_data
+    fixos__cli__cleanup_cmd___run_interactive_cleanup --> fixos__cli__cleanup_cmd___display_unsafe_services
+    fixos__cli__cleanup_cmd___run_interactive_cleanup --> fixos__cli__cleanup_cmd___display_dangerous_services
+    fixos__cli__cleanup_cmd___run_interactive_cleanup --> fixos__cli__cleanup_cmd___execute_safe_cleanup

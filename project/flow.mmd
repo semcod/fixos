@@ -1,10 +1,15 @@
 flowchart TD
-%% generated in 0.01s
+%% generated in 0.02s
 
     %% Entry points (blue)
     classDef entry fill:#4dabf7,stroke:#1971c2,color:#fff
 
     subgraph CLI
+        fixos__cli___cleanup_home___display_home_items["_display_home_items"]
+        fixos__cli___cleanup_home___resolve_home_selection["_resolve_home_selection"]
+        fixos__cli___cleanup_home___remove_home_items["_remove_home_items"]
+        fixos__cli___cleanup_home___show_home_item_info["_show_home_item_info"]
+        fixos__cli___cleanup_home___handle_home_analysis["_handle_home_analysis"]
         fixos__cli__profile_cmd__profile["profile"]
         fixos__cli__profile_cmd__profile_list["profile_list"]
         fixos__cli__profile_cmd__profile_show["profile_show"]
@@ -14,32 +19,27 @@ flowchart TD
         fixos__cli___cleanup_utils___parse_selection["_parse_selection"]
         fixos__cli___cleanup_utils___parse_numeric_range_set["_parse_numeric_range_set"]
         fixos__cli___cleanup_utils___build_dep_types["_build_dep_types"]
-        fixos__cli__quickfix_cmd__quickfix["quickfix"]
-        fixos__cli__orchestrate_cmd__orchestrate["orchestrate"]
         fixos__cli__scan_cmd__scan["scan"]
-        fixos__cli__scan_cmd___resolve_modules["_resolve_modules"]
-        fixos__cli__scan_cmd___display_disk_fix_mode["_display_disk_fix_mode"]
-        fixos__cli__scan_cmd___display_disk_scan_mode["_display_disk_scan_mode"]
-        ...["+111 more"]
+        ...["+115 more"]
     end
 
     subgraph Core
+        docker__validate_scenario__main["main"]
         docker__test_multi_system__test_system["test_system"]
         docker__test_scenarios__build_base["build_base"]
         docker__test_scenarios__run_scenario["run_scenario"]
         docker__test_scenarios__main["main"]
+        fixos__config__FixOsConfig__load["load"]
+        fixos__config__FixOsConfig__validate["validate"]
+        fixos__config__FixOsConfig__summary["summary"]
+        fixos__config__get_providers_list["get_providers_list"]
+        fixos__watch__WatchDaemon__run["run"]
+        fixos__watch__WatchDaemon__stop["stop"]
+        fixos__watch__WatchDaemon___check_for_new_issues["_check_for_new_issues"]
+        fixos__watch__WatchDaemon___notify["_notify"]
         fixos__platform_utils__install_package_cmd["install_package_cmd"]
-        fixos__diagnostics___flatpak_recommendations_mixin___FlatpakRecommendationsMixin__get_largest_apps["get_largest_apps"]
-        fixos__diagnostics___flatpak_recommendations_mixin___FlatpakRecommendationsMixin__get_cleanup_summary["get_cleanup_summary"]
-        fixos__diagnostics___flatpak_recommendations_mixin___FlatpakRecommendationsMixin___rec_repo_bloat["_rec_repo_bloat"]
-        fixos__diagnostics___flatpak_recommendations_mixin___FlatpakRecommendationsMixin___rec_duplicates["_rec_duplicates"]
-        fixos__diagnostics___flatpak_recommendations_mixin___FlatpakRecommendationsMixin___rec_unused_runtimes["_rec_unused_runtimes"]
-        fixos__diagnostics___flatpak_recommendations_mixin___FlatpakRecommendationsMixin___rec_large_apps["_rec_large_apps"]
-        fixos__diagnostics___flatpak_recommendations_mixin___FlatpakRecommendationsMixin___rec_leftover_and_orphaned["_rec_leftover_and_orphaned"]
-        fixos__diagnostics___flatpak_recommendations_mixin___FlatpakRecommendationsMixin___rec_hard_reset["_rec_hard_reset"]
-        fixos__diagnostics___flatpak_recommendations_mixin___FlatpakRecommendationsMixin__get_cleanup_recommendations["get_cleanup_recommendations"]
-        fixos__diagnostics__utils__format_size["format_size"]
-        ...["+357 more"]
+        fixos__llm_shell___timeout_handler["_timeout_handler"]
+        ...["+363 more"]
     end
 
-    class docker__test_multi_system__test_system,docker__test_scenarios__build_base,docker__test_scenarios__run_scenario,docker__test_scenarios__main,fixos__platform_utils__install_package_cmd,fixos__diagnostics___flatpak_recommendations_mixin___FlatpakRecommendationsMixin__get_largest_apps,fixos__diagnostics___flatpak_recommendations_mixin___FlatpakRecommendationsMixin__get_cleanup_summary,fixos__diagnostics___flatpak_recommendations_mixin___FlatpakRecommendationsMixin___rec_repo_bloat,fixos__diagnostics___flatpak_recommendations_mixin___FlatpakRecommendationsMixin___rec_duplicates,fixos__diagnostics___flatpak_recommendations_mixin___FlatpakRecommendationsMixin___rec_unused_runtimes entry
+    class docker__validate_scenario__main,docker__test_multi_system__test_system,docker__test_scenarios__build_base,docker__test_scenarios__run_scenario,docker__test_scenarios__main,fixos__config__FixOsConfig__load,fixos__config__FixOsConfig__validate,fixos__config__FixOsConfig__summary,fixos__config__get_providers_list,fixos__watch__WatchDaemon__run entry

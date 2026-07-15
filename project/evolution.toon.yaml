@@ -1,20 +1,34 @@
-# code2llm/evolution | 624 func | 92f | 2026-05-08
+# code2llm/evolution | 642 func | 93f | 2026-07-15
 # generated in 0.00s
 
-NEXT[1] (ranked by impact):
-  [1] !! SPLIT           planfile.yaml
+NEXT[4] (ranked by impact):
+  [1] !! SPLIT           fixos/diagnostics/service_cleanup.py
+      WHY: 746L, 1 classes, max CC=21
+      EFFORT: ~4h  IMPACT: 15666
+
+  [2] !! SPLIT           fixos/cli/_cleanup_system.py
+      WHY: 603L, 0 classes, max CC=14
+      EFFORT: ~4h  IMPACT: 8442
+
+  [3] !  SPLIT-FUNC      ServiceCleaner.get_risk_level  CC=21  fan=7
+      WHY: CC=21 exceeds 15
+      EFFORT: ~1h  IMPACT: 147
+
+  [4] !! SPLIT           planfile.yaml
       WHY: 2450L, 0 classes, max CC=0
       EFFORT: ~4h  IMPACT: 0
 
 
-RISKS[1]:
+RISKS[3]:
   ⚠ Splitting planfile.yaml may break 0 import paths
+  ⚠ Splitting fixos/diagnostics/service_cleanup.py may break 13 import paths
+  ⚠ Splitting fixos/cli/_cleanup_system.py may break 17 import paths
 
 METRICS-TARGET:
-  CC̄:          4.3 → ≤3.0
-  max-CC:      14 → ≤7
-  god-modules: 1 → 0
-  high-CC(≥15): 0 → ≤0
+  CC̄:          4.4 → ≤3.1
+  max-CC:      21 → ≤10
+  god-modules: 3 → 0
+  high-CC(≥15): 2 → ≤1
   hub-types:   0 → ≤0
 
 PATTERNS (language parser shared logic):
@@ -42,4 +56,4 @@ PATTERNS (language parser shared logic):
     - Standardized FunctionInfo/ClassInfo models
 
 HISTORY:
-  prev CC̄=3.1 → now CC̄=4.3
+  prev CC̄=4.4 → now CC̄=4.4

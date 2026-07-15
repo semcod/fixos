@@ -33,9 +33,32 @@ def _display_cleanup_summary(plan: dict, threshold: int) -> None:
 
     click.echo(f"Znaleziono {plan['services_found']} usług:")
     click.echo(f"  Całkowity rozmiar: {plan['total_size_gb']:.2f} GB")
-    click.echo(f"  Bezpieczne do usunięcia: {plan['safe_cleanup_gb']:.2f} GB")
-    click.echo(f"  Wymaga przeglądu: {plan['requires_review_gb']:.2f} GB")
+    click.echo(
+        click.style(
+            f"  Bezpieczne do usunięcia: {plan['safe_cleanup_gb']:.2f} GB", fg="green"
+        )
+    )
+    click.echo(
+        click.style(
+            f"  Do rozważenia: {plan['requires_review_gb']:.2f} GB", fg="yellow"
+        )
+    )
+    click.echo(
+        click.style(
+            f"  Niebezpieczne (rzeczywiste dane, nie cache): "
+            f"{plan.get('dangerous_gb', 0):.2f} GB",
+            fg="red",
+            bold=True,
+        )
+    )
     click.echo()
+
+
+_RISK_LABELS = {
+    "safe": ("(bezpieczne)", "green"),
+    "review": ("(do rozważenia)", "yellow"),
+    "dangerous": ("(NIEBEZPIECZNE — realne dane, nie cache)", "red"),
+}
 
 
 def _display_service_item(svc: dict) -> None:
@@ -45,11 +68,11 @@ def _display_service_item(svc: dict) -> None:
         if svc["size_gb"] >= 1
         else f"{svc['size_mb']:.0f} MB"
     )
-    safe_icon = " " if svc["safe_to_cleanup"] else " "
-    safe_text = "(bezpieczne)" if svc["safe_to_cleanup"] else "(wymaga przeglądu)"
+    risk = svc.get("risk_level") or ("safe" if svc["safe_to_cleanup"] else "review")
+    safe_text, safe_color = _RISK_LABELS.get(risk, _RISK_LABELS["review"])
 
     click.echo(
-        f"{safe_icon} {click.style(svc['name'], fg='yellow', bold=True)} - {size_str}"
+        f"  {click.style(svc['name'], fg='yellow', bold=True)} - {size_str}"
     )
     click.echo(f"   {svc['description']}")
     paths = svc.get("details", {}).get("paths") or [svc["path"]]
@@ -59,7 +82,7 @@ def _display_service_item(svc: dict) -> None:
             click.echo(f"     • {path}")
     else:
         click.echo(f"   Ścieżka: {svc['path']}")
-    click.echo(f"   {safe_text}")
+    click.echo(f"   {click.style(safe_text, fg=safe_color, bold=(risk == 'dangerous'))}")
 
     # Show details for specific services
     if svc.get("details"):
@@ -130,40 +153,111 @@ def _display_service_group(service_type: str, svcs: list, type_map: dict) -> Non
                 _format_hint_line(hint)
 
 
+def _group_by_service_type(services: list) -> dict:
+    groups: dict = {}
+    for svc in services:
+        service_type = svc.get("service_type", "unknown")
+        groups.setdefault(service_type, []).append(svc)
+    return groups
+
+
 def _display_unsafe_services(services: list) -> None:
-    """Display services that require manual review."""
+    """Display services that are worth a look before deleting (reinstallable
+    apps, long-unused tool data, unrecognized cache directories)."""
     from fixos.diagnostics.service_scanner import ServiceType
 
     click.echo()
-    click.echo(click.style("Usługi wymagające przeglądu:", fg="yellow"))
-
-    service_groups: dict = {}
-    for svc in services:
-        service_type = svc.get("service_type", "unknown")
-        if service_type not in service_groups:
-            service_groups[service_type] = []
-        service_groups[service_type].append(svc)
+    click.echo(click.style("Do rozważenia (nie usuwane automatycznie):", fg="yellow"))
 
     type_map = {
         "flatpak": ServiceType.FLATPAK,
-        "docker": ServiceType.DOCKER,
-        "ollama": ServiceType.OLLAMA,
-        "steam": ServiceType.STEAM,
-        "minikube": ServiceType.MINIKUBE,
-        "lmstudio": ServiceType.LMSTUDIO,
         "generic_cache": ServiceType.GENERIC_CACHE,
     }
 
-    for service_type, svcs in service_groups.items():
+    for service_type, svcs in _group_by_service_type(services).items():
         _display_service_group(service_type, svcs, type_map)
 
     click.echo()
     click.echo(
         click.style(
-            "💡 Wskazówki: Powyższe komendy są bezpieczne i często odzyskują dużo miejsca",
+            "💡 Wskazówki: Powyższe komendy są zwykle bezpieczne (usuwają nieużywane "
+            "wersje/runtime) i mogą odzyskać dużo miejsca — warto jednak zerknąć "
+            "zanim je uruchomisz",
             fg="green",
         )
     )
+
+
+def _display_dangerous_services(services: list) -> None:
+    """Display services holding real installed application data (models,
+    containers/volumes, editor extensions, VM disks) rather than a cache.
+
+    Never auto-cleaned in bulk. Shown separately with an explicit warning so
+    it can't be mistaken for one of the "safe" cache entries.
+    """
+    from fixos.diagnostics.service_scanner import ServiceType
+
+    if not services:
+        return
+
+    click.echo()
+    click.echo(
+        click.style(
+            "⚠️  Niebezpieczne — realne dane, nie cache (wymaga ręcznej, świadomej akcji):",
+            fg="red",
+            bold=True,
+        )
+    )
+    click.echo(
+        click.style(
+            "   To nie jest cache do odtworzenia jednym poleceniem — to np. "
+            "zainstalowane modele AI, kontenery/woluminy, dyski maszyn "
+            "wirtualnych albo zainstalowane rozszerzenia edytora. Usunięcie "
+            "może oznaczać realną utratę danych lub długi re-download.",
+            fg="red",
+        )
+    )
+
+    type_map = {
+        "docker": ServiceType.DOCKER,
+        "containerd": ServiceType.CONTAINERD,
+        "podman": ServiceType.PODMAN,
+        "ollama": ServiceType.OLLAMA,
+        "lmstudio": ServiceType.LMSTUDIO,
+        "huggingface": ServiceType.HUGGINGFACE,
+        "jupyter": ServiceType.JUPYTER,
+        "minikube": ServiceType.MINIKUBE,
+        "appimage": ServiceType.APPIMAGE,
+        "virtualbox": ServiceType.VBOX,
+        "vmware": ServiceType.VMWARE,
+        "steam": ServiceType.STEAM,
+        "cursor": ServiceType.CURSOR,
+        "vscode": ServiceType.VSCODE,
+    }
+
+    for service_type, svcs in _group_by_service_type(services).items():
+        _display_service_group(service_type, svcs, type_map)
+
+    click.echo()
+    click.echo(
+        click.style(
+            "   Aby usunąć pojedynczą usługę świadomie: "
+            "fixos cleanup -c <usluga> (poprzedź --dry-run, by zobaczyć co zrobi)",
+            fg="yellow",
+        )
+    )
+
+
+def _service_has_dangerous_data(service_name: str, scanner) -> bool:
+    """True if any currently-scanned path for this service is 'dangerous'."""
+    from fixos.diagnostics.service_scanner import RiskLevel, ServiceType
+
+    try:
+        service_enum = ServiceType(service_name)
+    except ValueError:
+        return False
+    scanned = scanner.scan_service(service_enum)
+    return any(s.risk_level == RiskLevel.DANGEROUS.value for s in scanned)
 
 
 def _cleanup_single_service(
@@ -176,6 +270,21 @@ def _cleanup_single_service(
 
         click.echo(json.dumps(result, indent=2, default=str))
         return
+
+    if not dry_run and _service_has_dangerous_data(service_name, scanner):
+        click.echo(
+            click.style(
+                f"⚠️  {service_name} zawiera realne dane (nie tylko cache) — np. "
+                "zainstalowane modele/rozszerzenia/kontenery. Tej operacji nie "
+                "da się cofnąć.",
+                fg="red",
+                bold=True,
+            )
+        )
+        click.echo(f"   Podgląd bez usuwania: fixos cleanup -c {service_name} --dry-run")
+        if not click.confirm(f"Na pewno usunąć dane usługi {service_name}?"):
+            click.echo("Anulowano.")
+            return
 
     click.echo(click.style(f"Czyszczenie usługi: {service_name}", fg="yellow"))
     if dry_run:
@@ -215,6 +324,8 @@ def _run_interactive_cleanup(plan: dict, list_only: bool, scanner) -> None:
             _execute_safe_cleanup(plan["safe_to_cleanup"], scanner)
     if plan["requires_review"] and not list_only:
         _display_unsafe_services(plan["requires_review"])
+    if plan.get("dangerous") and not list_only:
+        _display_dangerous_services(plan["dangerous"])
 
 
 # ── Main CLI command ──────────────────────────────────────────────────────

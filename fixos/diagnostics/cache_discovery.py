@@ -229,12 +229,16 @@ def _build_generic_entry(
     service_type: "ServiceType" = None,
 ) -> "ServiceDataInfo":
     from .service_cleanup import ServiceCleaner
-    from .service_scanner import ServiceDataInfo, ServiceType
+    from .service_scanner import RiskLevel, ServiceDataInfo, ServiceType
 
     if service_type is None:
         service_type = ServiceType.GENERIC_CACHE
     size_gb = size_mb / 1024
     cleanup_command = ServiceCleaner.get_cleanup_command(service_type, path)
+    # Discovered dirs are only ever "safe" (recognized cache name pattern) or
+    # "review" (unrecognized, look before deleting) — never "dangerous",
+    # since we have no basis to claim it's real installed-app data.
+    risk_level = RiskLevel.SAFE.value if safe else RiskLevel.REVIEW.value
     return ServiceDataInfo(
         service_type=service_type,
         name=label,
@@ -248,4 +252,5 @@ def _build_generic_entry(
         safe_to_cleanup=safe,
         impact="high" if size_gb > 1.0 else "medium",
         details={"discovered": True, "source": "cache_discovery"},
+        risk_level=risk_level,
     )
