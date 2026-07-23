@@ -20,6 +20,11 @@ status: publish
 
 # fixOS — Nowe funkcje: szczegóły implementacji
 
+> **Archiwalny plan (2026-03-15).** Plugin registry, structured output,
+> rollback, profile diagnostyczne i watch mode są już dostępne w kodzie.
+> Zakończone prace przeniesiono do [`../CHANGELOG.md`](../CHANGELOG.md);
+> bieżące zadania znajdują się w [`../TODO.md`](../TODO.md).
+
 ## 1. Plugin System dla diagnostyki
 
 ### Problem

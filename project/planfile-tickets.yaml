@@ -2712,5 +2712,69 @@ tickets:
   files:
   - tests/e2e/test_multi_system.py
   dedupe_key: test-optimization:tests.e2e.test_multi_system.TestCliCommands:test_config_show
+- signal: slow_test_warning
+  title: 'Address slow test: tests.e2e.test_cli.TestWelcomeScreen.test_welcome_shows_banner'
+  description: 'Test `tests.e2e.test_cli.TestWelcomeScreen.test_welcome_shows_banner`
+    took 1.97s to run.
+
+
+    Optimize its setup, mock slow external dependencies, or refactor its logic to
+    reduce overall test suite execution time.'
+  priority: medium
+  labels:
+  - llm-ready
+  - test-optimization
+  - slow-test
+  files:
+  - tests/e2e/test_cli.py
+  dedupe_key: test-optimization:tests.e2e.test_cli.TestWelcomeScreen:test_welcome_shows_banner
+- signal: slow_test_warning
+  title: 'Address slow test: tests.e2e.test_cli.TestWelcomeScreen.test_welcome_shows_tip_when_no_key'
+  description: 'Test `tests.e2e.test_cli.TestWelcomeScreen.test_welcome_shows_tip_when_no_key`
+    took 1.90s to run.
+
+
+    Optimize its setup, mock slow external dependencies, or refactor its logic to
+    reduce overall test suite execution time.'
+  priority: medium
+  labels:
+  - llm-ready
+  - test-optimization
+  - slow-test
+  files:
+  - tests/e2e/test_cli.py
+  dedupe_key: test-optimization:tests.e2e.test_cli.TestWelcomeScreen:test_welcome_shows_tip_when_no_key
+- signal: slow_test_warning
+  title: 'Address slow test: tests.e2e.test_cli.TestWelcomeScreen.test_welcome_shows_commands'
+  description: 'Test `tests.e2e.test_cli.TestWelcomeScreen.test_welcome_shows_commands`
+    took 1.83s to run.
+
+
+    Optimize its setup, mock slow external dependencies, or refactor its logic to
+    reduce overall test suite execution time.'
+  priority: medium
+  labels:
+  - llm-ready
+  - test-optimization
+  - slow-test
+  files:
+  - tests/e2e/test_cli.py
+  dedupe_key: test-optimization:tests.e2e.test_cli.TestWelcomeScreen:test_welcome_shows_commands
+- signal: slow_test_warning
+  title: 'Address slow test: tests.e2e.test_cli.TestWelcomeScreen.test_welcome_shows_status_section'
+  description: 'Test `tests.e2e.test_cli.TestWelcomeScreen.test_welcome_shows_status_section`
+    took 1.83s to run.
+
+
+    Optimize its setup, mock slow external dependencies, or refactor its logic to
+    reduce overall test suite execution time.'
+  priority: medium
+  labels:
+  - llm-ready
+  - test-optimization
+  - slow-test
+  files:
+  - tests/e2e/test_cli.py
+  dedupe_key: test-optimization:tests.e2e.test_cli.TestWelcomeScreen:test_welcome_shows_status_section
 applied: []
 skipped: []

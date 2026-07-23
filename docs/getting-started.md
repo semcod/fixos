@@ -1,52 +1,130 @@
-# Getting Started with fixOS
+# Pierwsze kroki z fixOS
 
-## Prerequisites
+fixOS diagnozuje zasoby komputera, wskazuje bezpieczne cache do usunięcia i,
+opcjonalnie, używa LLM do pogłębionej analizy oraz napraw.
 
-- Python >=3.10
-- pip (or your preferred package manager)
-- 7 dependencies (installed automatically)
+## Wymagania
 
-## Installation
+- Python 3.10 lub nowszy,
+- Linux, Windows 10/11 albo macOS 12+,
+- klucz API tylko dla funkcji korzystających z LLM.
 
-```bash
-pip install fixos
-```
+## Instalacja
 
-To install from source:
-
-```bash
-git clone https://github.com/wronai/fixfedora
-cd fixOS
-pip install -e .
-```
-
-## Quick Start
-
-### Command Line
+Z PyPI:
 
 ```bash
-# Generate full documentation for your project
-fixOS ./path/to/your/project
-
-# Preview what would be generated (no file writes)
-fixOS ./path/to/your/project --dry-run
-
-# Only regenerate README
-fixOS ./path/to/your/project --readme-only
+python -m pip install --upgrade fixos
+fixos --version
 ```
 
-### Python API
+Z kodu źródłowego:
 
-```python
-from fixos.diagnostics.flatpak_analyzer import analyze_flatpak_for_cleanup
-
-# Convenience function to run full Flatpak analysis
-result = analyze_flatpak_for_cleanup()
+```bash
+git clone https://github.com/wronai/fixos.git
+cd fixos
+python -m venv .venv
+. .venv/bin/activate
+python -m pip install -e ".[dev]"
 ```
 
-## What's Next
+Każdą komendę można też uruchomić jako `python -m fixos`.
 
-- 📖 [API Reference](api.md) — Full function and class documentation
-- 🏗️ [Architecture](architecture.md) — System design and module relationships
-- 📊 [Coverage Report](coverage.md) — Docstring coverage analysis
-- 🔗 [Dependency Graph](dependency-graph.md) — Module dependency visualization
+## Pierwsze uruchomienie
+
+Najpierw użyj lokalnej analizy heurystycznej:
+
+```bash
+fixos quick
+```
+
+Komenda nie wywołuje LLM i nie skanuje rekurencyjnie całego katalogu domowego.
+Pokazuje bieżące użycie CPU, RAM i dysku, rozmiar jawnie odtwarzalnych cache
+oraz zapisuje mały punkt odniesienia. Kolejne uruchomienia wskazują przyrosty
+z ostatnich godzin i od początku dnia.
+
+Przydatne warianty:
+
+```bash
+fixos quick --json --no-save
+fixos quick --hours 24
+fixos quick --deep
+```
+
+`--deep` uruchamia po szybkim wyniku pełniejszy skan usług.
+
+## Czyszczenie miejsca
+
+Najpierw wykonaj podgląd:
+
+```bash
+fixos cleanup --list
+fixos cleanup -c npm --dry-run
+```
+
+Następnie uruchom interaktywne czyszczenie:
+
+```bash
+fixos cleanup
+```
+
+fixOS dzieli dane na trzy poziomy:
+
+- **bezpieczne** — odtwarzalne cache; można wybrać wszystkie lub pojedyncze,
+- **do rozważenia** — wymagają obejrzenia komendy i świadomego potwierdzenia,
+- **chronione/mieszane** — modele, rozszerzenia, wolumeny i dane aktywne;
+  dostępny jest bezpieczny podgląd, a nie zbiorcze kasowanie.
+
+W trybie „Wybierz pojedyncze” lista przechodzi kolejno przez wszystkie trzy
+grupy. Element bez bezpiecznej operacji usuwania pokazuje tylko diagnostykę.
+
+## Diagnostyka bez LLM
+
+```bash
+fixos scan
+fixos scan -M audio,resources
+fixos scan --yaml
+```
+
+Pełna inwentaryzacja plików jest kosztowna i uruchamiana jawnie przez moduły
+rozszerzone. Do szybkiej odpowiedzi używaj `fixos quick`.
+
+## Analiza i naprawa z LLM
+
+Skonfiguruj provider:
+
+```bash
+fixos config init
+fixos token set TWOJ_KLUCZ
+fixos test-llm
+```
+
+Następnie:
+
+```bash
+fixos fix
+```
+
+Domyślny tryb HITL pyta przed wykonaniem proponowanych zmian. Tryb autonomiczny
+jest dostępny jawnie:
+
+```bash
+fixos fix --mode autonomous --max-fixes 5
+```
+
+## Projekty deweloperskie
+
+Artefakty projektów są skanowane osobno od globalnych cache:
+
+```bash
+fixos projects --dry-run
+fixos projects --path ~/github --only-stale
+```
+
+## Co dalej
+
+- [Architektura](architecture.md)
+- [Konfiguracja](configuration.md)
+- [API](api.md)
+- [Zasady współtworzenia](CONTRIBUTING.md)
+- [Aktualne zadania](../TODO.md)

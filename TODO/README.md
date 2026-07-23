@@ -1,4 +1,9 @@
-# articles
+# Archiwum artykułów i planów
+
+> Te pliki są historycznymi materiałami redakcyjnymi z marca 2026. Nie są
+> bieżącą listą zadań i mogą opisywać stan sprzed refaktoryzacji. Aktualne
+> zadania znajdują się w [`../TODO.md`](../TODO.md), a wykonane prace w
+> [`../CHANGELOG.md`](../CHANGELOG.md).
 
 Artykuły o statusie projektów w organizacji [wronai](https://github.com/wronai), przygotowane do publikacji na WordPress.
 

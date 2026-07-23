@@ -8,6 +8,19 @@
   dnia oraz alarmami o szybkim wzroście dysku, RAM, swapu lub obciążenia CPU.
 - Rozpoznawanie systemu, profilu użytkownika i stosu technologicznego oraz
   opcjonalne przejście do wolniejszej analizy przez `fixos quick --deep`.
+- Uporządkowana dokumentacja użytkownika: szybki start, model bezpieczeństwa
+  cleanup, aktualna architektura i rozdzielenie aktywnego TODO od archiwalnych
+  artykułów.
+
+### Changed
+
+- Zakończone elementy historycznych roadmap zostały przeniesione z TODO do
+  changelogu: modułowy pakiet CLI, klasowe sesje HITL, wspólny
+  `SessionTimeout`, plugin registry, structured output LLM, rollback, profile
+  diagnostyczne i watch mode.
+- `TODO.md` zawiera teraz wyłącznie ręcznie zweryfikowane, aktualne zadania;
+  usunięto nieaktualny raport statyczny z 311 wpisami opartymi na dawnych
+  numerach linii i fałszywych alarmach.
 
 ### Fixed
 

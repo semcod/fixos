@@ -19,6 +19,11 @@ status: publish
 
 # fixOS — Status projektu i plan rozwoju
 
+> **Archiwalny snapshot (2026-03-15).** Wersja, metryki i plan poniżej opisują
+> stan historyczny. Rozbicie CLI, klasy sesji, pluginy, rollback, profile,
+> structured output i watch mode zostały już wdrożone. Bieżące zadania:
+> [`../TODO.md`](../TODO.md); wykonane zmiany: [`../CHANGELOG.md`](../CHANGELOG.md).
+
 **Repozytorium:** [github.com/wronai/fixfedora](https://github.com/wronai/fixfedora)
 **Wersja:** 0.1.0
 **Licencja:** Apache-2.0

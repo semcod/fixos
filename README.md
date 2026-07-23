@@ -20,10 +20,10 @@ AI-powered OS Diagnostics
 ## AI Cost Tracking
 
 ![PyPI](https://img.shields.io/badge/pypi-costs-blue) ![Version](https://img.shields.io/badge/version-2.2.40-blue) ![Python](https://img.shields.io/badge/python-3.9+-blue) ![License](https://img.shields.io/badge/license-Apache--2.0-green)
-![AI Cost](https://img.shields.io/badge/AI%20Cost-$4.85-orange) ![Human Time](https://img.shields.io/badge/Human%20Time-38.2h-blue) ![Model](https://img.shields.io/badge/Model-openrouter%2Fqwen%2Fqwen3--coder--next-lightgrey)
+![AI Cost](https://img.shields.io/badge/AI%20Cost-$4.87-orange) ![Human Time](https://img.shields.io/badge/Human%20Time-39.0h-blue) ![Model](https://img.shields.io/badge/Model-openrouter%2Fqwen%2Fqwen3--coder--next-lightgrey)
 
-- 🤖 **LLM usage:** $4.8451 (147 commits)
-- 👤 **Human dev:** ~$3817 (38.2h @ $100/h, 30min dedup)
+- 🤖 **LLM usage:** $4.8663 (148 commits)
+- 👤 **Human dev:** ~$3902 (39.0h @ $100/h, 30min dedup)
 
 Generated on 2026-07-23 using [openrouter/qwen/qwen3-coder-next](https://openrouter.ai/qwen/qwen3-coder-next)
 
@@ -161,6 +161,8 @@ Pierwsze uruchomienie zapisuje mały punkt odniesienia w
 swapu i znanych cache w wybranym oknie oraz od początku bieżącego dnia. Kwota
 „bezpieczne cache” obejmuje wyłącznie jawnie odtwarzalne dane. Docker, modele
 AI, rozszerzenia i cache IDE są raportowane osobno jako wymagające decyzji.
+Nie są do niej zaliczane m.in. narzędzia i interpretery z
+`~/.local/share/uv`, `.tools` pnpm, modele AI ani rozszerzenia edytorów.
 
 ### Przykładowy widok w terminalu (Czyszczenie dysku)
 
@@ -214,15 +216,21 @@ Tryb DRY-RUN - żadne akcje nie zostaną wykonane
 Każda znaleziona usługa jest klasyfikowana do jednej z trzech grup:
 
 - **bezpieczne** – cache do odtworzenia jednym poleceniem (pip/npm/cargo/conda/nix/brew...).
-  Jedyna grupa oferowana do automatycznego usunięcia, z menu wyboru: wszystkie / pojedynczo / pomiń.
+  Tylko tę grupę można usunąć automatycznie opcją „wszystkie”.
 - **do rozważenia** – reinstalowalne aplikacje, dane długo nieużywane, nierozpoznane
-  foldery (JetBrains, Snap, Flatpak) – pokazywane z podpowiedziami, nigdy nie usuwane automatycznie.
+  foldery (JetBrains, Snap, Flatpak) – pokazywane z komendą i wymagają
+  osobnego, świadomego potwierdzenia.
 - **chronione lub mieszane** – realne dane aplikacji albo magazyny łączące dane aktywne
   z cache (Ollama, LM Studio, HuggingFace hub, Docker/Podman/containerd, cała biblioteka
   Steam, `.cursor/extensions`/`.vscode/extensions`
   – zainstalowane rozszerzenia edytora, nie ich cache). Osobna sekcja z ostrzeżeniem;
   zbiorcze kasowanie modeli i wolumenów jest wyłączone. Docker pokazuje osobno
   `SIZE` i `RECLAIMABLE`; domyślne czyszczenie ogranicza się do starego cache buildów.
+
+Opcja „Wybierz pojedyncze” przechodzi kolejno przez wszystkie znalezione
+usługi w tych trzech grupach. Dla pozycji bez bezpiecznej operacji zbiorczej
+wyświetla wyłącznie komendę podglądu. Pozycje chronione wymagają dodatkowego
+potwierdzenia.
 
 ### `fixos projects` – skaner artefaktów w projektach deweloperskich
 
@@ -521,7 +529,8 @@ fixos/
 
 ## 📋 Roadmap
 
-Zobacz pełną listę zadań i roadmap w pliku [TODO.md](./TODO.md)
+Aktualne, ręcznie zweryfikowane zadania znajdują się w [TODO.md](./TODO.md).
+Historyczne artykuły i plany są przechowywane w katalogu [TODO/](./TODO/).
 
 ---
 
@@ -576,7 +585,8 @@ fixos orchestrate --dry-run
 
 ### 🔗 Linki
 - **GitHub**: https://github.com/wronai/fixos
-- **Pełna dokumentacja**: [TODO.md](./TODO.md)
+- **Dokumentacja**: [docs/README.md](./docs/README.md)
+- **Aktualne zadania**: [TODO.md](./TODO.md)
 ---
 
 ## Licencja

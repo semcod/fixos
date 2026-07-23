@@ -19,6 +19,12 @@ status: publish
 
 # fixOS — Techniczny plan refaktoryzacji
 
+> **Archiwalny plan (2026-03-15).** Główne kroki opisane w fazach 1, 2 i 4
+> zostały wykonane: CLI jest pakietem modułów, HITL korzysta z klasy sesji,
+> a `SessionTimeout` ma jedną implementację. Zakończone prace przeniesiono do
+> [`../CHANGELOG.md`](../CHANGELOG.md); aktualne zadania są w
+> [`../TODO.md`](../TODO.md).
+
 ## Diagnoza: 18 funkcji powyżej limitu złożoności
 
 Analiza code2llm wykazała 18 funkcji z cyklomatyczną złożonością powyżej CC=15. To 9% wszystkich funkcji, ale generują one nieproporcjonalną ilość ryzyka — trudniejsze testowanie, wyższe prawdopodobieństwo regresji, gorsza czytelność.
