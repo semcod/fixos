@@ -24,16 +24,28 @@ from fixos.constants import (
 def _collect_diagnostics(
     modules: str, disc: bool, fmt: OutputFormatter, output: str
 ) -> dict:
-    """Run diagnostics collection and optionally disk analysis. Returns data dict."""
+    """Run quick-first diagnostics and optionally disk analysis."""
     selected_modules = modules.split(",") if modules else None
+    from fixos.diagnostics.quick_snapshot import collect_quick_snapshot
+
+    quick_snapshot = collect_quick_snapshot()
+    data: dict = {"quick": quick_snapshot}
+    if not fmt.is_machine:
+        from fixos.cli.quick_cmd import render_quick_snapshot
+
+        render_quick_snapshot(quick_snapshot)
 
     if disc and not modules:
-        data: dict = {}
+        pass
     else:
-        fmt.status("\nZbieranie diagnostyki...", fg="yellow")
+        fmt.status("\nZbieranie diagnostyki rozszerzonej...", fg="yellow")
         from fixos.diagnostics import get_full_diagnostics
+        from fixos.diagnostics.system_checks import DEFAULT_DIAGNOSTIC_MODULES
 
-        data = get_full_diagnostics(selected_modules, progress_callback=fmt.progress)
+        diagnostic_modules = selected_modules or list(DEFAULT_DIAGNOSTIC_MODULES)
+        data.update(
+            get_full_diagnostics(diagnostic_modules, progress_callback=fmt.progress)
+        )
 
     if disc:
         from fixos.cli.scan_cmd import _run_disk_analysis

@@ -49,12 +49,14 @@ class ProjectDependency:
             "size_human": self._format_size(self.size_bytes),
             "dep_type": self.dep_type,
             "project_name": self.project_name,
-            "last_modified": self.last_modified.isoformat()
-            if self.last_modified
-            else None,
-            "days_since_modified": (datetime.now() - self.last_modified).days
-            if self.last_modified
-            else None,
+            "last_modified": (
+                self.last_modified.isoformat() if self.last_modified else None
+            ),
+            "days_since_modified": (
+                (datetime.now() - self.last_modified).days
+                if self.last_modified
+                else None
+            ),
             "can_recreate": self.can_recreate,
             "recreate_command": self.recreate_command,
         }
@@ -142,8 +144,19 @@ class DevProjectAnalyzer:
         },
         # Java/JVM
         "target": {
-            "indicators": ["pom.xml", "build.gradle", "build.gradle.kts"],
-            "recreate": "mvn install / gradle build",
+            "indicators": [
+                "Cargo.toml",
+                "pom.xml",
+                "build.gradle",
+                "build.gradle.kts",
+            ],
+            "recreate": "cargo build / mvn install / gradle build",
+            "recreate_by_indicator": {
+                "Cargo.toml": "cargo build",
+                "pom.xml": "mvn install",
+                "build.gradle": "gradle build",
+                "build.gradle.kts": "gradle build",
+            },
             "priority": "high",
         },
         ".gradle": {
@@ -151,17 +164,15 @@ class DevProjectAnalyzer:
             "recreate": "gradle build (downloads dependencies)",
             "priority": "medium",
         },
-        # Rust
-        "target": {
-            "indicators": ["Cargo.toml"],
-            "recreate": "cargo build",
-            "priority": "high",
-        },
-        # Go
+        # Go / PHP
         "vendor": {
-            "indicators": ["go.mod"],
-            "recreate": "go mod vendor",
-            "priority": "medium",
+            "indicators": ["go.mod", "composer.json"],
+            "recreate": "go mod vendor / composer install",
+            "recreate_by_indicator": {
+                "go.mod": "go mod vendor",
+                "composer.json": "composer install",
+            },
+            "priority": "high",
         },
         # .NET
         "bin": {
@@ -173,12 +184,6 @@ class DevProjectAnalyzer:
             "indicators": ["*.csproj", "*.sln"],
             "recreate": "dotnet build",
             "priority": "low",
-        },
-        # PHP
-        "vendor": {
-            "indicators": ["composer.json"],
-            "recreate": "composer install",
-            "priority": "high",
         },
         # Ruby
         "vendor/bundle": {
@@ -320,6 +325,11 @@ class DevProjectAnalyzer:
         can_recreate = self._check_can_recreate(
             folder, pattern_info.get("indicators", [])
         )
+        recreate_command = pattern_info.get("recreate", "Unknown")
+        for indicator, command in pattern_info.get("recreate_by_indicator", {}).items():
+            if self._indicator_exists(folder.parent, indicator):
+                recreate_command = command
+                break
 
         return ProjectDependency(
             name=folder.name,
@@ -329,7 +339,7 @@ class DevProjectAnalyzer:
             project_name=project_name,
             last_modified=last_modified,
             can_recreate=can_recreate,
-            recreate_command=pattern_info.get("recreate", "Unknown"),
+            recreate_command=recreate_command,
         )
 
     def _get_dir_size(self, path: Path) -> int:
@@ -353,11 +363,16 @@ class DevProjectAnalyzer:
             return True  # Always safe (like __pycache__)
 
         parent = folder.parent
-        for indicator in indicators:
-            if (parent / indicator).exists():
-                return True
+        return any(
+            self._indicator_exists(parent, indicator) for indicator in indicators
+        )
 
-        return False
+    @staticmethod
+    def _indicator_exists(parent: Path, indicator: str) -> bool:
+        """Match both literal marker files and simple glob indicators."""
+        if any(token in indicator for token in ("*", "?", "[")):
+            return any(parent.glob(indicator))
+        return (parent / indicator).exists()
 
     def get_old_dependencies(
         self, days: int = DEV_PROJECT_OLD_DAYS

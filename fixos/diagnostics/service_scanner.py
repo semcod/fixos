@@ -11,6 +11,9 @@ import glob
 import json
 import re
 import subprocess
+import tempfile
+from datetime import datetime
+from pathlib import Path
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, field
 from enum import Enum
@@ -340,9 +343,7 @@ class ServiceDataScanner:
         merged.sort(key=lambda item: item.size_mb, reverse=True)
         return merged
 
-    def _merge_service_entries(
-        self, results: List[ServiceDataInfo]
-    ) -> ServiceDataInfo:
+    def _merge_service_entries(self, results: List[ServiceDataInfo]) -> ServiceDataInfo:
         """Combine multiple same-risk paths for a service into one summary entry."""
         primary = max(results, key=lambda item: item.size_mb)
         total_mb = sum(item.size_mb for item in results)
@@ -460,9 +461,7 @@ class ServiceDataScanner:
                     dirnames[:] = [
                         name
                         for name in dirnames
-                        if self._should_descend(
-                            os.path.join(dirpath, name), root_dev
-                        )
+                        if self._should_descend(os.path.join(dirpath, name), root_dev)
                     ]
                 for filename in filenames:
                     filepath = os.path.join(dirpath, filename)
@@ -563,15 +562,41 @@ class ServiceDataScanner:
             "reclaimable_gb": round(reclaimable_mb / 1024, 3),
             "rows": rows,
         }
+        self._persist_docker_usage(self._docker_usage_cache)
         return self._docker_usage_cache
+
+    @staticmethod
+    def _persist_docker_usage(usage: Dict[str, Any]) -> None:
+        """Make an expensive Docker measurement reusable by the quick path."""
+        cache_root = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"))
+        path = cache_root / "fixos" / "docker-usage.json"
+        tmp_name = ""
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            payload = {
+                "generated_at": datetime.now().astimezone().isoformat(),
+                "usage": usage,
+            }
+            with tempfile.NamedTemporaryFile(
+                "w", encoding="utf-8", dir=path.parent, delete=False
+            ) as handle:
+                json.dump(payload, handle, ensure_ascii=False)
+                tmp_name = handle.name
+            os.replace(tmp_name, path)
+        except OSError:
+            pass
+        finally:
+            if tmp_name:
+                try:
+                    Path(tmp_name).unlink(missing_ok=True)
+                except OSError:
+                    pass
 
     @staticmethod
     def _docker_usage_details(usage: Dict[str, Any]) -> Dict[str, Any]:
         rows = usage.get("rows", {})
         return {
-            "items_count": sum(
-                int(row.get("total", 0)) for row in rows.values()
-            ),
+            "items_count": sum(int(row.get("total", 0)) for row in rows.values()),
             "components": {
                 kind.lower().replace(" ", "_"): int(row.get("total", 0))
                 for kind, row in rows.items()
@@ -597,7 +622,13 @@ class ServiceDataScanner:
             return 0.0
         amount = float(match.group(1))
         unit = match.group(2).upper()
-        multipliers = {"B": 1 / 1024**2, "KB": 1 / 1024, "MB": 1, "GB": 1024, "TB": 1024**2}
+        multipliers = {
+            "B": 1 / 1024**2,
+            "KB": 1 / 1024,
+            "MB": 1,
+            "GB": 1024,
+            "TB": 1024**2,
+        }
         return amount * multipliers.get(unit, 0.0)
 
     @staticmethod

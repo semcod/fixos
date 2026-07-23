@@ -19,11 +19,11 @@ AI-powered OS Diagnostics
 
 ## AI Cost Tracking
 
-![PyPI](https://img.shields.io/badge/pypi-costs-blue) ![Version](https://img.shields.io/badge/version-2.2.38-blue) ![Python](https://img.shields.io/badge/python-3.9+-blue) ![License](https://img.shields.io/badge/license-Apache--2.0-green)
-![AI Cost](https://img.shields.io/badge/AI%20Cost-$4.62-orange) ![Human Time](https://img.shields.io/badge/Human%20Time-37.0h-blue) ![Model](https://img.shields.io/badge/Model-openrouter%2Fqwen%2Fqwen3--coder--next-lightgrey)
+![PyPI](https://img.shields.io/badge/pypi-costs-blue) ![Version](https://img.shields.io/badge/version-2.2.39-blue) ![Python](https://img.shields.io/badge/python-3.9+-blue) ![License](https://img.shields.io/badge/license-Apache--2.0-green)
+![AI Cost](https://img.shields.io/badge/AI%20Cost-$4.76-orange) ![Human Time](https://img.shields.io/badge/Human%20Time-38.0h-blue) ![Model](https://img.shields.io/badge/Model-openrouter%2Fqwen%2Fqwen3--coder--next-lightgrey)
 
-- 🤖 **LLM usage:** $4.6178 (145 commits)
-- 👤 **Human dev:** ~$3695 (37.0h @ $100/h, 30min dedup)
+- 🤖 **LLM usage:** $4.7645 (146 commits)
+- 👤 **Human dev:** ~$3795 (38.0h @ $100/h, 30min dedup)
 
 Generated on 2026-07-23 using [openrouter/qwen/qwen3-coder-next](https://openrouter.ai/qwen/qwen3-coder-next)
 
@@ -54,10 +54,11 @@ z anonimizacją danych, trybem HITL/Autonomous, grafem problemów i 12 providera
 # 1. Instalacja
 pip install -e ".[dev]"
 
-# 2. Wybierz provider i pobierz klucz API
-fixos llm                          # lista 12 providerów z linkami
+# 2. Pierwszy lokalny wynik bez LLM
+fixos quick                        # CPU/RAM/dysk/cache + początek historii
 
-# 3. Zapisz klucz i uruchom
+# 3. Opcjonalnie wybierz provider i uruchom analizę pogłębioną
+fixos llm                          # lista 12 providerów z linkami
 fixos token set AIzaSy...          # Gemini (darmowy, domyślny)
 fixos fix
 ```
@@ -68,6 +69,8 @@ fixos fix
 
 ```
 fixos                   – ekran powitalny z listą komend i statusem
+fixos quick             – szybka analiza bez LLM + historia CPU/RAM/dysku
+fixos quick --deep      – szybki wynik, potem pełny skan danych usług
 fixos fix               – diagnoza + sesja naprawcza z AI (HITL)
 fixos scan              – diagnostyka systemu bez AI
 fixos cleanup           – skanuj i czyść dane usług (Docker, npm, pip, ...)
@@ -88,6 +91,15 @@ fixos test-llm          – testuj połączenie z LLM
 ### Przykłady użycia
 
 ```bash
+# Wynik w kilka sekund: presja CPU/RAM/dysku, bezpieczne cache i ostatni przyrost
+fixos quick
+
+# JSON do monitoringu; porównanie z próbkami z ostatnich 12 godzin
+fixos quick --json --hours 12
+
+# Dopiero na żądanie wykonaj kosztowną inwentaryzację usług
+fixos quick --deep
+
 # Tylko diagnostyka audio + zapis do pliku
 fixos scan --audio --output /tmp/audio-report.json
 
@@ -122,6 +134,10 @@ fixos projects --dry-run
 # Napraw audio i thumbnails (HITL – pyta o potwierdzenie)
 fixos fix --modules audio,thumbnails
 
+# Domyślny szybki zestaw pomija wielokrotny skan całego katalogu domowego.
+# Pełną inwentaryzację dużych/zdublowanych plików uruchom jawnie:
+fixos fix --modules all
+
 # Tryb autonomiczny (agent sam naprawia, max 5 akcji)
 fixos fix --mode autonomous --max-fixes 5
 
@@ -138,6 +154,13 @@ fixos fix --provider groq
 # Timeout 30 minut
 fixos fix --timeout 1800
 ```
+
+`fixos quick` nie wywołuje LLM ani nie przeszukuje całego katalogu domowego.
+Pierwsze uruchomienie zapisuje mały punkt odniesienia w
+`~/.local/state/fixos/quick-history.json`; kolejne pokazują zmianę dysku, RAM,
+swapu i znanych cache w wybranym oknie oraz od początku bieżącego dnia. Kwota
+„bezpieczne cache” obejmuje wyłącznie jawnie odtwarzalne dane. Docker, modele
+AI, rozszerzenia i cache IDE są raportowane osobno jako wymagające decyzji.
 
 ### Przykładowy widok w terminalu (Czyszczenie dysku)
 
@@ -190,15 +213,16 @@ Tryb DRY-RUN - żadne akcje nie zostaną wykonane
 
 Każda znaleziona usługa jest klasyfikowana do jednej z trzech grup:
 
-- **bezpieczne** – cache do odtworzenia jednym poleceniem (docker/pip/npm/cargo/conda/nix/brew...).
+- **bezpieczne** – cache do odtworzenia jednym poleceniem (pip/npm/cargo/conda/nix/brew...).
   Jedyna grupa oferowana do automatycznego usunięcia, z menu wyboru: wszystkie / pojedynczo / pomiń.
 - **do rozważenia** – reinstalowalne aplikacje, dane długo nieużywane, nierozpoznane
   foldery (JetBrains, Snap, Flatpak) – pokazywane z podpowiedziami, nigdy nie usuwane automatycznie.
-- **niebezpieczne** – realne dane aplikacji, nie cache (Ollama, LM Studio, HuggingFace hub,
-  Docker/Podman/containerd, cała biblioteka Steam, `.cursor/extensions`/`.vscode/extensions`
+- **chronione lub mieszane** – realne dane aplikacji albo magazyny łączące dane aktywne
+  z cache (Ollama, LM Studio, HuggingFace hub, Docker/Podman/containerd, cała biblioteka
+  Steam, `.cursor/extensions`/`.vscode/extensions`
   – zainstalowane rozszerzenia edytora, nie ich cache). Osobna sekcja z ostrzeżeniem;
-  usunięcie pojedynczej usługi (`fixos cleanup -c <usluga>`) wymaga dodatkowego
-  potwierdzenia z jawnym opisem ryzyka.
+  zbiorcze kasowanie modeli i wolumenów jest wyłączone. Docker pokazuje osobno
+  `SIZE` i `RECLAIMABLE`; domyślne czyszczenie ogranicza się do starego cache buildów.
 
 ### `fixos projects` – skaner artefaktów w projektach deweloperskich
 

@@ -1,3 +1,50 @@
+## [Unreleased]
+
+### Added
+
+- `fixos quick`: ograniczona czasowo analiza heurystyczna bez LLM, która od razu
+  pokazuje presję CPU/RAM/dysku i maksymalny rozmiar jawnie odtwarzalnych cache.
+- Lokalna historia szybkich próbek z porównaniem ostatnich godzin i bieżącego
+  dnia oraz alarmami o szybkim wzroście dysku, RAM, swapu lub obciążenia CPU.
+- Rozpoznawanie systemu, profilu użytkownika i stosu technologicznego oraz
+  opcjonalne przejście do wolniejszej analizy przez `fixos quick --deep`.
+
+### Fixed
+
+- Stabilny raport Docker z osobnym rozmiarem aktywnym i odzyskiwalnym oraz
+  poprawnym pomiarem przed/po czyszczeniu.
+- Usunięto niebezpieczne zbiorcze komendy kasowania wolumenów Docker i
+  wszystkich modeli Ollama.
+- Skrócono domyślną diagnostykę przez równoległe moduły i usunięcie
+  rekurencyjnych skanów `/` oraz `/home` z szybkich kontroli.
+- Czyszczenie cache JetBrains trafia w aktualną ścieżkę i wymaga zamknięcia IDE.
+
+## [2.2.39] - 2026-07-23
+
+### Docs
+- Update CHANGELOG.md
+- Update README.md
+
+### Test
+- Update tests/unit/test_dev_project_analyzer.py
+- Update tests/unit/test_quick_cmd.py
+- Update tests/unit/test_quick_snapshot.py
+- Update tests/unit/test_service_scanner.py
+- Update tests/unit/test_system_checks_parallel.py
+
+### Other
+- Update fixos/agent/session_handlers.py
+- Update fixos/cli.py
+- Update fixos/cli/fix_cmd.py
+- Update fixos/cli/main.py
+- Update fixos/cli/quick_cmd.py
+- Update fixos/diagnostics/__init__.py
+- Update fixos/diagnostics/dev_project_analyzer.py
+- Update fixos/diagnostics/quick_snapshot.py
+- Update fixos/diagnostics/service_scanner.py
+- Update fixos/diagnostics/system_checks.py
+- ... and 2 more files
+
 ## [2.2.0] - 2026-04-04
 
 ### Summary

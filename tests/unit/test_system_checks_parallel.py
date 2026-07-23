@@ -5,7 +5,7 @@ import threading
 from fixos.diagnostics import system_checks
 
 
-def test_default_diagnostics_skip_expensive_file_inventory(monkeypatch):
+def test_quick_diagnostics_skip_expensive_file_inventory(monkeypatch):
     called: list[str] = []
 
     def probe(name):
@@ -25,7 +25,9 @@ def test_default_diagnostics_skip_expensive_file_inventory(monkeypatch):
         system_checks, "DEFAULT_DIAGNOSTIC_MODULES", ("system", "audio")
     )
 
-    result = system_checks.get_full_diagnostics()
+    result = system_checks.get_full_diagnostics(
+        list(system_checks.DEFAULT_DIAGNOSTIC_MODULES)
+    )
 
     assert list(result) == ["system", "audio"]
     assert set(called) == {"system", "audio"}

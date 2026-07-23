@@ -24,9 +24,9 @@ def cli(ctx, dry_run, version) -> None:
 
     \b
     Szybki start:
-      fixos token set AIzaSy...   # zapisz token Gemini
-      fixos fix                   # diagnostyka + naprawa
-      fixos scan --audio          # tylko skan audio
+      fixos quick                 # wynik w kilka sekund, bez LLM
+      fixos token set AIzaSy...   # opcjonalnie: zapisz token Gemini
+      fixos fix                   # pogłębiona diagnostyka + naprawa
 
     \b
     Polecenia w jezyku naturalnym:
@@ -50,6 +50,7 @@ def cli(ctx, dry_run, version) -> None:
 def _print_welcome() -> None:
     """Display welcome screen when no subcommand is specified."""
     click.echo(click.style(BANNER, fg="cyan"))
+    _print_quick_status()
 
     cfg = FixOsConfig.load()
     has_key = bool(cfg.api_key)
@@ -66,11 +67,16 @@ def _print_welcome() -> None:
     click.echo()
 
     commands = [
+        ("fixos quick", "", "Szybki wynik bez LLM + trend CPU/RAM/dysku"),
         ("fixos fix", "", "Diagnostyka + sesja naprawcza z AI (HITL)"),
         ("fixos scan", "", "Diagnostyka systemu bez AI"),
         ("fixos quickfix", "", "Naprawy offline bez API (baza znanych bugów)"),
         ("fixos cleanup", "", "Skanuj i czyść dane usług (Docker, Ollama)"),
-        ("fixos projects", "", "Skanuj projekty dev (venv, node_modules, ~/github/*/*)"),
+        (
+            "fixos projects",
+            "",
+            "Skanuj projekty dev (venv, node_modules, ~/github/*/*)",
+        ),
         ("fixos orchestrate", "", "Zaawansowana orkiestracja napraw (graf problemów)"),
         ("fixos watch", "", "Monitoring w tle z powiadomieniami"),
         ("fixos report", "", "Eksport diagnostyki do HTML/Markdown/JSON"),
@@ -148,6 +154,22 @@ def _print_welcome() -> None:
     click.echo()
 
 
+def _print_quick_status() -> None:
+    """Best-effort quick result; a welcome screen must never fail on telemetry."""
+    try:
+        from fixos.cli.quick_cmd import render_quick_snapshot
+        from fixos.diagnostics.quick_snapshot import collect_quick_snapshot
+
+        render_quick_snapshot(collect_quick_snapshot(), compact=True)
+    except Exception as exc:
+        click.echo(
+            click.style(
+                f"Szybka analiza chwilowo niedostępna: {exc}",
+                fg="yellow",
+            )
+        )
+
+
 def main() -> None:
     """Entry point for fixOS CLI."""
     cli()
@@ -170,7 +192,9 @@ from fixos.cli.orchestrate_cmd import orchestrate
 from fixos.cli.cleanup_cmd import cleanup_services
 from fixos.cli.projects_cmd import projects_cmd
 from fixos.cli.features_cmd import features
+from fixos.cli.quick_cmd import quick
 
+cli.add_command(quick)
 cli.add_command(rollback)
 cli.add_command(watch)
 cli.add_command(profile)

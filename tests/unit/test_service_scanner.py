@@ -143,9 +143,7 @@ class TestRiskLevelClassification:
             "/home/tom/.cursor/extensions": 1200.0,
         }
 
-        monkeypatch.setattr(
-            scanner, "_get_path_size_mb", lambda p: sizes.get(p, 0.0)
-        )
+        monkeypatch.setattr(scanner, "_get_path_size_mb", lambda p: sizes.get(p, 0.0))
         monkeypatch.setattr(
             scanner._details_provider, "get_details", lambda service_type, path: {}
         )
@@ -224,8 +222,9 @@ class TestDockerDaemonSizeFallback:
         assert called["count"] == 0
 
     def test_docker_usage_reports_reclaimable_without_losing_active_counts(
-        self, monkeypatch
+        self, monkeypatch, tmp_path
     ):
+        monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
         scanner = ServiceDataScanner(threshold_mb=1)
         output = "\n".join(
             [
@@ -265,6 +264,7 @@ class TestDockerDaemonSizeFallback:
         assert details["usage"]["Images"]["active"] == 136
         assert details["usage"]["Local Volumes"]["reclaimable_gb"] == 89.81
         assert details["measurement_source"] == "docker-system-df"
+        assert (tmp_path / "fixos" / "docker-usage.json").exists()
 
 
 class TestServicePathTargets:

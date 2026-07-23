@@ -134,14 +134,18 @@ def handle_execute_all(fixes: list, messages: list, executed: list, run_cmd_fn) 
         executed.append(result)
         anon_out, _ = anonymize(result.stdout + result.stderr)
         status = "✅ sukces" if result.ok else f"❌ błąd (kod {result.returncode})"
-        summary_lines.append(f"- `{cmd}`: {status}")
+        summary = f"- `{cmd}`: {status}"
+        if anon_out.strip():
+            summary += f"\n  Output: {anon_out.strip()[:MAX_ANON_PREVIEW_LENGTH]}"
+        summary_lines.append(summary)
 
+    joined_summary = "\n".join(summary_lines)
     messages.append(
         {
             "role": "user",
             "content": (
                 f"Executed all commands:\n"
-                f"{'\n'.join(summary_lines)}\n"
+                f"{joined_summary}\n"
                 f"\nEvaluate results and suggest next steps."
             ),
         }
@@ -318,15 +322,19 @@ def parse_user_input(
 
     # [N] Execute specific fix by number
     if user_in.isdigit():
-        return handle_fix_by_number(
-            user_in, fixes, messages, executed, run_single_command
-        ), True
+        return (
+            handle_fix_by_number(
+                user_in, fixes, messages, executed, run_single_command
+            ),
+            True,
+        )
 
     # [!cmd] Direct command execution
     if user_in.startswith("!"):
-        return handle_direct_command(
-            user_in, messages, executed, run_single_command
-        ), True
+        return (
+            handle_direct_command(user_in, messages, executed, run_single_command),
+            True,
+        )
 
     # [search <q>] Web search
     if lo.startswith("search "):

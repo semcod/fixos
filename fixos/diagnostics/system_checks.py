@@ -36,9 +36,7 @@ DIAGNOSTIC_MODULES = {
 # A full recursive file inventory traverses a large home directory many times.
 # Keep it available explicitly while making the default LLM diagnosis finish
 # promptly on developer workstations with large Docker/model stores.
-DEFAULT_DIAGNOSTIC_MODULES = tuple(
-    key for key in DIAGNOSTIC_MODULES if key != "files"
-)
+DEFAULT_DIAGNOSTIC_MODULES = tuple(key for key in DIAGNOSTIC_MODULES if key != "files")
 
 
 def _run_diagnostic(fn) -> Any:
@@ -59,10 +57,12 @@ def get_full_diagnostics(
         modules: Lista modułów do uruchomienia (None = wszystkie)
         progress_callback: Funkcja (name, description) -> None do aktualizacji UI
     """
-    requested = modules or list(DEFAULT_DIAGNOSTIC_MODULES)
+    requested = modules or list(DIAGNOSTIC_MODULES)
     if "all" in requested:
         requested = list(DIAGNOSTIC_MODULES)
-    selected = list(dict.fromkeys(key for key in requested if key in DIAGNOSTIC_MODULES))
+    selected = list(
+        dict.fromkeys(key for key in requested if key in DIAGNOSTIC_MODULES)
+    )
 
     if not selected:
         return {}

@@ -50,6 +50,7 @@ from fixos.cli.profile_cmd import profile, profile_list, profile_show
 from fixos.cli.history_cmd import history
 from fixos.cli.report_cmd import report
 from fixos.cli.quickfix_cmd import quickfix
+from fixos.cli.quick_cmd import quick, render_quick_snapshot
 
 __all__ = [
     # Main entry points
@@ -75,6 +76,7 @@ __all__ = [
     "history",
     "report",
     "quickfix",
+    "quick",
     "llm_providers",
     "providers",
     "test_llm",
@@ -89,6 +91,7 @@ __all__ = [
     "handle_disk_cleanup_mode",
     "execute_cleanup_actions",
     "try_llm_fallback_for_failures",
+    "render_quick_snapshot",
     # Token subcommands
     "token_set",
     "token_show",
