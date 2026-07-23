@@ -111,6 +111,43 @@ class TestRiskLevelClassification:
             == ""
         )
 
+    def test_ollama_dry_run_returns_preview_instead_of_cleanup_error(self):
+        service = ServiceDataInfo(
+            service_type=ServiceType.OLLAMA,
+            name="Ollama",
+            path="/models",
+            size_mb=10 * 1024,
+            size_gb=10.0,
+            description="models",
+            can_cleanup=False,
+            cleanup_command="",
+            preview_command="ollama list",
+            safe_to_cleanup=False,
+            risk_level="dangerous",
+        )
+
+        class FakeScanner:
+            def scan_service(self, service_type):
+                return [service]
+
+        result = ServiceCleaner(FakeScanner()).cleanup_service(
+            "ollama",
+            dry_run=True,
+        )
+
+        assert result["success"] is True
+        assert result["requires_item_selection"] is True
+        assert "ollama list" in result["output"]
+
+    def test_uv_cleanup_never_deletes_uv_data_directory(self):
+        command = ServiceCleaner.get_cleanup_command(
+            ServiceType.UV,
+            "/home/user/.cache/uv",
+        )
+
+        assert command == "uv cache clean"
+        assert ".local/share/uv" not in command
+
     def test_conda_package_cache_is_safe(self):
         # Scanned paths only ever cover .../pkgs (see test_service_scanner),
         # a plain redownloadable package cache like pip/npm.
@@ -120,9 +157,7 @@ class TestRiskLevelClassification:
         shadercache = "/home/tom/.local/share/Steam/steamapps/shadercache"
         library_root = "/home/tom/.local/share/Steam"
 
-        assert (
-            ServiceCleaner.get_risk_level(ServiceType.STEAM, shadercache) == "safe"
-        )
+        assert ServiceCleaner.get_risk_level(ServiceType.STEAM, shadercache) == "safe"
         assert (
             ServiceCleaner.get_risk_level(ServiceType.STEAM, library_root)
             == "dangerous"
@@ -135,6 +170,51 @@ class TestRiskLevelClassification:
 
 
 class TestConsistentPostCleanupMeasurement:
+    def test_planned_entry_executes_exact_selected_path_without_rescan(
+        self, monkeypatch
+    ):
+        class FakeScanner:
+            def scan_service(self, service_type):
+                raise AssertionError("planned cleanup must not pick a different entry")
+
+            def measure_service_size_mb(self, service_type, path, *, refresh=False):
+                assert path == "/cache/safe"
+                assert refresh is True
+                return 0
+
+        executed = []
+
+        def fake_run(command, **kwargs):
+            executed.append(command)
+
+            class Result:
+                returncode = 0
+                stdout = ""
+                stderr = ""
+
+            return Result()
+
+        monkeypatch.setattr(
+            "fixos.diagnostics.service_cleanup.subprocess.run", fake_run
+        )
+        planned = {
+            "service_type": "vscode",
+            "name": "VS Code cache",
+            "path": "/cache/safe",
+            "size_gb": 1.0,
+            "can_cleanup": True,
+            "cleanup_command": "clean-only-safe-cache",
+            "details": {},
+        }
+
+        result = ServiceCleaner(FakeScanner()).cleanup_service(
+            "vscode",
+            planned_service=planned,
+        )
+
+        assert result["success"] is True
+        assert executed == ["clean-only-safe-cache"]
+
     def test_docker_uses_daemon_measurement_after_cleanup(self, monkeypatch):
         service = ServiceDataInfo(
             service_type=ServiceType.DOCKER,
@@ -228,9 +308,7 @@ class TestConsistentPostCleanupMeasurement:
             def scan_service(self, service_type):
                 return [service]
 
-        result = ServiceCleaner(FakeScanner()).cleanup_service(
-            "docker", dry_run=True
-        )
+        result = ServiceCleaner(FakeScanner()).cleanup_service("docker", dry_run=True)
 
         assert result["success"] is True
         assert result["space_freed_gb"] == 64.73

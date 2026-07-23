@@ -7,6 +7,7 @@ from fixos.diagnostics.service_scanner import (
     ServiceDataScanner,
     ServiceType,
 )
+from fixos.diagnostics.service_cleanup import ServiceCleaner
 
 
 class TestChromeSafetyClassification:
@@ -284,3 +285,22 @@ class TestServicePathTargets:
         paths = ServiceDataScanner.SERVICE_PATHS[ServiceType.JETBRAINS]
         assert "~/.cache/JetBrains" in paths
         assert "~/.JetBrains" not in paths
+
+    def test_uv_paths_never_include_installed_tools_or_python_runtimes(self):
+        paths = ServiceDataScanner.SERVICE_PATHS[ServiceType.UV]
+
+        assert paths == ["~/.cache/uv"]
+        assert "~/.local/share/uv" not in paths
+
+    def test_pnpm_paths_target_store_not_installed_tools(self):
+        paths = ServiceDataScanner.SERVICE_PATHS[ServiceType.PNPM]
+
+        assert "~/.local/share/pnpm/store" in paths
+        assert "~/.local/share/pnpm" not in paths
+
+    def test_npm_paths_and_command_cover_npx_download_cache(self):
+        paths = ServiceDataScanner.SERVICE_PATHS[ServiceType.NPM]
+        command = ServiceCleaner.get_cleanup_command(ServiceType.NPM, paths[0])
+
+        assert "~/.npm/_npx" in paths
+        assert "~/.npm/_npx" in command

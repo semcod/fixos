@@ -61,10 +61,14 @@ CACHE_RULES: tuple[CacheRule, ...] = (
         (
             "~/.npm/_cacache",
             "~/.npm/_npx",
+            "~/.npm/_prebuilds",
             "~/AppData/Local/npm-cache/_cacache",
             "~/AppData/Local/npm-cache/_npx",
         ),
-        "npm cache clean --force",
+        (
+            "npm cache clean --force 2>/dev/null || true; "
+            "rm -rf ~/.npm/_npx ~/.npm/_prebuilds"
+        ),
         stack="node",
     ),
     CacheRule(

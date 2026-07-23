@@ -6,6 +6,7 @@ Handles planning and execution of service data cleanup operations.
 import os
 import shlex
 import subprocess
+from types import SimpleNamespace
 from typing import Dict, Any, List
 from ..constants import (
     DEFAULT_COMMAND_TIMEOUT,
@@ -47,10 +48,7 @@ class ServiceCleaner:
             "requires_review_gb": round(sum(s.size_gb for s in review_services), 2),
             "dangerous_gb": round(sum(s.size_gb for s in dangerous_services), 2),
             "manager_reported_reclaimable_gb": round(
-                sum(
-                    float(s.details.get("reclaimable_size_gb", 0.0))
-                    for s in services
-                ),
+                sum(float(s.details.get("reclaimable_size_gb", 0.0)) for s in services),
                 2,
             ),
             "services": [self._service_to_dict(s) for s in services],
@@ -62,9 +60,19 @@ class ServiceCleaner:
         return plan
 
     def cleanup_service(
-        self, service_type: str, dry_run: bool = False
+        self,
+        service_type: str,
+        dry_run: bool = False,
+        planned_service: Dict[str, Any] | None = None,
     ) -> Dict[str, Any]:
-        """Execute cleanup for a specific service."""
+        """Execute cleanup for a specific service or exact planned entry.
+
+        One service type can have entries in multiple risk tiers (for example
+        VS Code cache and VS Code extensions).  Re-scanning and blindly taking
+        the largest entry could therefore execute a different cleanup than the
+        one selected in the CLI.  ``planned_service`` pins execution to the
+        displayed path, command and risk entry.
+        """
         from .service_scanner import ServiceType
 
         result = {
@@ -78,16 +86,38 @@ class ServiceCleaner:
 
         try:
             service_enum = ServiceType(service_type)
-            services = self.scanner.scan_service(service_enum)
-
-            if not services:
-                result["error"] = f"No {service_type} data found above threshold"
-                return result
-
-            service = services[0]  # Take first (largest)
+            if planned_service is not None:
+                if planned_service.get("service_type") != service_type:
+                    result["error"] = "Selected cleanup entry does not match service"
+                    return result
+                service = SimpleNamespace(
+                    service_type=service_enum,
+                    name=planned_service.get("name", service_type),
+                    path=planned_service.get("path", ""),
+                    size_gb=float(planned_service.get("size_gb", 0)),
+                    can_cleanup=bool(planned_service.get("can_cleanup")),
+                    cleanup_command=planned_service.get("cleanup_command", ""),
+                    preview_command=planned_service.get("preview_command", ""),
+                    details=planned_service.get("details") or {},
+                )
+            else:
+                services = self.scanner.scan_service(service_enum)
+                if not services:
+                    result["error"] = f"No {service_type} data found above threshold"
+                    return result
+                service = services[0]  # Backward-compatible single-service mode.
             initial_size = service.size_gb
 
             if not service.can_cleanup or not service.cleanup_command.strip():
+                if dry_run:
+                    preview = getattr(service, "preview_command", "")
+                    result["success"] = True
+                    result["requires_item_selection"] = True
+                    result["output"] = (
+                        "[DRY RUN] Zbiorcze czyszczenie jest wyłączone. "
+                        f"Bezpieczny podgląd: {preview or 'brak komendy podglądu'}"
+                    )
+                    return result
                 result["error"] = (
                     f"{service.name}: wybierz konkretne elementy do usunięcia; "
                     "zbiorcze czyszczenie jest wyłączone, aby chronić dane"
@@ -113,12 +143,15 @@ class ServiceCleaner:
 
             # Check new size
             measure = getattr(self.scanner, "measure_service_size_mb", None)
+            planned_paths = service.details.get("paths") or [service.path]
             if callable(measure):
-                new_size_mb = measure(
-                    service_enum, service.path, refresh=True
+                new_size_mb = sum(
+                    measure(service_enum, path, refresh=True) for path in planned_paths
                 )
             else:
-                new_size_mb = self.scanner._get_path_size_mb(service.path)
+                new_size_mb = sum(
+                    self.scanner._get_path_size_mb(path) for path in planned_paths
+                )
             new_size_gb = new_size_mb / 1024
             freed_gb = max(0, initial_size - new_size_gb)
 
@@ -492,7 +525,7 @@ class ServiceCleaner:
             # Python
             ServiceType.PIP: "Python pip cache",
             ServiceType.CONDA: "Conda package cache (pkgs directories)",
-            ServiceType.POETRY: "Poetry virtual environments and cache",
+            ServiceType.POETRY: "Poetry package cache",
             # Java
             ServiceType.GRADLE: "Gradle build cache",
             ServiceType.MAVEN: "Maven repository cache",
@@ -578,12 +611,15 @@ class ServiceCleaner:
             ServiceType.CONTAINERD: "sudo rm -rf /var/lib/containerd",
             ServiceType.PODMAN: "podman system prune -af --volumes",
             # JS/Node
-            ServiceType.NPM: "npm cache clean --force",
+            ServiceType.NPM: (
+                "npm cache clean --force 2>/dev/null || true; "
+                "rm -rf ~/.npm/_npx ~/.npm/_prebuilds"
+            ),
             ServiceType.YARN: "yarn cache clean --all",
             ServiceType.PNPM: "pnpm store prune",
             # Python
             ServiceType.PIP: "pip cache purge || rm -rf ~/.cache/pip/*",
-            ServiceType.CONDA: "conda clean --all -y || rm -rf ~/.conda/envs/*/pkgs",
+            ServiceType.CONDA: "conda clean --all -y",
             ServiceType.POETRY: "poetry cache clear --all pypi || rm -rf ~/.cache/pypoetry",
             # Java
             ServiceType.GRADLE: "rm -rf ~/.gradle/caches ~/.gradle/daemon ~/.gradle/wrapper",
@@ -641,7 +677,7 @@ class ServiceCleaner:
             ServiceType.TRASH: "rm -rf ~/.local/share/Trash/* ~/.Trash/*",
             ServiceType.LOGS: "find ~/.cache/log ~/.local/state -name '*.log' -mtime +7 -delete 2>/dev/null; journalctl --vacuum-time=7d 2>/dev/null || true",
             ServiceType.NVIDIA: "rm -rf ~/.cache/nvidia ~/.nv/ComputeCache ~/.cache/mesa_shader_cache",
-            ServiceType.UV: "uv cache clean || rm -rf ~/.cache/uv ~/.local/share/uv",
+            ServiceType.UV: "uv cache clean",
             ServiceType.TORCH: "rm -rf ~/.cache/torch ~/.torch",
             ServiceType.BUN: "rm -rf ~/.bun/install/cache",
             ServiceType.PLAYWRIGHT: "rm -rf ~/.cache/ms-playwright ~/.cache/puppeteer",
@@ -730,9 +766,15 @@ class ServiceCleaner:
             ServiceType.CONTAINERD: "sudo ls -la /var/lib/containerd 2>/dev/null || echo 'Requires sudo access'",
             ServiceType.PODMAN: "podman system df -v || podman images",
             # JS/Node
-            ServiceType.NPM: "npm cache ls 2>/dev/null || du -sh ~/.npm",
+            ServiceType.NPM: (
+                "npm cache ls 2>/dev/null; "
+                "du -sh ~/.npm/_cacache ~/.npm/_npx ~/.npm/_prebuilds 2>/dev/null"
+            ),
             ServiceType.YARN: "yarn cache list 2>/dev/null || du -sh ~/.cache/yarn",
-            ServiceType.PNPM: "pnpm store status 2>/dev/null || du -sh ~/.pnpm-store",
+            ServiceType.PNPM: (
+                "pnpm store status 2>/dev/null || "
+                "du -sh ~/.pnpm-store ~/.local/share/pnpm/store 2>/dev/null"
+            ),
             # Python
             ServiceType.PIP: "pip cache dir && pip cache info 2>/dev/null || du -sh ~/.cache/pip",
             ServiceType.CONDA: "conda info --envs 2>/dev/null && conda list 2>/dev/null | head -20 || du -sh ~/miniconda3",

@@ -146,9 +146,14 @@ class ServiceDataScanner:
         ],
         ServiceType.CONTAINERD: ["/var/lib/containerd", "/run/containerd"],
         ServiceType.PODMAN: ["~/.local/share/containers", "~/.config/containers"],
-        ServiceType.NPM: ["~/.npm", "~/.cache/npm"],
-        ServiceType.YARN: ["~/.cache/yarn", "~/.yarn", "~/.config/yarn"],
-        ServiceType.PNPM: ["~/.pnpm-store", "~/.local/share/pnpm"],
+        ServiceType.NPM: [
+            "~/.npm/_cacache",
+            "~/.npm/_npx",
+            "~/.npm/_prebuilds",
+            "~/.cache/npm",
+        ],
+        ServiceType.YARN: ["~/.cache/yarn", "~/.yarn/berry/cache"],
+        ServiceType.PNPM: ["~/.pnpm-store", "~/.local/share/pnpm/store"],
         ServiceType.PIP: ["~/.cache/pip"],
         ServiceType.CONDA: [
             "~/miniconda3/pkgs",
@@ -159,7 +164,7 @@ class ServiceDataScanner:
         ],
         ServiceType.POETRY: ["~/.cache/pypoetry"],
         ServiceType.GRADLE: ["~/.gradle", "~/.cache/gradle"],
-        ServiceType.MAVEN: ["~/.m2"],
+        ServiceType.MAVEN: ["~/.m2/repository"],
         ServiceType.CARGO: ["~/.cargo/registry", "~/.cargo/git"],
         ServiceType.GO: ["~/go/pkg", "~/.go/pkg"],
         ServiceType.FLUTTER: ["~/.flutter-sdk", "~/flutter", "~/.pub-cache"],
@@ -224,7 +229,7 @@ class ServiceDataScanner:
             "~/.nv/ComputeCache",
             "~/.cache/mesa_shader_cache",
         ],
-        ServiceType.UV: ["~/.cache/uv", "~/.local/share/uv"],
+        ServiceType.UV: ["~/.cache/uv"],
         ServiceType.TORCH: ["~/.cache/torch", "~/.torch"],
         ServiceType.BUN: ["~/.bun/install/cache"],
         ServiceType.PLAYWRIGHT: ["~/.cache/ms-playwright", "~/.cache/puppeteer"],
@@ -644,10 +649,17 @@ class ServiceDataScanner:
         return self._cleaner.get_cleanup_plan(selected_services)
 
     def cleanup_service(
-        self, service_type: str, dry_run: bool = False
+        self,
+        service_type: str,
+        dry_run: bool = False,
+        planned_service: Dict[str, Any] | None = None,
     ) -> Dict[str, Any]:
         """Execute cleanup for a specific service."""
-        return self._cleaner.cleanup_service(service_type, dry_run)
+        return self._cleaner.cleanup_service(
+            service_type,
+            dry_run,
+            planned_service=planned_service,
+        )
 
 
 def main():

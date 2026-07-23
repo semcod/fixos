@@ -11,6 +11,18 @@
 
 ### Fixed
 
+- Tryb `fixos cleanup` → „Wybierz pojedyncze” przechodzi teraz kolejno przez
+  wszystkie usługi: bezpieczne, wymagające przeglądu i chronione. Pozycje bez
+  bezpiecznej operacji zbiorczej pokazują komendę podglądu, dane chronione
+  wymagają dodatkowego potwierdzenia, a wykonanie jest przypięte do dokładnie
+  wybranej ścieżki i poziomu ryzyka.
+- Skany cache npm, pnpm, Yarn, Maven i uv obejmują teraz wyłącznie
+  odtwarzalne katalogi. `~/.local/share/uv` (narzędzia, interpretery i
+  credentials) oraz `.tools` pnpm nie są już błędnie liczone jako bezpieczne
+  cache; czyszczenie npm faktycznie obejmuje raportowane `_npx`.
+- Naprawiono scenariusze TestQL i dodano punkt wejścia `python -m fixos`.
+  `cleanup -c <chroniona-usługa> --dry-run` pokazuje bezpieczną komendę
+  diagnostyczną zamiast kończyć się mylącym błędem.
 - Stabilny raport Docker z osobnym rozmiarem aktywnym i odzyskiwalnym oraz
   poprawnym pomiarem przed/po czyszczeniu.
 - Usunięto niebezpieczne zbiorcze komendy kasowania wolumenów Docker i
@@ -18,6 +30,27 @@
 - Skrócono domyślną diagnostykę przez równoległe moduły i usunięcie
   rekurencyjnych skanów `/` oraz `/home` z szybkich kontroli.
 - Czyszczenie cache JetBrains trafia w aktualną ścieżkę i wymaga zamknięcia IDE.
+
+## [2.2.40] - 2026-07-23
+
+### Docs
+- Update CHANGELOG.md
+- Update README.md
+
+### Test
+- Update testql-scenarios/generated-cli-tests.testql.toon.yaml
+- Update testql-scenarios/generated-from-pytests.testql.toon.yaml
+- Update tests/unit/test_cleanup_cmd.py
+- Update tests/unit/test_service_cleanup.py
+- Update tests/unit/test_service_scanner.py
+
+### Other
+- Update fixos/__main__.py
+- Update fixos/cli/cleanup_cmd.py
+- Update fixos/diagnostics/quick_snapshot.py
+- Update fixos/diagnostics/service_cleanup.py
+- Update fixos/diagnostics/service_scanner.py
+- Update uv.lock
 
 ## [2.2.39] - 2026-07-23
 

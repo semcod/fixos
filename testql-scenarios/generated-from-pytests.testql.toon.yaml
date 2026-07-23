@@ -1,14 +1,20 @@
 # SCENARIO: Auto-generated from Python Tests
 # TYPE: integration
-# GENERATED: true
+# GENERATED: false
 
-CONFIG[2]{key, value}:
-  base_url, ${api_url:-http://localhost:8101}
-  timeout_ms, 10000
+CONFIG[1]{key, value}:
+  timeout_ms, 30000
 
-# Converted 4 assertions from pytest
-ASSERT[4]{field, operator, expected}:
-  result.exit_code, ==, 0
-  result.exit_code, ==, 0
-  result.exit_code, ==, 0
-  result.exit_code, ==, 0
+# Execute each focused cleanup regression module through TestQL. Keeping one
+# path per SHELL also works with older TestQL tokenizers.
+SHELL "python -m pytest -q tests/unit/test_cleanup_cmd.py" 30000
+ASSERT_EXIT_CODE 0
+ASSERT_STDOUT_CONTAINS "passed"
+
+SHELL "python -m pytest -q tests/unit/test_service_cleanup.py" 30000
+ASSERT_EXIT_CODE 0
+ASSERT_STDOUT_CONTAINS "passed"
+
+SHELL "python -m pytest -q tests/unit/test_service_scanner.py" 30000
+ASSERT_EXIT_CODE 0
+ASSERT_STDOUT_CONTAINS "passed"
