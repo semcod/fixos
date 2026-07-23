@@ -24,6 +24,13 @@
 
 ### Fixed
 
+- Zablokowano zbiorcze kasowanie chronionych danych LM Studio, Hugging Face,
+  Podman/containerd, Jupyter, Minikube, AppImage, VirtualBox, VMware oraz
+  rozszerzeń VS Code/Cursor. Takie wpisy pokazują teraz wyłącznie bezpieczny
+  podgląd i wymagają ręcznego wskazania konkretnego elementu poza fixOS.
+- Doprecyzowano estymatę Dockera: wartość `RECLAIMABLE` jest informacyjna,
+  natomiast ograniczony filtr cache buildów starszych niż 7 dni może zwolnić
+  znacznie mniej miejsca.
 - Tryb `fixos cleanup` → „Wybierz pojedyncze” przechodzi teraz kolejno przez
   wszystkie usługi: bezpieczne, wymagające przeglądu i chronione. Pozycje bez
   bezpiecznej operacji zbiorczej pokazują komendę podglądu, dane chronione
@@ -43,6 +50,21 @@
 - Skrócono domyślną diagnostykę przez równoległe moduły i usunięcie
   rekurencyjnych skanów `/` oraz `/home` z szybkich kontroli.
 - Czyszczenie cache JetBrains trafia w aktualną ścieżkę i wymaga zamknięcia IDE.
+
+## [2.2.41] - 2026-07-23
+
+### Docs
+- Update CHANGELOG.md
+- Update README.md
+
+### Test
+- Update tests/unit/test_cleanup_cmd.py
+- Update tests/unit/test_service_cleanup.py
+- Update tests/unit/test_service_scanner.py
+
+### Other
+- Update fixos/cli/cleanup_cmd.py
+- Update fixos/diagnostics/service_cleanup.py
 
 ## [2.2.40] - 2026-07-23
 

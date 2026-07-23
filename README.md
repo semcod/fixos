@@ -19,11 +19,11 @@ AI-powered OS Diagnostics
 
 ## AI Cost Tracking
 
-![PyPI](https://img.shields.io/badge/pypi-costs-blue) ![Version](https://img.shields.io/badge/version-2.2.40-blue) ![Python](https://img.shields.io/badge/python-3.9+-blue) ![License](https://img.shields.io/badge/license-Apache--2.0-green)
-![AI Cost](https://img.shields.io/badge/AI%20Cost-$4.87-orange) ![Human Time](https://img.shields.io/badge/Human%20Time-39.0h-blue) ![Model](https://img.shields.io/badge/Model-openrouter%2Fqwen%2Fqwen3--coder--next-lightgrey)
+![PyPI](https://img.shields.io/badge/pypi-costs-blue) ![Version](https://img.shields.io/badge/version-2.2.41-blue) ![Python](https://img.shields.io/badge/python-3.9+-blue) ![License](https://img.shields.io/badge/license-Apache--2.0-green)
+![AI Cost](https://img.shields.io/badge/AI%20Cost-$4.87-orange) ![Human Time](https://img.shields.io/badge/Human%20Time-39.1h-blue) ![Model](https://img.shields.io/badge/Model-openrouter%2Fqwen%2Fqwen3--coder--next-lightgrey)
 
-- 🤖 **LLM usage:** $4.8663 (148 commits)
-- 👤 **Human dev:** ~$3902 (39.0h @ $100/h, 30min dedup)
+- 🤖 **LLM usage:** $4.8653 (149 commits)
+- 👤 **Human dev:** ~$3913 (39.1h @ $100/h, 30min dedup)
 
 Generated on 2026-07-23 using [openrouter/qwen/qwen3-coder-next](https://openrouter.ai/qwen/qwen3-coder-next)
 
@@ -224,8 +224,11 @@ Każda znaleziona usługa jest klasyfikowana do jednej z trzech grup:
   z cache (Ollama, LM Studio, HuggingFace hub, Docker/Podman/containerd, cała biblioteka
   Steam, `.cursor/extensions`/`.vscode/extensions`
   – zainstalowane rozszerzenia edytora, nie ich cache). Osobna sekcja z ostrzeżeniem;
-  zbiorcze kasowanie modeli i wolumenów jest wyłączone. Docker pokazuje osobno
-  `SIZE` i `RECLAIMABLE`; domyślne czyszczenie ogranicza się do starego cache buildów.
+  zbiorcze kasowanie modeli, klastrów, maszyn wirtualnych, rozszerzeń i
+  wolumenów jest wyłączone. Docker pokazuje osobno `SIZE` i `RECLAIMABLE`;
+  domyślne czyszczenie ogranicza się do starego cache buildów. Raportowane
+  `RECLAIMABLE` jest górną informacją z Dockera — filtr starszy niż 7 dni może
+  faktycznie zwolnić znacznie mniej.
 
 Opcja „Wybierz pojedyncze” przechodzi kolejno przez wszystkie znalezione
 usługi w tych trzech grupach. Dla pozycji bez bezpiecznej operacji zbiorczej

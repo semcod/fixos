@@ -111,6 +111,47 @@ class TestRiskLevelClassification:
             == ""
         )
 
+    def test_all_protected_data_stores_disable_bulk_cleanup(self):
+        protected = {
+            ServiceType.CONTAINERD: "/var/lib/containerd",
+            ServiceType.PODMAN: "/var/lib/containers",
+            ServiceType.OLLAMA: "/models",
+            ServiceType.LMSTUDIO: "/home/user/.lmstudio/models",
+            ServiceType.HUGGINGFACE: "/home/user/.cache/huggingface",
+            ServiceType.JUPYTER: "/home/user/.local/share/jupyter",
+            ServiceType.MINIKUBE: "/home/user/.minikube",
+            ServiceType.APPIMAGE: "/home/user/.local/share/AppImage",
+            ServiceType.VBOX: "/home/user/VirtualBox VMs",
+            ServiceType.VMWARE: "/home/user/vmware",
+            ServiceType.VSCODE: "/home/user/.vscode/extensions",
+            ServiceType.CURSOR: "/home/user/.cursor/extensions",
+            ServiceType.STEAM: "/home/user/.local/share/Steam",
+        }
+
+        for service_type, path in protected.items():
+            assert ServiceCleaner.get_risk_level(service_type, path) == "dangerous"
+            assert ServiceCleaner.get_cleanup_command(service_type, path) == ""
+
+    def test_editor_cache_remains_cleanable_without_touching_extensions(self):
+        vscode = ServiceCleaner.get_cleanup_command(
+            ServiceType.VSCODE, "/home/user/.config/Code/Cache"
+        )
+        cursor = ServiceCleaner.get_cleanup_command(
+            ServiceType.CURSOR, "/home/user/.config/Cursor/Cache"
+        )
+
+        assert "Code/Cache" in vscode
+        assert "extensions" not in vscode
+        assert "Cursor/Cache" in cursor
+        assert "extensions" not in cursor
+
+    def test_docker_is_only_protected_service_with_bounded_bulk_cleanup(self):
+        command = ServiceCleaner.get_cleanup_command(
+            ServiceType.DOCKER, "/var/lib/docker"
+        )
+
+        assert command == "docker builder prune --force --filter until=168h"
+
     def test_ollama_dry_run_returns_preview_instead_of_cleanup_error(self):
         service = ServiceDataInfo(
             service_type=ServiceType.OLLAMA,
@@ -281,6 +322,38 @@ class TestConsistentPostCleanupMeasurement:
 
         assert result["success"] is False
         assert "wybierz konkretne elementy" in result["error"]
+
+    def test_stale_protected_plan_cannot_execute_old_bulk_command(self, monkeypatch):
+        class FakeScanner:
+            def scan_service(self, service_type):
+                raise AssertionError("the exact plan should be checked without a rescan")
+
+        def fail_run(*args, **kwargs):
+            raise AssertionError("protected command must never reach subprocess")
+
+        monkeypatch.setattr(
+            "fixos.diagnostics.service_cleanup.subprocess.run",
+            fail_run,
+        )
+        stale_plan = {
+            "service_type": "lmstudio",
+            "name": "Lmstudio",
+            "path": "/home/user/.lmstudio/models",
+            "size_gb": 29.0,
+            "can_cleanup": True,
+            "cleanup_command": "rm -rf ~/.lmstudio/models/*",
+            "preview_command": "ls ~/.lmstudio/models",
+            "risk_level": "dangerous",
+            "details": {},
+        }
+
+        result = ServiceCleaner(FakeScanner()).cleanup_service(
+            "lmstudio",
+            planned_service=stale_plan,
+        )
+
+        assert result["success"] is False
+        assert "zbiorcze czyszczenie jest wyłączone" in result["error"]
 
     def test_docker_dry_run_estimates_build_cache_not_entire_store(self):
         service = ServiceDataInfo(

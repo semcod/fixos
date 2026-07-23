@@ -132,6 +132,8 @@ class TestRiskLevelClassification:
         info = scanner._analyze_service_path(ServiceType.VSCODE, path)
 
         assert info.risk_level == "dangerous"
+        assert info.can_cleanup is False
+        assert info.cleanup_command == ""
 
     def test_scan_service_splits_cursor_cache_and_extensions(self, monkeypatch):
         """Real (non-mocked-classification) scan: the safe cache dirs and
@@ -163,6 +165,9 @@ class TestRiskLevelClassification:
         assert set(by_risk) == {"safe", "dangerous"}
         assert by_risk["safe"].size_mb == 1000.0
         assert by_risk["dangerous"].size_mb == 1200.0
+        assert by_risk["safe"].can_cleanup is True
+        assert by_risk["dangerous"].can_cleanup is False
+        assert by_risk["dangerous"].cleanup_command == ""
 
 
 class TestDockerDaemonSizeFallback:

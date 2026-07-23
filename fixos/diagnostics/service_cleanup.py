@@ -99,6 +99,7 @@ class ServiceCleaner:
                     cleanup_command=planned_service.get("cleanup_command", ""),
                     preview_command=planned_service.get("preview_command", ""),
                     details=planned_service.get("details") or {},
+                    risk_level=planned_service.get("risk_level", "review"),
                 )
             else:
                 services = self.scanner.scan_service(service_enum)
@@ -108,7 +109,15 @@ class ServiceCleaner:
                 service = services[0]  # Backward-compatible single-service mode.
             initial_size = service.size_gb
 
-            if not service.can_cleanup or not service.cleanup_command.strip():
+            protected_bulk_blocked = (
+                getattr(service, "risk_level", "review") == "dangerous"
+                and not self._is_allowed_protected_cleanup(service)
+            )
+            if (
+                protected_bulk_blocked
+                or not service.can_cleanup
+                or not service.cleanup_command.strip()
+            ):
                 if dry_run:
                     preview = getattr(service, "preview_command", "")
                     result["success"] = True
@@ -167,6 +176,17 @@ class ServiceCleaner:
             result["error"] = str(e)
 
         return result
+
+    @staticmethod
+    def _is_allowed_protected_cleanup(service) -> bool:
+        """Allow only the exact bounded Docker build-cache operation."""
+        from .service_scanner import ServiceType
+
+        return (
+            service.service_type == ServiceType.DOCKER
+            and service.cleanup_command
+            == "docker builder prune --force --filter until=168h"
+        )
 
     @staticmethod
     def _estimated_cleanup_gb(service) -> float:
@@ -599,17 +619,41 @@ class ServiceCleaner:
 
     @staticmethod
     def get_cleanup_command(service_type, path: str) -> str:
-        """Get cleanup command for service."""
+        """Get a bounded cleanup command for a scanned service path.
+
+        Protected data never gets a bulk-delete command.  Docker is the only
+        exception because its command is deliberately limited to rebuildable
+        build cache older than seven days; it does not touch images, running
+        containers or volumes.
+        """
         from .service_scanner import ServiceType
+
+        protected_without_bulk_cleanup = {
+            ServiceType.CONTAINERD,
+            ServiceType.PODMAN,
+            ServiceType.OLLAMA,
+            ServiceType.LMSTUDIO,
+            ServiceType.HUGGINGFACE,
+            ServiceType.JUPYTER,
+            ServiceType.MINIKUBE,
+            ServiceType.APPIMAGE,
+            ServiceType.VBOX,
+            ServiceType.VMWARE,
+        }
+        if service_type in protected_without_bulk_cleanup:
+            return ""
+
+        if service_type in (ServiceType.VSCODE, ServiceType.CURSOR):
+            if ServiceCleaner.get_risk_level(service_type, path) == "dangerous":
+                return ""
+
+        if service_type == ServiceType.STEAM:
+            if ServiceCleaner.get_risk_level(service_type, path) == "dangerous":
+                return ""
 
         commands = {
             # Containers
             ServiceType.DOCKER: "docker builder prune --force --filter until=168h",
-            # Models are user-selected data.  A generic cleanup must never
-            # turn into "remove every model".
-            ServiceType.OLLAMA: "",
-            ServiceType.CONTAINERD: "sudo rm -rf /var/lib/containerd",
-            ServiceType.PODMAN: "podman system prune -af --volumes",
             # JS/Node
             ServiceType.NPM: (
                 "npm cache clean --force 2>/dev/null || true; "
@@ -634,7 +678,6 @@ class ServiceCleaner:
             # System packages
             ServiceType.SNAP: 'snap list --all | awk \'/disabled/{print $1, $3}\' | while read snapname revision; do sudo snap remove "$snapname" --revision="$revision"; done',
             ServiceType.FLATPAK: "flatpak uninstall --unused -y && flatpak repair",
-            ServiceType.APPIMAGE: "rm -rf ~/.local/share/AppImage ~/.cache/AppImage",
             ServiceType.APT: "sudo apt-get clean && sudo apt-get autoclean",
             ServiceType.DNF: "sudo dnf clean all",
             ServiceType.PACMAN: "sudo pacman -Scc --noconfirm",
@@ -642,8 +685,6 @@ class ServiceCleaner:
             ServiceType.ZYPPER: "sudo zypper clean --all",
             # Virtualization
             ServiceType.VAGRANT: "vagrant box prune --force",
-            ServiceType.VBOX: "rm -rf ~/VirtualBox\\ VMs/*/Snapshots",
-            ServiceType.VMWARE: "rm -rf ~/vmware/*.log ~/vmware/*.vmss",
             # Package managers
             ServiceType.NIX: "nix-collect-garbage -d || nix store gc",
             ServiceType.BREW: "brew cleanup --prune=all && brew autoremove",
@@ -652,8 +693,8 @@ class ServiceCleaner:
             ServiceType.FIREFOX: "rm -rf ~/.cache/mozilla ~/.mozilla/firefox/*/cache2",
             ServiceType.EDGE: "rm -rf ~/.cache/microsoft-edge",
             # IDEs
-            ServiceType.VSCODE: "rm -rf ~/.config/Code/Cache ~/.config/Code/CachedData ~/.vscode/extensions/*/out",
-            ServiceType.CURSOR: "rm -rf ~/.config/Cursor/Cache ~/.config/Cursor/CachedData ~/.cursor/extensions/*/out",
+            ServiceType.VSCODE: "rm -rf ~/.config/Code/Cache ~/.config/Code/CachedData",
+            ServiceType.CURSOR: "rm -rf ~/.config/Cursor/Cache ~/.config/Cursor/CachedData",
             ServiceType.JETBRAINS: (
                 "if pgrep -f 'idea|pycharm|webstorm|jetbrains' >/dev/null; "
                 "then echo 'Zamknij wszystkie IDE JetBrains przed czyszczeniem' >&2; "
@@ -661,7 +702,6 @@ class ServiceCleaner:
                 "-exec rm -rf -- {} +; fi"
             ),
             # Cloud/ML
-            ServiceType.HUGGINGFACE: "rm -rf ~/.cache/huggingface/hub/*",
             ServiceType.AWS: "rm -rf ~/.aws/sso/cache ~/.aws/cli/cache",
             ServiceType.GCLOUD: "gcloud auth application-default revoke 2>/dev/null; rm -rf ~/.config/gcloud/logs ~/.cache/gcloud",
             ServiceType.AZURE: "rm -rf ~/.azure/telemetry ~/.azure/logs",
@@ -672,7 +712,6 @@ class ServiceCleaner:
             ServiceType.UNITY: "rm -rf ~/.config/unity3d/Editor/Cache",
             ServiceType.UNREAL: "rm -rf ~/.config/Epic/UnrealEngine/5.*/DerivedDataCache",
             # Other
-            ServiceType.JUPYTER: "jupyter kernelspec uninstall -y $(jupyter kernelspec list | tail -n +2 | awk '{print $1}') 2>/dev/null; rm -rf ~/.local/share/jupyter/runtime",
             ServiceType.THUMBNAILS: "rm -rf ~/.cache/thumbnails/* ~/.thumbnails/*",
             ServiceType.TRASH: "rm -rf ~/.local/share/Trash/* ~/.Trash/*",
             ServiceType.LOGS: "find ~/.cache/log ~/.local/state -name '*.log' -mtime +7 -delete 2>/dev/null; journalctl --vacuum-time=7d 2>/dev/null || true",
@@ -683,9 +722,7 @@ class ServiceCleaner:
             ServiceType.PLAYWRIGHT: "rm -rf ~/.cache/ms-playwright ~/.cache/puppeteer",
             ServiceType.CCACHE: "ccache -C 2>/dev/null || rm -rf ~/.ccache; rm -rf ~/.cache/sccache",
             ServiceType.HELM: "helm cache cleanup 2>/dev/null || rm -rf ~/.cache/helm",
-            ServiceType.MINIKUBE: "minikube delete --all 2>/dev/null || rm -rf ~/.minikube",
             ServiceType.STEAM: ServiceCleaner._steam_cleanup_command(path),
-            ServiceType.LMSTUDIO: "rm -rf ~/.lmstudio/models/* ~/.cache/lm-studio",
             ServiceType.BRAVE: ServiceCleaner._brave_cleanup_command(path),
             ServiceType.DISCORD: "rm -rf ~/.config/discord/Cache ~/.config/discord/Code Cache ~/.config/discord/GPUCache",
             ServiceType.SLACK: "rm -rf ~/.config/Slack/Cache ~/.config/Slack/Code Cache ~/.config/Slack/Service Worker",

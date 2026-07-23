@@ -55,7 +55,8 @@ def _display_cleanup_summary(plan: dict, threshold: int) -> None:
     if reclaimable:
         click.echo(
             click.style(
-                f"  Odzyskiwalne wg menedżerów usług: {reclaimable:.2f} GB",
+                f"  Odzyskiwalne wg menedżerów usług (informacyjnie, nie plan "
+                f"automatyczny): {reclaimable:.2f} GB",
                 fg="cyan",
             )
         )
@@ -298,51 +299,117 @@ def _display_dangerous_services(services: list) -> None:
     )
 
 
-def _service_has_dangerous_data(service_name: str, scanner) -> bool:
-    """True if any currently-scanned path for this service is 'dangerous'."""
-    from fixos.diagnostics.service_scanner import RiskLevel, ServiceType
+def _single_service_target(service_name: str, scanner) -> dict | None:
+    """Resolve ``cleanup -c NAME`` to the safest executable scanned entry.
+
+    Some service types expose both rebuildable cache and protected data.  The
+    direct command must pin execution to the cache entry instead of warning
+    about extensions/models and then letting a rescan pick whichever entry is
+    largest.
+    """
+    from fixos.diagnostics.service_scanner import ServiceType
 
     try:
         service_enum = ServiceType(service_name)
     except ValueError:
-        return False
-    scanned = scanner.scan_service(service_enum)
-    return any(s.risk_level == RiskLevel.DANGEROUS.value for s in scanned)
+        return None
+
+    entries = scanner.scan_service(service_enum)
+    if not entries:
+        return None
+
+    risk_order = {"safe": 0, "review": 1, "dangerous": 2}
+    executable = [
+        item
+        for item in entries
+        if item.can_cleanup and item.cleanup_command.strip()
+    ]
+    candidates = executable or entries
+    selected = min(
+        candidates,
+        key=lambda item: (risk_order.get(item.risk_level, 1), -item.size_mb),
+    )
+    return {
+        "service_type": selected.service_type.value,
+        "name": selected.name,
+        "path": selected.path,
+        "size_mb": selected.size_mb,
+        "size_gb": selected.size_gb,
+        "description": selected.description,
+        "can_cleanup": selected.can_cleanup,
+        "cleanup_command": selected.cleanup_command,
+        "preview_command": selected.preview_command,
+        "safe_to_cleanup": selected.safe_to_cleanup,
+        "risk_level": selected.risk_level,
+        "impact": selected.impact,
+        "items_count": selected.items_count,
+        "details": selected.details,
+    }
 
 
 def _cleanup_single_service(
     service_name: str, scanner, json_output: bool, dry_run: bool
 ) -> None:
     """Handle cleanup of a single specific service."""
+    target = _single_service_target(service_name, scanner)
+
     if json_output:
-        result = scanner.cleanup_service(service_name, dry_run=dry_run)
+        result = scanner.cleanup_service(
+            service_name,
+            dry_run=dry_run,
+            planned_service=target,
+        )
         import json
 
         click.echo(json.dumps(result, indent=2, default=str))
         return
 
-    if not dry_run and _service_has_dangerous_data(service_name, scanner):
+    if target is None:
         click.echo(
             click.style(
-                f"⚠️  {service_name} zawiera realne dane (nie tylko cache) — np. "
-                "zainstalowane modele/rozszerzenia/kontenery. Tej operacji nie "
-                "da się cofnąć.",
+                f"Nie znaleziono danych {service_name} powyżej progu.",
+                fg="yellow",
+            )
+        )
+        return
+
+    if not target["can_cleanup"] or not target["cleanup_command"].strip():
+        click.echo(
+            click.style(
+                f"{target['name']}: zbiorcze czyszczenie jest wyłączone, "
+                "ponieważ wpis zawiera chronione dane.",
+                fg="yellow",
+                bold=True,
+            )
+        )
+        if target.get("preview_command"):
+            click.echo(f"  Bezpieczny podgląd: {target['preview_command']}")
+        click.echo("  Usuń ręcznie tylko konkretny, wcześniej sprawdzony element.")
+        return
+
+    if not dry_run and target.get("risk_level") == "dangerous":
+        click.echo(
+            click.style(
+                f"⚠️  {target['name']} zawiera dane mieszane. fixOS wykona "
+                "wyłącznie ograniczoną operację pokazaną poniżej:",
                 fg="red",
                 bold=True,
             )
         )
-        click.echo(
-            f"   Podgląd bez usuwania: fixos cleanup -c {service_name} --dry-run"
-        )
-        if not click.confirm(f"Na pewno usunąć dane usługi {service_name}?"):
+        click.echo(f"  {target['cleanup_command']}")
+        if not click.confirm(f"Wykonać ograniczone czyszczenie {target['name']}?"):
             click.echo("Anulowano.")
             return
 
-    click.echo(click.style(f"Czyszczenie usługi: {service_name}", fg="yellow"))
+    click.echo(click.style(f"Czyszczenie usługi: {target['name']}", fg="yellow"))
     if dry_run:
         click.echo(click.style("[TRYB DRY-RUN] - brak faktycznych zmian", fg="cyan"))
 
-    result = scanner.cleanup_service(service_name, dry_run=dry_run)
+    result = scanner.cleanup_service(
+        service_name,
+        dry_run=dry_run,
+        planned_service=target,
+    )
 
     if result["success"]:
         if dry_run:
@@ -352,10 +419,16 @@ def _cleanup_single_service(
             if result.get("output"):
                 click.echo(f"  {result['output']}")
             if result["space_freed_gb"] > 0:
-                click.echo(
+                estimate = (
                     f"  Szacowane maksimum do odzyskania: "
                     f"{result['space_freed_gb']:.2f} GB"
                 )
+                if service_name == "docker":
+                    estimate += (
+                        " (cały odzyskiwalny cache buildów wg Docker; "
+                        "filtr >7 dni zwykle usunie mniej)"
+                    )
+                click.echo(estimate)
         else:
             click.echo(
                 click.style(f"Zakończono czyszczenie {service_name}", fg="green")
@@ -414,7 +487,10 @@ def _selection_description(svc: dict) -> str:
         reclaimable = svc.get("details", {}).get("usage", {}).get("Build Cache", {})
         reclaimable_gb = float(reclaimable.get("reclaimable_gb", 0))
         if reclaimable_gb:
-            description += f"; komenda dotyczy do {reclaimable_gb:.2f} GB cache buildów"
+            description += (
+                f"; Docker raportuje {reclaimable_gb:.2f} GB odzyskiwalnego "
+                "cache buildów, filtr >7 dni zwykle usunie mniej"
+            )
     return description
 
 
