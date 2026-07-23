@@ -269,6 +269,7 @@ class ServiceDataScanner:
         self.threshold_gb = self.threshold_mb / 1024
         self._details_provider = ServiceDetailsProvider()
         self._cleaner = ServiceCleaner(self)
+        self._docker_usage_cache: Optional[Dict[str, Any]] = None
 
     def scan_all_services(self) -> List[ServiceDataInfo]:
         """Scan all known services for data above threshold."""
@@ -373,7 +374,7 @@ class ServiceDataScanner:
     ) -> Optional[ServiceDataInfo]:
         """Analyze a specific service path."""
         try:
-            size_mb = self._get_path_size_mb(path)
+            size_mb = self.measure_service_size_mb(service_type, path)
 
             if service_type == ServiceType.DOCKER and path == "/var/lib/docker":
                 # /var/lib/docker is normally root-only (0710), so `du` sees
@@ -387,8 +388,12 @@ class ServiceDataScanner:
             size_gb = size_mb / 1024
             if size_mb < self.threshold_mb:
                 return None
-            details = self._details_provider.get_details(service_type, path)
+            if service_type == ServiceType.DOCKER and self._docker_usage_cache:
+                details = self._docker_usage_details(self._docker_usage_cache)
+            else:
+                details = self._details_provider.get_details(service_type, path)
             risk_level = ServiceCleaner.get_risk_level(service_type, path)
+            cleanup_command = ServiceCleaner.get_cleanup_command(service_type, path)
             name = service_type.value.title()
             if (
                 service_type in (ServiceType.CURSOR, ServiceType.VSCODE)
@@ -402,8 +407,8 @@ class ServiceDataScanner:
                 size_mb=round(size_mb, 2),
                 size_gb=round(size_gb, 3),
                 description=ServiceCleaner.get_service_description(service_type),
-                can_cleanup=True,
-                cleanup_command=ServiceCleaner.get_cleanup_command(service_type, path),
+                can_cleanup=bool(cleanup_command),
+                cleanup_command=cleanup_command,
                 preview_command=ServiceCleaner.get_preview_command(service_type, path),
                 safe_to_cleanup=risk_level == RiskLevel.SAFE.value,
                 impact="high" if size_gb > 1.0 else "medium",
@@ -469,20 +474,52 @@ class ServiceDataScanner:
             pass
         return total_size / (1024 * 1024)
 
-    @staticmethod
-    def _get_docker_daemon_size_mb() -> Optional[float]:
-        """Total Docker disk usage as reported by the daemon itself.
+    def measure_service_size_mb(
+        self, service_type: ServiceType, path: str, *, refresh: bool = False
+    ) -> float:
+        """Measure a service with the same source before and after cleanup.
+
+        Root-owned Docker storage cannot be measured reliably with an
+        unprivileged ``du``.  Using the daemon here also prevents cleanup from
+        falsely reporting that the whole Docker directory was freed when the
+        post-cleanup ``du`` returned zero due to permissions.
+        """
+        if service_type == ServiceType.DOCKER and path == "/var/lib/docker":
+            daemon_size = (
+                self._get_docker_daemon_size_mb(refresh=True)
+                if refresh
+                else self._get_docker_daemon_size_mb()
+            )
+            if daemon_size is not None:
+                return daemon_size
+        return self._get_path_size_mb(path)
+
+    def _get_docker_daemon_size_mb(self, *, refresh: bool = False) -> Optional[float]:
+        """Total Docker disk usage as reported by the daemon itself."""
+        usage = self._get_docker_daemon_usage(refresh=refresh)
+        if usage is None:
+            return None
+        return float(usage["size_mb"])
+
+    def _get_docker_daemon_usage(
+        self, *, refresh: bool = False
+    ) -> Optional[Dict[str, Any]]:
+        """Return one stable Docker usage snapshot.
 
         Asking the daemon (``docker system df``) works even when the caller
         can't read /var/lib/docker directly (typically root-only, mode 0710).
-        Returns None if the docker CLI/daemon isn't reachable.
+        Docker can take tens of seconds with thousands of images, so one
+        snapshot is cached for the whole scan and reused for details/counts.
         """
+        if self._docker_usage_cache is not None and not refresh:
+            return self._docker_usage_cache
+
         try:
             result = subprocess.run(
-                ["docker", "system", "df", "--format", "{{.Size}}"],
+                ["docker", "system", "df", "--format", "{{json .}}"],
                 capture_output=True,
                 text=True,
-                timeout=30,
+                timeout=90,
                 check=False,
             )
         except (OSError, subprocess.TimeoutExpired):
@@ -491,11 +528,66 @@ class ServiceDataScanner:
         if result.returncode != 0 or not result.stdout.strip():
             return None
 
-        total_mb = sum(
-            ServiceDataScanner._parse_human_size_to_mb(line)
-            for line in result.stdout.strip().splitlines()
-        )
-        return total_mb or None
+        rows: Dict[str, Dict[str, Any]] = {}
+        total_mb = 0.0
+        reclaimable_mb = 0.0
+        for line in result.stdout.strip().splitlines():
+            try:
+                row = json.loads(line)
+            except (json.JSONDecodeError, TypeError):
+                continue
+            kind = str(row.get("Type", "")).strip()
+            if not kind:
+                continue
+            size_mb = self._parse_human_size_to_mb(str(row.get("Size", "0B")))
+            reclaimable_text = str(row.get("Reclaimable", "0B")).split("(", 1)[0]
+            row_reclaimable_mb = self._parse_human_size_to_mb(reclaimable_text)
+            total_mb += size_mb
+            reclaimable_mb += row_reclaimable_mb
+            rows[kind] = {
+                "total": self._parse_int(row.get("TotalCount")),
+                "active": self._parse_int(row.get("Active")),
+                "size_mb": round(size_mb, 2),
+                "size_gb": round(size_mb / 1024, 3),
+                "reclaimable_mb": round(row_reclaimable_mb, 2),
+                "reclaimable_gb": round(row_reclaimable_mb / 1024, 3),
+            }
+
+        if total_mb <= 0:
+            return None
+
+        self._docker_usage_cache = {
+            "size_mb": round(total_mb, 2),
+            "size_gb": round(total_mb / 1024, 3),
+            "reclaimable_mb": round(reclaimable_mb, 2),
+            "reclaimable_gb": round(reclaimable_mb / 1024, 3),
+            "rows": rows,
+        }
+        return self._docker_usage_cache
+
+    @staticmethod
+    def _docker_usage_details(usage: Dict[str, Any]) -> Dict[str, Any]:
+        rows = usage.get("rows", {})
+        return {
+            "items_count": sum(
+                int(row.get("total", 0)) for row in rows.values()
+            ),
+            "components": {
+                kind.lower().replace(" ", "_"): int(row.get("total", 0))
+                for kind, row in rows.items()
+            },
+            "usage": rows,
+            "reclaimable_size_mb": usage.get("reclaimable_mb", 0.0),
+            "reclaimable_size_gb": usage.get("reclaimable_gb", 0.0),
+            "measurement_source": "docker-system-df",
+        }
+
+    @staticmethod
+    def _parse_int(value: Any) -> int:
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return 0
 
     @staticmethod
     def _parse_human_size_to_mb(value: str) -> float:

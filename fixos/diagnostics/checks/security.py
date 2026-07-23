@@ -61,7 +61,9 @@ def diagnose_security() -> dict[str, Any]:
                     "systemctl is-active sshd 2>/dev/null || systemctl is-active ssh 2>/dev/null || echo 'N/A'"
                 ),
                 "ssh_authorized_keys": _cmd(
-                    "find /home -name 'authorized_keys' 2>/dev/null | head -5 || echo 'N/A'"
+                    "find /root/.ssh /home/*/.ssh -maxdepth 1 "
+                    "-name 'authorized_keys' -type f 2>/dev/null | "
+                    "head -5 || echo 'N/A'"
                 ),
                 # Aktualizacje bezpieczeństwa
                 "security_updates": _cmd(

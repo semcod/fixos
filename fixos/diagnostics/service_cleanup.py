@@ -46,6 +46,13 @@ class ServiceCleaner:
             "safe_cleanup_gb": round(sum(s.size_gb for s in safe_services), 2),
             "requires_review_gb": round(sum(s.size_gb for s in review_services), 2),
             "dangerous_gb": round(sum(s.size_gb for s in dangerous_services), 2),
+            "manager_reported_reclaimable_gb": round(
+                sum(
+                    float(s.details.get("reclaimable_size_gb", 0.0))
+                    for s in services
+                ),
+                2,
+            ),
             "services": [self._service_to_dict(s) for s in services],
             "safe_to_cleanup": [self._service_to_dict(s) for s in safe_services],
             "requires_review": [self._service_to_dict(s) for s in review_services],
@@ -80,10 +87,19 @@ class ServiceCleaner:
             service = services[0]  # Take first (largest)
             initial_size = service.size_gb
 
+            if not service.can_cleanup or not service.cleanup_command.strip():
+                result["error"] = (
+                    f"{service.name}: wybierz konkretne elementy do usunięcia; "
+                    "zbiorcze czyszczenie jest wyłączone, aby chronić dane"
+                )
+                return result
+
             if dry_run:
+                estimated_gb = self._estimated_cleanup_gb(service)
                 result["success"] = True
                 result["output"] = f"[DRY RUN] Would execute: {service.cleanup_command}"
-                result["space_freed_gb"] = initial_size
+                result["space_freed_gb"] = estimated_gb
+                result["estimated_max_gb"] = estimated_gb
                 return result
 
             # Execute cleanup
@@ -96,7 +112,13 @@ class ServiceCleaner:
             )
 
             # Check new size
-            new_size_mb = self.scanner._get_path_size_mb(service.path)
+            measure = getattr(self.scanner, "measure_service_size_mb", None)
+            if callable(measure):
+                new_size_mb = measure(
+                    service_enum, service.path, refresh=True
+                )
+            else:
+                new_size_mb = self.scanner._get_path_size_mb(service.path)
             new_size_gb = new_size_mb / 1024
             freed_gb = max(0, initial_size - new_size_gb)
 
@@ -112,6 +134,21 @@ class ServiceCleaner:
             result["error"] = str(e)
 
         return result
+
+    @staticmethod
+    def _estimated_cleanup_gb(service) -> float:
+        """Best available upper bound for a dry-run cleanup.
+
+        A Docker service mixes active data, images, volumes and build cache.
+        The targeted fixOS command only prunes old build cache, so reporting
+        the whole Docker size as reclaimable would be dangerously misleading.
+        """
+        from .service_scanner import ServiceType
+
+        if service.service_type == ServiceType.DOCKER:
+            build_cache = service.details.get("usage", {}).get("Build Cache", {})
+            return round(float(build_cache.get("reclaimable_gb", 0.0)), 3)
+        return round(float(service.size_gb), 3)
 
     @staticmethod
     def _service_to_dict(service) -> Dict[str, Any]:
@@ -340,15 +377,18 @@ class ServiceCleaner:
         elif service_type == ServiceType.DOCKER:
             hints.extend(
                 [
-                    "🐳 DOCKER CLEANUP:",
-                    "  docker system prune -a -f",
-                    "  # Removes all unused images, containers, networks",
-                    "",
-                    "  docker volume prune -f",
-                    "  # Removes unused volumes (check first!)",
-                    "",
-                    "📊 Check usage:",
+                    "🐳 DOCKER — najpierw odzyskiwalne dane:",
                     "  docker system df",
+                    "  # Pokazuje osobno SIZE i RECLAIMABLE",
+                    "",
+                    "  docker builder prune --filter until=168h",
+                    "  # Usuwa wyłącznie odbudowywalny cache buildów starszy niż 7 dni",
+                    "",
+                    "  docker image prune -f",
+                    "  # Usuwa tylko niepodpięte (dangling) obrazy",
+                    "",
+                    "⚠️  Wolumeny mogą zawierać bazy i pliki użytkownika.",
+                    "    fixOS nigdy nie usuwa ich zbiorczo.",
                 ]
             )
 
@@ -363,6 +403,21 @@ class ServiceCleaner:
                     "  # Remove specific model",
                     "",
                     "💡 Models can be 5-50 GB each",
+                ]
+            )
+
+        elif service_type == ServiceType.JETBRAINS:
+            hints.extend(
+                [
+                    "🧠 JETBRAINS CACHE:",
+                    "  pgrep -af 'idea|pycharm|webstorm|jetbrains'",
+                    "  # Najpierw zamknij IDE; fixOS odmówi czyszczenia, gdy działa",
+                    "",
+                    "  du -h --max-depth=2 ~/.cache/JetBrains | sort -h | tail -20",
+                    "  # Pokazuje indeksy, runtime agentów i cache Toolbox",
+                    "",
+                    "💡 Ustawienia i projekty nie są w ~/.cache/JetBrains.",
+                    "   Cache zostanie odbudowany, ale pierwsze uruchomienie IDE potrwa dłużej.",
                 ]
             )
 
@@ -426,7 +481,7 @@ class ServiceCleaner:
 
         descriptions = {
             # Containers
-            ServiceType.DOCKER: "Docker images, containers, and volumes",
+            ServiceType.DOCKER: "Docker data (active and reclaimable, measured by daemon)",
             ServiceType.OLLAMA: "Ollama AI model files",
             ServiceType.CONTAINERD: "Containerd container runtime data",
             ServiceType.PODMAN: "Podman containers and images",
@@ -516,8 +571,10 @@ class ServiceCleaner:
 
         commands = {
             # Containers
-            ServiceType.DOCKER: "docker system prune -af --volumes",
-            ServiceType.OLLAMA: "ollama rm $(ollama list | tail -n +2 | awk '{print $1}') 2>/dev/null || true && rm -rf ~/.ollama/models/*",
+            ServiceType.DOCKER: "docker builder prune --force --filter until=168h",
+            # Models are user-selected data.  A generic cleanup must never
+            # turn into "remove every model".
+            ServiceType.OLLAMA: "",
             ServiceType.CONTAINERD: "sudo rm -rf /var/lib/containerd",
             ServiceType.PODMAN: "podman system prune -af --volumes",
             # JS/Node
@@ -561,7 +618,12 @@ class ServiceCleaner:
             # IDEs
             ServiceType.VSCODE: "rm -rf ~/.config/Code/Cache ~/.config/Code/CachedData ~/.vscode/extensions/*/out",
             ServiceType.CURSOR: "rm -rf ~/.config/Cursor/Cache ~/.config/Cursor/CachedData ~/.cursor/extensions/*/out",
-            ServiceType.JETBRAINS: "find ~/.cache/JetBrains -name 'index' -type d -exec rm -rf {} + 2>/dev/null; find ~/.JetBrains -name 'caches' -type d -exec rm -rf {} + 2>/dev/null || true",
+            ServiceType.JETBRAINS: (
+                "if pgrep -f 'idea|pycharm|webstorm|jetbrains' >/dev/null; "
+                "then echo 'Zamknij wszystkie IDE JetBrains przed czyszczeniem' >&2; "
+                "exit 2; else find ~/.cache/JetBrains -mindepth 1 -maxdepth 1 "
+                "-exec rm -rf -- {} +; fi"
+            ),
             # Cloud/ML
             ServiceType.HUGGINGFACE: "rm -rf ~/.cache/huggingface/hub/*",
             ServiceType.AWS: "rm -rf ~/.aws/sso/cache ~/.aws/cli/cache",

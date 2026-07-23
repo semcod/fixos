@@ -223,6 +223,49 @@ class TestDockerDaemonSizeFallback:
 
         assert called["count"] == 0
 
+    def test_docker_usage_reports_reclaimable_without_losing_active_counts(
+        self, monkeypatch
+    ):
+        scanner = ServiceDataScanner(threshold_mb=1)
+        output = "\n".join(
+            [
+                '{"Type":"Images","TotalCount":"1799","Active":"136",'
+                '"Size":"292.2GB","Reclaimable":"82.84GB (28%)"}',
+                '{"Type":"Containers","TotalCount":"169","Active":"108",'
+                '"Size":"17.39GB","Reclaimable":"764.3MB (4%)"}',
+                '{"Type":"Local Volumes","TotalCount":"564","Active":"66",'
+                '"Size":"125.1GB","Reclaimable":"89.81GB (71%)"}',
+                '{"Type":"Build Cache","TotalCount":"536","Active":"0",'
+                '"Size":"70.88GB","Reclaimable":"64.73GB"}',
+            ]
+        )
+        calls = {"count": 0}
+
+        def fake_run(*args, **kwargs):
+            calls["count"] += 1
+
+            class Result:
+                returncode = 0
+                stdout = output
+
+            return Result()
+
+        monkeypatch.setattr(
+            "fixos.diagnostics.service_scanner.subprocess.run", fake_run
+        )
+
+        usage = scanner._get_docker_daemon_usage()
+        cached = scanner._get_docker_daemon_usage()
+
+        assert usage is cached
+        assert calls["count"] == 1
+        assert usage["size_gb"] > 500
+        assert 237 < usage["reclaimable_gb"] < 239
+        details = scanner._docker_usage_details(usage)
+        assert details["usage"]["Images"]["active"] == 136
+        assert details["usage"]["Local Volumes"]["reclaimable_gb"] == 89.81
+        assert details["measurement_source"] == "docker-system-df"
+
 
 class TestServicePathTargets:
     def test_conda_paths_scan_package_cache_only(self):

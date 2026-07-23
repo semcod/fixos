@@ -45,19 +45,27 @@ def _display_cleanup_summary(plan: dict, threshold: int) -> None:
     )
     click.echo(
         click.style(
-            f"  Niebezpieczne (rzeczywiste dane, nie cache): "
+            f"  Chronione/mieszane (nie do automatycznego usunięcia): "
             f"{plan.get('dangerous_gb', 0):.2f} GB",
             fg="red",
             bold=True,
         )
     )
+    reclaimable = plan.get("manager_reported_reclaimable_gb", 0)
+    if reclaimable:
+        click.echo(
+            click.style(
+                f"  Odzyskiwalne wg menedżerów usług: {reclaimable:.2f} GB",
+                fg="cyan",
+            )
+        )
     click.echo()
 
 
 _RISK_LABELS = {
     "safe": ("(bezpieczne)", "green"),
     "review": ("(do rozważenia)", "yellow"),
-    "dangerous": ("(NIEBEZPIECZNE — realne dane, nie cache)", "red"),
+    "dangerous": ("(CHRONIONE — dane rzeczywiste lub mieszane)", "red"),
 }
 
 
@@ -87,7 +95,17 @@ def _display_service_item(svc: dict) -> None:
     # Show details for specific services
     if svc.get("details"):
         if svc["service_type"] == "docker" and svc["details"].get("components"):
-            click.echo(f"   Komponenty: {svc['details']['components']}")
+            usage = svc["details"].get("usage", {})
+            if usage:
+                click.echo("   Docker (łącznie / aktywne / rozmiar / odzyskiwalne):")
+                for kind, row in usage.items():
+                    click.echo(
+                        f"     • {kind}: {row.get('total', 0)} / "
+                        f"{row.get('active', 0)} / {row.get('size_gb', 0):.2f} GB / "
+                        f"{row.get('reclaimable_gb', 0):.2f} GB"
+                    )
+            else:
+                click.echo(f"   Komponenty: {svc['details']['components']}")
         elif svc["service_type"] == "ollama" and svc["details"].get("models"):
             models = svc["details"]["models"]
             if models:
@@ -142,18 +160,30 @@ def _format_hint_line(hint: str) -> None:
         click.echo(click.style(f"    {hint}", fg="white"))
 
 
-def _display_service_group(service_type: str, svcs: list, type_map: dict) -> None:
+def _display_service_group(
+    service_type: str,
+    svcs: list,
+    type_map: dict,
+    *,
+    show_cleanup_commands: bool = True,
+) -> None:
     """Display a single service group with cleanup commands and hints."""
     from fixos.diagnostics.service_cleanup import ServiceCleaner
 
     total_size = sum(s.get("size_gb", 0) for s in svcs)
     click.echo(f"\n  • {service_type.title()}: {total_size:.2f} GB")
 
-    unique_commands = list(set(s["cleanup_command"] for s in svcs))
-    for cmd in unique_commands[:2]:
-        click.echo(f"    {cmd}")
-    if len(unique_commands) > 2:
-        click.echo(f"    ... (+{len(unique_commands) - 2} more commands)")
+    command_key = "cleanup_command" if show_cleanup_commands else "preview_command"
+    unique_commands = sorted(
+        {s.get(command_key, "") for s in svcs if s.get(command_key)}
+    )
+    if unique_commands:
+        label = "Komenda" if show_cleanup_commands else "Bezpieczny podgląd"
+        click.echo(f"    {label}:")
+        for cmd in unique_commands[:2]:
+            click.echo(f"      {cmd}")
+        if len(unique_commands) > 2:
+            click.echo(f"      ... (+{len(unique_commands) - 2} more commands)")
 
     service_enum = type_map.get(service_type.lower())
     if service_enum:
@@ -214,17 +244,17 @@ def _display_dangerous_services(services: list) -> None:
     click.echo()
     click.echo(
         click.style(
-            "⚠️  Niebezpieczne — realne dane, nie cache (wymaga ręcznej, świadomej akcji):",
+            "⚠️  Chronione lub mieszane dane (wymaga świadomego wyboru elementów):",
             fg="red",
             bold=True,
         )
     )
     click.echo(
         click.style(
-            "   To nie jest cache do odtworzenia jednym poleceniem — to np. "
-            "zainstalowane modele AI, kontenery/woluminy, dyski maszyn "
-            "wirtualnych albo zainstalowane rozszerzenia edytora. Usunięcie "
-            "może oznaczać realną utratę danych lub długi re-download.",
+            "   Ta grupa może łączyć dane aktywne z cache (np. Docker) albo "
+            "zawierać modele AI, wolumeny, dyski maszyn wirtualnych i "
+            "rozszerzenia. fixOS pokazuje bezpieczny podgląd, ale nie proponuje "
+            "już zbiorczego kasowania całej grupy.",
             fg="red",
         )
     )
@@ -247,7 +277,12 @@ def _display_dangerous_services(services: list) -> None:
     }
 
     for service_type, svcs in _group_by_service_type(services).items():
-        _display_service_group(service_type, svcs, type_map)
+        _display_service_group(
+            service_type,
+            svcs,
+            type_map,
+            show_cleanup_commands=False,
+        )
 
     click.echo()
     click.echo(
@@ -304,9 +339,19 @@ def _cleanup_single_service(
     result = scanner.cleanup_service(service_name, dry_run=dry_run)
 
     if result["success"]:
-        click.echo(click.style(f"Zakończono czyszczenie {service_name}", fg="green"))
-        if result["space_freed_gb"] > 0:
-            click.echo(f"  Zwolniono: {result['space_freed_gb']:.2f} GB")
+        if dry_run:
+            click.echo(click.style(f"Symulacja dla {service_name} zakończona", fg="green"))
+            if result.get("output"):
+                click.echo(f"  {result['output']}")
+            if result["space_freed_gb"] > 0:
+                click.echo(
+                    f"  Szacowane maksimum do odzyskania: "
+                    f"{result['space_freed_gb']:.2f} GB"
+                )
+        else:
+            click.echo(click.style(f"Zakończono czyszczenie {service_name}", fg="green"))
+            if result["space_freed_gb"] > 0:
+                click.echo(f"  Zwolniono: {result['space_freed_gb']:.2f} GB")
     else:
         click.echo(click.style(f"Błąd: {_error_message(result)}", fg="red"))
         if result.get("output"):

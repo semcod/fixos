@@ -96,7 +96,10 @@ def _run_agent_session(cfg, data: dict, max_fixes: int) -> None:
     "--modules",
     "-M",
     default=None,
-    help="Moduły diagnostyki: audio,thumbnails,hardware,system",
+    help=(
+        "Moduły diagnostyki: audio,thumbnails,hardware,system,... "
+        "(domyślnie szybki zestaw bez głębokiego skanu plików; użyj 'all')"
+    ),
 )
 @click.option(
     "--no-show-data",
@@ -159,6 +162,7 @@ def fix(
       fixos fix --disc --dry-run             # analiza dysku bez wykonywania
       fixos fix --mode autonomous            # tryb autonomiczny
       fixos fix --modules audio,thumbnails   # tylko audio i thumbnails
+      fixos fix --modules all                # także głęboki skan plików
       fixos fix --yaml --no-interactive      # pipeline mode → YAML
       fixos fix --provider openai --token sk-...
     """

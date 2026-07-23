@@ -18,7 +18,6 @@ from ...constants import (
     MAX_USER_AUTOSTART,
     MAX_SLOW_SERVICES,
     MAX_NETWORK_INTERFACES,
-    MIN_FILE_SIZE_MB,
 )
 
 
@@ -91,13 +90,16 @@ def diagnose_resources() -> dict[str, Any]:
             {
                 # Dysk – co zajmuje miejsce
                 "disk_usage_top": _cmd(
-                    "du -sh /var/log /var/cache /tmp /home 2>/dev/null | sort -h"
+                    "df -hT / /home 2>/dev/null; "
+                    "du -sh /var/log /var/cache /tmp 2>/dev/null | sort -h"
                 ),
-                "disk_usage_home": _cmd(
-                    f"du -sh /home/*/ 2>/dev/null | sort -h | tail -{MAX_TOP_PROCESSES}"
+                "disk_usage_home": (
+                    "Pominięto w szybkim trybie: użyj "
+                    "`fixos fix --modules files` lub `fixos cleanup --full`"
                 ),
-                "large_files": _cmd(
-                    f"find / -xdev -size +{MIN_FILE_SIZE_MB}M -not -path '*/proc/*' -not -path '*/sys/*' 2>/dev/null | head -15"
+                "large_files": (
+                    "Pominięto w szybkim trybie: głęboki skan jest dostępny "
+                    "przez `fixos fix --modules files`"
                 ),
                 "log_sizes": _cmd(
                     f"du -sh /var/log/* 2>/dev/null | sort -h | tail -{MAX_TOP_PROCESSES}"
