@@ -143,6 +143,8 @@ def _execute_planned_cleanup(scanner, svc: dict, *, dry_run: bool = False) -> di
             days=int(svc.get("days") or DEFAULT_OLLAMA_OLD_UNUSED_DAYS),
             dry_run=dry_run,
         )
+    if kind == "docker-unused":
+        return cleaner.cleanup_docker_unused(dry_run=dry_run)
     if kind == "docker-old":
         return cleaner.cleanup_docker_old_unused(
             days=int(svc.get("days") or DEFAULT_DOCKER_OLD_UNUSED_DAYS),
@@ -162,9 +164,23 @@ def _execute_safe_cleanup(services: list, scanner) -> float:
         click.echo(f"Czyszczenie {svc.get('name') or svc['service_type']}...")
         result = _execute_planned_cleanup(scanner, svc, dry_run=False)
         if result["success"]:
-            freed = result.get("space_freed_gb", 0)
+            freed = float(result.get("space_freed_gb", 0) or 0)
             total_freed += freed
-            click.echo(click.style(f"  Zwolniono {freed:.2f} GB", fg="green"))
+            if freed > 0:
+                click.echo(click.style(f"  Zwolniono {freed:.2f} GB", fg="green"))
+            else:
+                click.echo(
+                    click.style(
+                        "  Brak mierzalnej zmiany rozmiaru (0.00 GB) — "
+                        "komenda zakończyła się OK, ale cache mógł być już pusty "
+                        "albo filtr wieku nic nie trafił.",
+                        fg="yellow",
+                    )
+                )
+                note = (result.get("output") or result.get("error") or "").strip()
+                if note:
+                    for line in note.splitlines()[:4]:
+                        click.echo(f"    {line}")
         else:
             click.echo(click.style(f"  Błąd: {_error_message(result)}", fg="red"))
     return total_freed
@@ -693,6 +709,14 @@ def _run_interactive_cleanup(plan: dict, list_only: bool, scanner) -> None:
             return
         if selected:
             _execute_safe_cleanup(selected, scanner)
+            click.echo()
+            click.echo(
+                click.style(
+                    "Uwaga: listy poniżej pochodzą ze skanu sprzed czyszczenia — "
+                    "uruchom ponownie `fixos cleanup --list`, by zobaczyć aktualny stan.",
+                    fg="cyan",
+                )
+            )
         elif mode == "none":
             click.echo(click.style("Pominięto czyszczenie.", fg="yellow"))
     if plan["requires_review"] and not list_only:

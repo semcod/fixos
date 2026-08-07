@@ -263,31 +263,69 @@ class ServiceCleaner:
 
         return result
 
-    def cleanup_docker_old_unused(
-        self,
-        days: int = DEFAULT_DOCKER_OLD_UNUSED_DAYS,
-        dry_run: bool = False,
-    ) -> Dict[str, Any]:
-        """Remove unused Docker images (and rebuildable build cache) older than N days."""
-        from .service_scanner import ServiceType
+    @staticmethod
+    def get_docker_unused_command() -> str:
+        """Prune all unused images and rebuildable build cache (no age filter).
 
-        command = self.get_docker_old_unused_command(days)
-        hours = self.docker_old_unused_until_hours(days)
+        Matches Docker's Images+Build Cache reclaimable pool. Does not touch
+        volumes or images still referenced by any container.
+        """
+        return "docker image prune -a --force && docker builder prune --force"
+
+    @staticmethod
+    def _parse_docker_reclaimed_gb(output: str) -> float | None:
+        """Parse ``Total reclaimed space: …`` from docker prune stdout/stderr."""
+        match = re.search(
+            r"Total reclaimed space:\s*([0-9]+(?:\.[0-9]+)?)\s*([KMGT]?B)",
+            output or "",
+            flags=re.IGNORECASE,
+        )
+        if not match:
+            return None
+        value = float(match.group(1))
+        unit = match.group(2).upper()
+        factor = {
+            "B": 1 / (1024**3),
+            "KB": 1 / (1024**2),
+            "MB": 1 / 1024,
+            "GB": 1.0,
+            "TB": 1024.0,
+        }.get(unit)
+        if factor is None:
+            return None
+        return round(value * factor, 3)
+
+    def _docker_images_and_cache_gb(self, *, refresh: bool = False) -> float | None:
+        """Current Images + Build Cache size from ``docker system df``."""
+        usage_fn = getattr(self.scanner, "_get_docker_daemon_usage", None)
+        if not callable(usage_fn):
+            return None
+        usage = usage_fn(refresh=refresh)
+        if not usage:
+            return None
+        rows = usage.get("rows") or {}
+        images = float((rows.get("Images") or {}).get("size_gb", 0.0))
+        cache = float((rows.get("Build Cache") or {}).get("size_gb", 0.0))
+        return round(images + cache, 3)
+
+    def cleanup_docker_unused(self, dry_run: bool = False) -> Dict[str, Any]:
+        """Remove all unused Docker images + build cache (safe reclaimable set)."""
+        command = self.get_docker_unused_command()
         result: Dict[str, Any] = {
-            "service": "docker-old",
+            "service": "docker-unused",
             "dry_run": dry_run,
             "success": False,
             "space_freed_gb": 0,
             "output": "",
             "error": "",
             "command": command,
-            "days": int(days),
-            "until_hours": hours,
         }
 
         images_reclaimable = 0.0
         build_cache_reclaimable = 0.0
         try:
+            from .service_scanner import ServiceType
+
             services = self.scanner.scan_service(ServiceType.DOCKER)
             if services:
                 usage = (services[0].details or {}).get("usage") or {}
@@ -308,35 +346,121 @@ class ServiceCleaner:
             result["space_freed_gb"] = estimated_gb
             result["output"] = (
                 f"[DRY RUN] Would execute: {command}\n"
-                f"  Scope: unused images + build cache older than {int(days)} days "
-                f"({hours}h). Volumes and in-use images are kept."
+                "  Scope: all unused images + build cache. "
+                "Volumes and in-use images are kept."
             )
             return result
 
         try:
-            measure = getattr(self.scanner, "measure_service_size_mb", None)
-            before_mb = None
-            if callable(measure):
-                before_mb = measure(ServiceType.DOCKER, "/var/lib/docker", refresh=True)
-
+            before_gb = self._docker_images_and_cache_gb(refresh=True)
             cleanup_result = subprocess.run(
                 command,
                 shell=True,
                 capture_output=True,
                 text=True,
-                timeout=DEFAULT_COMMAND_TIMEOUT,
+                timeout=max(DEFAULT_COMMAND_TIMEOUT, 1800),
+            )
+            combined = "\n".join(
+                part
+                for part in (cleanup_result.stdout, cleanup_result.stderr)
+                if part and part.strip()
             )
             result["returncode"] = cleanup_result.returncode
             result["output"] = cleanup_result.stdout
             result["error"] = cleanup_result.stderr
             result["success"] = cleanup_result.returncode == 0
 
-            if callable(measure) and before_mb is not None:
-                after_mb = measure(ServiceType.DOCKER, "/var/lib/docker", refresh=True)
-                result["space_freed_gb"] = round(max(0.0, (before_mb - after_mb) / 1024), 3)
-            elif result["success"]:
-                # Daemon may not expose path size to non-root; keep estimate as hint.
-                result["space_freed_gb"] = 0
+            after_gb = self._docker_images_and_cache_gb(refresh=True)
+            if before_gb is not None and after_gb is not None:
+                result["space_freed_gb"] = round(max(0.0, before_gb - after_gb), 3)
+            else:
+                parsed = self._parse_docker_reclaimed_gb(combined)
+                if parsed is not None:
+                    result["space_freed_gb"] = parsed
+                elif result["success"]:
+                    result["space_freed_gb"] = 0
+        except Exception as exc:
+            result["error"] = str(exc)
+
+        return result
+
+    def cleanup_docker_old_unused(
+        self,
+        days: int = DEFAULT_DOCKER_OLD_UNUSED_DAYS,
+        dry_run: bool = False,
+    ) -> Dict[str, Any]:
+        """Remove unused Docker images (and rebuildable build cache) older than N days."""
+        command = self.get_docker_old_unused_command(days)
+        hours = self.docker_old_unused_until_hours(days)
+        result: Dict[str, Any] = {
+            "service": "docker-old",
+            "dry_run": dry_run,
+            "success": False,
+            "space_freed_gb": 0,
+            "output": "",
+            "error": "",
+            "command": command,
+            "days": int(days),
+            "until_hours": hours,
+        }
+
+        # Age-filtered prune usually frees less than the whole reclaimable pool.
+        result["estimated_max_gb"] = 0.0
+        try:
+            from .service_scanner import ServiceType
+
+            services = self.scanner.scan_service(ServiceType.DOCKER)
+            if services:
+                usage = (services[0].details or {}).get("usage") or {}
+                result["estimated_max_gb"] = round(
+                    float((usage.get("Images") or {}).get("reclaimable_gb", 0.0))
+                    + float((usage.get("Build Cache") or {}).get("reclaimable_gb", 0.0)),
+                    3,
+                )
+                result["estimate_note"] = (
+                    "upper bound = all reclaimable Images+Build Cache; "
+                    f"until={hours}h usually frees less"
+                )
+        except Exception:
+            pass
+
+        if dry_run:
+            result["success"] = True
+            result["space_freed_gb"] = 0
+            result["output"] = (
+                f"[DRY RUN] Would execute: {command}\n"
+                f"  Scope: unused images + build cache older than {int(days)} days "
+                f"({hours}h). Volumes and in-use images are kept.\n"
+                f"  Note: Docker reclaimable (~{result['estimated_max_gb']:.2f} GB) "
+                "includes younger unused images; age filter may free much less."
+            )
+            return result
+
+        try:
+            before_gb = self._docker_images_and_cache_gb(refresh=True)
+            cleanup_result = subprocess.run(
+                command,
+                shell=True,
+                capture_output=True,
+                text=True,
+                timeout=max(DEFAULT_COMMAND_TIMEOUT, 1800),
+            )
+            combined = "\n".join(
+                part
+                for part in (cleanup_result.stdout, cleanup_result.stderr)
+                if part and part.strip()
+            )
+            result["returncode"] = cleanup_result.returncode
+            result["output"] = cleanup_result.stdout
+            result["error"] = cleanup_result.stderr
+            result["success"] = cleanup_result.returncode == 0
+
+            after_gb = self._docker_images_and_cache_gb(refresh=True)
+            if before_gb is not None and after_gb is not None:
+                result["space_freed_gb"] = round(max(0.0, before_gb - after_gb), 3)
+            else:
+                parsed = self._parse_docker_reclaimed_gb(combined)
+                result["space_freed_gb"] = parsed if parsed is not None else 0
         except Exception as exc:
             result["error"] = str(exc)
 
@@ -349,7 +473,7 @@ class ServiceCleaner:
 
         Includes:
         - Ollama models not modified for ``DEFAULT_OLLAMA_OLD_UNUSED_DAYS``
-        - Unused Docker images older than ``DEFAULT_DOCKER_OLD_UNUSED_DAYS``
+        - All unused Docker images + build cache (matches daemon reclaimable)
         """
         allow = {item.strip() for item in (selected_services or []) if item.strip()}
 
@@ -405,7 +529,7 @@ class ServiceCleaner:
                     }
                 )
 
-        if allowed("docker", "docker-old"):
+        if allowed("docker", "docker-old", "docker-unused"):
             estimated_gb = 0.0
             try:
                 from .service_scanner import ServiceType
@@ -421,23 +545,18 @@ class ServiceCleaner:
             except Exception:
                 estimated_gb = 0.0
             if estimated_gb > 0:
-                command = self.get_docker_old_unused_command(
-                    DEFAULT_DOCKER_OLD_UNUSED_DAYS
-                )
+                command = self.get_docker_unused_command()
                 actions.append(
                     {
-                        "service_type": "docker-old",
-                        "cleanup_kind": "docker-old",
-                        "name": (
-                            f"Docker (nieużywane obrazy >"
-                            f"{DEFAULT_DOCKER_OLD_UNUSED_DAYS} dni)"
-                        ),
+                        "service_type": "docker-unused",
+                        "cleanup_kind": "docker-unused",
+                        "name": "Docker (nieużywane obrazy)",
                         "path": "/var/lib/docker",
                         "size_mb": round(estimated_gb * 1024, 1),
                         "size_gb": round(estimated_gb, 3),
                         "description": (
-                            "Nieużywane obrazy Docker i stary build cache "
-                            f"(>{DEFAULT_DOCKER_OLD_UNUSED_DAYS} dni); bez wolumenów"
+                            "Wszystkie nieużywane obrazy Docker i build cache "
+                            "(bez wolumenów, bez obrazów podpiętych do kontenerów)"
                         ),
                         "can_cleanup": True,
                         "cleanup_command": command,
@@ -447,10 +566,8 @@ class ServiceCleaner:
                         "impact": "low",
                         "items_count": 0,
                         "details": {
-                            "days": DEFAULT_DOCKER_OLD_UNUSED_DAYS,
                             "estimated_max_gb": round(estimated_gb, 3),
                         },
-                        "days": DEFAULT_DOCKER_OLD_UNUSED_DAYS,
                     }
                 )
 

@@ -19,11 +19,11 @@ AI-powered OS Diagnostics
 
 ## AI Cost Tracking
 
-![PyPI](https://img.shields.io/badge/pypi-costs-blue) ![Version](https://img.shields.io/badge/version-2.2.45-blue) ![Python](https://img.shields.io/badge/python-3.9+-blue) ![License](https://img.shields.io/badge/license-Apache--2.0-green)
-![AI Cost](https://img.shields.io/badge/AI%20Cost-$4.81-orange) ![Human Time](https://img.shields.io/badge/Human%20Time-39.6h-blue) ![Model](https://img.shields.io/badge/Model-openrouter%2Fqwen%2Fqwen3--coder--next-lightgrey)
+![PyPI](https://img.shields.io/badge/pypi-costs-blue) ![Version](https://img.shields.io/badge/version-2.2.46-blue) ![Python](https://img.shields.io/badge/python-3.9+-blue) ![License](https://img.shields.io/badge/license-Apache--2.0-green)
+![AI Cost](https://img.shields.io/badge/AI%20Cost-$4.84-orange) ![Human Time](https://img.shields.io/badge/Human%20Time-40.6h-blue) ![Model](https://img.shields.io/badge/Model-openrouter%2Fqwen%2Fqwen3--coder--next-lightgrey)
 
-- 🤖 **LLM usage:** $4.8099 (150 commits)
-- 👤 **Human dev:** ~$3959 (39.6h @ $100/h, 30min dedup)
+- 🤖 **LLM usage:** $4.8388 (151 commits)
+- 👤 **Human dev:** ~$4059 (40.6h @ $100/h, 30min dedup)
 
 Generated on 2026-08-07 using [openrouter/qwen/qwen3-coder-next](https://openrouter.ai/qwen/qwen3-coder-next)
 
@@ -74,6 +74,8 @@ fixos quick --deep      – szybki wynik, potem pełny skan danych usług
 fixos fix               – diagnoza + sesja naprawcza z AI (HITL)
 fixos scan              – diagnostyka systemu bez AI
 fixos cleanup           – skanuj i czyść dane usług (Docker, npm, pip, ...)
+fixos cleanup --docker-old – nieużywane obrazy Docker starsze niż N dni (--days)
+fixos cleanup --ollama-old – modele Ollama niezmieniane od N dni (domyślnie 90)
 fixos cleanup --full    – pełny audit systemu + dev projects
 fixos projects          – skanuj projekty dev (venv, node_modules, ~/github/*/*)
 fixos orchestrate       – zaawansowana orkiestracja (graf problemów DAG)
@@ -108,6 +110,17 @@ fixos fix --disc
 
 # Pełny audit systemu (DNF, Docker, Flatpak, dev projects)
 fixos cleanup --full --dry-run
+
+# Podgląd usług + interaktywne czyszczenie (opcja [1] = wszystkie bezpieczne)
+fixos cleanup --list
+fixos cleanup --dry-run   # tylko gdy -c / --docker-old / --ollama-old
+fixos cleanup
+
+# Nieużywane obrazy Docker starsze niż 30 dni (filtr wieku; może zwolnić mniej niż RECLAIMABLE)
+fixos cleanup --docker-old --days 30 --dry-run
+
+# Modele Ollama niezmieniane od 90+ dni (pomija uruchomione)
+fixos cleanup --ollama-old --days 90 --dry-run
 
 # Usuń tylko foldery venv z projektów
 fixos cleanup --full
@@ -215,20 +228,38 @@ Tryb DRY-RUN - żadne akcje nie zostaną wykonane
 
 Każda znaleziona usługa jest klasyfikowana do jednej z trzech grup:
 
-- **bezpieczne** – cache do odtworzenia jednym poleceniem (pip/npm/cargo/conda/nix/brew...).
-  Tylko tę grupę można usunąć automatycznie opcją „wszystkie”.
+- **bezpieczne** – cache do odtworzenia jednym poleceniem (pip/npm/cargo/conda/nix/brew...)
+  oraz ograniczone, jawnie bezpieczne akcje wiekowe / reclaimable:
+  - **Docker (nieużywane obrazy)** — wszystkie unused images + build cache
+    (bez wolumenów, bez obrazów podpiętych do kontenerów); odpowiada puli
+    `RECLAIMABLE` Images+Build Cache,
+  - **Ollama (modele >90 dni)** — modele niezmieniane od 90+ dni; pomija
+    modele aktualnie załadowane w pamięci.
+  Tylko tę grupę usuwa opcja **[1] Wszystkie bezpieczne**.
 - **do rozważenia** – reinstalowalne aplikacje, dane długo nieużywane, nierozpoznane
   foldery (JetBrains, Snap, Flatpak) – pokazywane z komendą i wymagają
   osobnego, świadomego potwierdzenia.
 - **chronione lub mieszane** – realne dane aplikacji albo magazyny łączące dane aktywne
-  z cache (Ollama, LM Studio, HuggingFace hub, Docker/Podman/containerd, cała biblioteka
-  Steam, `.cursor/extensions`/`.vscode/extensions`
-  – zainstalowane rozszerzenia edytora, nie ich cache). Osobna sekcja z ostrzeżeniem;
-  zbiorcze kasowanie modeli, klastrów, maszyn wirtualnych, rozszerzeń i
-  wolumenów jest wyłączone. Docker pokazuje osobno `SIZE` i `RECLAIMABLE`;
-  domyślne czyszczenie ogranicza się do starego cache buildów. Raportowane
-  `RECLAIMABLE` jest górną informacją z Dockera — filtr starszy niż 7 dni może
-  faktycznie zwolnić znacznie mniej.
+  z cache (cały sklep Ollama/LM Studio/HuggingFace, cały Docker z wolumenami,
+  Steam, `.cursor/extensions`/`.vscode/extensions`). Osobna sekcja z ostrzeżeniem;
+  zbiorcze kasowanie modeli „na ślepo”, klastrów, maszyn wirtualnych, rozszerzeń i
+  wolumenów jest wyłączone.
+
+Dedykowane flagi (też dostępne jako `-c docker-old` / `-c ollama-old`):
+
+```bash
+fixos cleanup --docker-old --days 30 --dry-run   # tylko unused starsze niż N dni
+fixos cleanup --ollama-old --days 90 --dry-run   # modele niezmieniane od N dni
+```
+
+`RECLAIMABLE` Dockera obejmuje też świeże unused images. Filtr `--docker-old`
+(domyślnie 30 dni) może więc zwolnić **znacznie mniej** niż szacunek całej puli —
+dlatego opcja `[1]` używa prune **wszystkich** nieużywanych obrazów, a
+`--docker-old` zostaje dla świadomego cięcia po wieku. Domyślne
+`fixos cleanup -c docker` nadal ogranicza się do cache buildów >7 dni.
+
+Po wykonaniu opcji `[1]` listy „do rozważenia / chronione” pochodzą ze skanu
+sprzed czyszczenia — uruchom ponownie `fixos cleanup --list`, by zobaczyć stan.
 
 Opcja „Wybierz pojedyncze” przechodzi kolejno przez wszystkie znalezione
 usługi w tych trzech grupach. Dla pozycji bez bezpiecznej operacji zbiorczej

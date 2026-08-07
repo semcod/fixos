@@ -2,6 +2,19 @@
 
 ### Added
 
+- `fixos cleanup --docker-old [--days N]` oraz `-c docker-old`: usuwa wyłącznie
+  nieużywane obrazy Docker i build cache starsze niż N dni (domyślnie 30);
+  bez wolumenów i bez obrazów używanych przez kontenery.
+- `fixos cleanup --ollama-old [--days N]` oraz `-c ollama-old`: usuwa modele
+  Ollama niezmieniane od N dni (domyślnie 90), z pominięciem modeli
+  aktualnie załadowanych (`/api/ps`).
+- Opcja interaktywna **[1] Wszystkie bezpieczne** obejmuje teraz także:
+  - **Docker (nieużywane obrazy)** — pełną pulę unused (zgodną z RECLAIMABLE
+    Images+Build Cache), bez filtra wieku,
+  - **Ollama (modele >90 dni)** — gdy takie modele istnieją.
+- Pomiar zwolnionego miejsca Dockera przez `docker system df` przed/po oraz
+  parsowanie `Total reclaimed space`; ostrzeżenie przy 0.00 GB mimo sukcesu
+  komendy; przypomnienie, że listy po `[1]` pochodzą ze skanu sprzed cleanup.
 - `fixos quick`: ograniczona czasowo analiza heurystyczna bez LLM, która od razu
   pokazuje presję CPU/RAM/dysku i maksymalny rozmiar jawnie odtwarzalnych cache.
 - Lokalna historia szybkich próbek z porównaniem ostatnich godzin i bieżącego
@@ -14,6 +27,9 @@
 
 ### Changed
 
+- Dokumentacja README / getting-started / architecture opisuje model trzech
+  poziomów ryzyka z nowymi flagami `--docker-old` / `--ollama-old` i różnicą
+  między reclaimable a filtrem wieku.
 - Zakończone elementy historycznych roadmap zostały przeniesione z TODO do
   changelogu: modułowy pakiet CLI, klasowe sesje HITL, wspólny
   `SessionTimeout`, plugin registry, structured output LLM, rollback, profile
@@ -24,6 +40,9 @@
 
 ### Fixed
 
+- Szacunek Dockera w opcji `[1]` nie obiecuje już całej puli RECLAIMABLE przy
+  filtrze `until=30d` (świeże unused images nie były kasowane, a UI pokazywało
+  0.00 GB).
 - Zablokowano zbiorcze kasowanie chronionych danych LM Studio, Hugging Face,
   Podman/containerd, Jupyter, Minikube, AppImage, VirtualBox, VMware oraz
   rozszerzeń VS Code/Cursor. Takie wpisy pokazują teraz wyłącznie bezpieczny
@@ -50,6 +69,22 @@
 - Skrócono domyślną diagnostykę przez równoległe moduły i usunięcie
   rekurencyjnych skanów `/` oraz `/home` z szybkich kontroli.
 - Czyszczenie cache JetBrains trafia w aktualną ścieżkę i wymaga zamknięcia IDE.
+
+## [2.2.46] - 2026-08-07
+
+### Docs
+- Update CHANGELOG.md
+- Update README.md
+- Update docs/architecture.md
+- Update docs/getting-started.md
+
+### Test
+- Update tests/unit/test_service_cleanup.py
+
+### Other
+- Update fixos/cli/cleanup_cmd.py
+- Update fixos/diagnostics/service_cleanup.py
+- Update project/planfile-tickets.yaml
 
 ## [2.2.45] - 2026-08-07
 

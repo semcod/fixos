@@ -2776,5 +2776,21 @@ tickets:
   files:
   - tests/e2e/test_cli.py
   dedupe_key: test-optimization:tests.e2e.test_cli.TestWelcomeScreen:test_welcome_shows_status_section
+- signal: slow_test_warning
+  title: 'Address slow test: tests.unit.test_cleanup_cmd.test_welcome_menu_lists_docker_old_option'
+  description: 'Test `tests.unit.test_cleanup_cmd.test_welcome_menu_lists_docker_old_option`
+    took 1.75s to run.
+
+
+    Optimize its setup, mock slow external dependencies, or refactor its logic to
+    reduce overall test suite execution time.'
+  priority: medium
+  labels:
+  - llm-ready
+  - test-optimization
+  - slow-test
+  files:
+  - tests/unit/test_cleanup_cmd.py
+  dedupe_key: test-optimization:tests.unit.test_cleanup_cmd:test_welcome_menu_lists_docker_old_option
 applied: []
 skipped: []

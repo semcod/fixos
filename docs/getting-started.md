@@ -60,6 +60,8 @@ Najpierw wykonaj podgląd:
 ```bash
 fixos cleanup --list
 fixos cleanup -c npm --dry-run
+fixos cleanup --docker-old --days 30 --dry-run
+fixos cleanup --ollama-old --days 90 --dry-run
 ```
 
 Następnie uruchom interaktywne czyszczenie:
@@ -70,14 +72,18 @@ fixos cleanup
 
 fixOS dzieli dane na trzy poziomy:
 
-- **bezpieczne** — odtwarzalne cache; można wybrać wszystkie lub pojedyncze,
+- **bezpieczne** — odtwarzalne cache oraz ograniczone akcje:
+  wszystkie nieużywane obrazy Docker (bez wolumenów) i modele Ollama
+  niezmieniane od 90+ dni; opcja **[1]** usuwa je zbiorczo,
 - **do rozważenia** — wymagają obejrzenia komendy i świadomego potwierdzenia,
-- **chronione/mieszane** — modele, rozszerzenia, wolumeny i dane aktywne;
-  dostępny jest bezpieczny podgląd, a nie zbiorcze kasowanie.
+- **chronione/mieszane** — pełny Docker z wolumenami, świeże modele AI,
+  rozszerzenia edytorów; dostępny jest bezpieczny podgląd, a nie hurtowe kasowanie.
 
 W trybie „Wybierz pojedyncze” lista przechodzi kolejno przez wszystkie trzy
 grupy. Element bez bezpiecznej operacji usuwania pokazuje tylko diagnostykę.
 
+Po opcji `[1]` odśwież stan: `fixos cleanup --list` (listy podsumowania
+pochodzą ze skanu sprzed wykonania).
 ## Diagnostyka bez LLM
 
 ```bash

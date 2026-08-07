@@ -165,15 +165,33 @@ class TestRiskLevelClassification:
             def scan_service(self, service_type):
                 return []
 
-            def measure_service_size_mb(self, service_type, path, refresh=False):
-                return executed.setdefault("sizes", [2000.0, 500.0]).pop(0)
+            def _get_docker_daemon_usage(self, *, refresh=False):
+                sizes = executed.setdefault(
+                    "usage",
+                    [
+                        {
+                            "rows": {
+                                "Images": {"size_gb": 10.0},
+                                "Build Cache": {"size_gb": 2.0},
+                            }
+                        },
+                        {
+                            "rows": {
+                                "Images": {"size_gb": 3.0},
+                                "Build Cache": {"size_gb": 0.5},
+                            }
+                        },
+                    ],
+                )
+                return sizes.pop(0)
 
         def fake_run(command, shell, capture_output, text, timeout):
             executed["command"] = command
+            executed["timeout"] = timeout
 
             class Result:
                 returncode = 0
-                stdout = "Deleted Images:\nuntagged: old:latest\n"
+                stdout = "Deleted Images:\nuntagged: old:latest\nTotal reclaimed space: 8.5GB\n"
                 stderr = ""
 
             return Result()
@@ -189,7 +207,22 @@ class TestRiskLevelClassification:
         assert result["success"] is True
         assert "until=1080h" in executed["command"]
         assert "--volumes" not in executed["command"]
-        assert result["space_freed_gb"] == round((2000.0 - 500.0) / 1024, 3)
+        assert result["space_freed_gb"] == 8.5
+        assert executed["timeout"] >= 1800
+
+    def test_docker_unused_command_has_no_age_filter(self):
+        command = ServiceCleaner.get_docker_unused_command()
+        assert "image prune -a" in command
+        assert "until=" not in command
+        assert "--volumes" not in command
+
+    def test_parse_docker_reclaimed_gb(self):
+        assert (
+            ServiceCleaner._parse_docker_reclaimed_gb(
+                "Total reclaimed space: 12.34GB"
+            )
+            == 12.34
+        )
 
 
 class TestOllamaOldUnused:

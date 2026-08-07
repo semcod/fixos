@@ -31,7 +31,9 @@ rekurencyjnie skanować systemu ani wykonywać surowych operacji usuwania.
   systemu i znanych cache,
 - `system_checks.py` oraz `checks/` — równoległe moduły diagnostyczne,
 - `service_scanner.py` i `service_cleanup.py` — wykrywanie danych usług,
-  klasyfikację ryzyka i bezpieczne plany,
+  klasyfikację ryzyka i bezpieczne plany; osobne ścieżki dla
+  `docker-unused` / `docker-old` (prune unused images) oraz `ollama-old`
+  (modele po `modified_at`, z pominięciem `/api/ps`),
 - `project_scanner.py` — artefakty zależne od projektu, np. `.venv`,
   `node_modules` i `target`.
 
