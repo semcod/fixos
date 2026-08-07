@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from fixos.diagnostics.service_cleanup import ServiceCleaner
 from fixos.diagnostics.service_scanner import ServiceDataInfo, ServiceType
 
@@ -102,6 +104,191 @@ class TestRiskLevelClassification:
         assert "--volumes" not in command
         assert "system prune" not in command
         assert "image prune -a" not in command
+
+    def test_docker_old_unused_command_filters_by_age_and_skips_volumes(self):
+        command = ServiceCleaner.get_docker_old_unused_command(days=30)
+
+        assert "image prune -a" in command
+        assert "--filter until=720h" in command
+        assert "builder prune" in command
+        assert "--volumes" not in command
+        assert "system prune" not in command
+
+    def test_docker_old_unused_rejects_non_positive_days(self):
+        try:
+            ServiceCleaner.get_docker_old_unused_command(days=0)
+            assert False, "expected ValueError"
+        except ValueError:
+            pass
+
+    def test_docker_old_unused_dry_run_reports_command(self, monkeypatch):
+        service = ServiceDataInfo(
+            service_type=ServiceType.DOCKER,
+            name="Docker",
+            path="/var/lib/docker",
+            size_mb=100 * 1024,
+            size_gb=100.0,
+            description="docker",
+            can_cleanup=True,
+            cleanup_command="docker builder prune --force --filter until=168h",
+            preview_command="docker system df",
+            safe_to_cleanup=False,
+            risk_level="dangerous",
+            details={
+                "usage": {
+                    "Images": {"reclaimable_gb": 12.5},
+                    "Build Cache": {"reclaimable_gb": 1.5},
+                }
+            },
+        )
+
+        class FakeScanner:
+            def scan_service(self, service_type):
+                assert service_type == ServiceType.DOCKER
+                return [service]
+
+        result = ServiceCleaner(FakeScanner()).cleanup_docker_old_unused(
+            days=30, dry_run=True
+        )
+
+        assert result["success"] is True
+        assert result["until_hours"] == 720
+        assert "until=720h" in result["command"]
+        assert result["estimated_max_gb"] == 14.0
+        assert "Volumes" not in result["command"]
+        assert "image prune -a" in result["output"]
+
+    def test_docker_old_unused_executes_bounded_command(self, monkeypatch):
+        executed = {}
+
+        class FakeScanner:
+            def scan_service(self, service_type):
+                return []
+
+            def measure_service_size_mb(self, service_type, path, refresh=False):
+                return executed.setdefault("sizes", [2000.0, 500.0]).pop(0)
+
+        def fake_run(command, shell, capture_output, text, timeout):
+            executed["command"] = command
+
+            class Result:
+                returncode = 0
+                stdout = "Deleted Images:\nuntagged: old:latest\n"
+                stderr = ""
+
+            return Result()
+
+        monkeypatch.setattr(
+            "fixos.diagnostics.service_cleanup.subprocess.run", fake_run
+        )
+
+        result = ServiceCleaner(FakeScanner()).cleanup_docker_old_unused(
+            days=45, dry_run=False
+        )
+
+        assert result["success"] is True
+        assert "until=1080h" in executed["command"]
+        assert "--volumes" not in executed["command"]
+        assert result["space_freed_gb"] == round((2000.0 - 500.0) / 1024, 3)
+
+
+class TestOllamaOldUnused:
+    def test_parse_ollama_timestamp_with_long_fraction(self):
+        dt = ServiceCleaner._parse_ollama_modified_at(
+            "2025-09-25T12:45:48.30752109+02:00"
+        )
+        assert dt.tzinfo is not None
+        assert dt.year == 2025
+        assert dt.month == 9
+
+    def test_select_old_ollama_models_skips_running_and_recent(self):
+        now = datetime(2026, 8, 7, tzinfo=timezone.utc)
+        models = [
+            {
+                "name": "old:7b",
+                "size_bytes": 4 * 1024**3,
+                "modified_at": "2025-09-25T12:00:00+00:00",
+            },
+            {
+                "name": "recent:7b",
+                "size_bytes": 4 * 1024**3,
+                "modified_at": "2026-07-20T12:00:00+00:00",
+            },
+            {
+                "name": "running-old:7b",
+                "size_bytes": 4 * 1024**3,
+                "modified_at": "2025-01-01T12:00:00+00:00",
+            },
+        ]
+        selected = ServiceCleaner.select_old_ollama_models(
+            models,
+            days=90,
+            now=now,
+            running={"running-old:7b"},
+        )
+        assert [m["name"] for m in selected] == ["old:7b"]
+
+    def test_cleanup_ollama_old_dry_run(self, monkeypatch):
+        models = [
+            {
+                "name": "deepseek-r1:7b",
+                "size_bytes": 4683075440,
+                "modified_at": "2025-09-25T12:45:48+02:00",
+            }
+        ]
+        monkeypatch.setattr(
+            ServiceCleaner, "list_ollama_models", staticmethod(lambda: models)
+        )
+        monkeypatch.setattr(
+            ServiceCleaner, "list_running_ollama_models", staticmethod(lambda: set())
+        )
+
+        result = ServiceCleaner(object()).cleanup_ollama_old_unused(
+            days=90, dry_run=True
+        )
+
+        assert result["success"] is True
+        assert result["models"][0]["name"] == "deepseek-r1:7b"
+        assert "ollama rm" in result["command"]
+        assert result["estimated_max_gb"] > 4.0
+
+    def test_cleanup_ollama_old_executes_rm(self, monkeypatch):
+        models = [
+            {
+                "name": "llava:7b",
+                "size_bytes": 2 * 1024**3,
+                "modified_at": "2025-07-11T15:00:00+02:00",
+            }
+        ]
+        monkeypatch.setattr(
+            ServiceCleaner, "list_ollama_models", staticmethod(lambda: models)
+        )
+        monkeypatch.setattr(
+            ServiceCleaner, "list_running_ollama_models", staticmethod(lambda: set())
+        )
+        executed = []
+
+        def fake_run(cmd, capture_output, text, timeout):
+            executed.append(cmd)
+
+            class Result:
+                returncode = 0
+                stdout = "deleted llava:7b"
+                stderr = ""
+
+            return Result()
+
+        monkeypatch.setattr(
+            "fixos.diagnostics.service_cleanup.subprocess.run", fake_run
+        )
+
+        result = ServiceCleaner(object()).cleanup_ollama_old_unused(
+            days=90, dry_run=False
+        )
+
+        assert result["success"] is True
+        assert executed == [["ollama", "rm", "llava:7b"]]
+        assert result["space_freed_gb"] == 2.0
 
     def test_ollama_bulk_cleanup_is_disabled(self):
         assert (

@@ -192,3 +192,198 @@ def test_single_docker_dry_run_marks_reclaimable_as_upper_bound():
     assert result.exit_code == 0
     assert "Szacowane maksimum do odzyskania: 64.73 GB" in result.output
     assert "filtr >7 dni zwykle usunie mniej" in result.output
+
+
+def test_docker_old_flag_routes_to_age_filtered_prune(monkeypatch):
+    captured = {}
+
+    def fake_cleanup(self, days=30, dry_run=False):
+        captured["days"] = days
+        captured["dry_run"] = dry_run
+        return {
+            "success": True,
+            "command": f"docker image prune -a --force --filter until={days * 24}h",
+            "output": "[DRY RUN] Would execute",
+            "estimated_max_gb": 10.0,
+            "space_freed_gb": 10.0,
+            "days": days,
+            "until_hours": days * 24,
+        }
+
+    monkeypatch.setattr(
+        cleanup_cmd.ServiceCleaner,
+        "cleanup_docker_old_unused",
+        fake_cleanup,
+    )
+
+    result = CliRunner().invoke(
+        cleanup_cmd.cleanup_services,
+        ["--docker-old", "--days", "30", "--dry-run"],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert captured == {"days": 30, "dry_run": True}
+    assert "nieużywane obrazy starsze niż 30 dni" in result.output
+    assert "until=720h" in result.output
+
+
+def test_docker_old_alias_via_cleanup_flag(monkeypatch):
+    captured = {}
+
+    def fake_cleanup(self, days=30, dry_run=False):
+        captured["days"] = days
+        return {
+            "success": True,
+            "command": "docker image prune -a --force --filter until=1440h",
+            "output": "",
+            "estimated_max_gb": 0,
+            "space_freed_gb": 0,
+            "days": days,
+            "until_hours": days * 24,
+        }
+
+    monkeypatch.setattr(
+        cleanup_cmd.ServiceCleaner,
+        "cleanup_docker_old_unused",
+        fake_cleanup,
+    )
+
+    result = CliRunner().invoke(
+        cleanup_cmd.cleanup_services,
+        ["-c", "docker-old", "--days", "60", "--dry-run"],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert captured["days"] == 60
+    assert "60 dni" in result.output
+
+
+def test_welcome_menu_lists_docker_old_option():
+    from fixos.cli.main import cli
+
+    result = CliRunner().invoke(cli, [])
+
+    assert result.exit_code == 0
+    assert "fixos cleanup --docker-old" in result.output
+    assert "nieużywane obrazy Docker" in result.output
+    assert "fixos cleanup --ollama-old" in result.output
+    assert "modele Ollama" in result.output
+
+
+def test_ollama_old_flag_defaults_to_90_days(monkeypatch):
+    captured = {}
+
+    def fake_cleanup(self, days=90, dry_run=False):
+        captured["days"] = days
+        captured["dry_run"] = dry_run
+        return {
+            "success": True,
+            "command": "ollama rm old:7b",
+            "output": "[DRY RUN] Would remove 1 model(s)",
+            "estimated_max_gb": 4.7,
+            "space_freed_gb": 4.7,
+            "days": days,
+            "models": [{"name": "old:7b", "size_gb": 4.7}],
+            "skipped_running": [],
+        }
+
+    monkeypatch.setattr(
+        cleanup_cmd.ServiceCleaner,
+        "cleanup_ollama_old_unused",
+        fake_cleanup,
+    )
+
+    result = CliRunner().invoke(
+        cleanup_cmd.cleanup_services,
+        ["--ollama-old", "--dry-run"],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert captured == {"days": 90, "dry_run": True}
+    assert "90" in result.output
+    assert "ollama rm" in result.output
+
+def test_safe_option_one_runs_ollama_old_age_action(monkeypatch):
+    safe = _service("Npm", "safe")
+    ollama_old = {
+        "service_type": "ollama-old",
+        "cleanup_kind": "ollama-old",
+        "name": "Ollama (modele >90 dni)",
+        "path": "",
+        "size_mb": 4800,
+        "size_gb": 4.7,
+        "description": "old models",
+        "can_cleanup": True,
+        "cleanup_command": "ollama rm old:7b",
+        "preview_command": "ollama list",
+        "safe_to_cleanup": True,
+        "risk_level": "safe",
+        "details": {"days": 90},
+        "days": 90,
+    }
+    plan = {
+        "services": [ollama_old, safe],
+        "safe_to_cleanup": [ollama_old, safe],
+        "requires_review": [],
+        "dangerous": [],
+    }
+    calls = []
+
+    class Scanner:
+        def cleanup_service(self, service_type, dry_run, planned_service):
+            calls.append(("service", service_type))
+            return {"success": True, "space_freed_gb": 1}
+
+    def fake_ollama(self, days=90, dry_run=False):
+        calls.append(("ollama-old", days, dry_run))
+        return {"success": True, "space_freed_gb": 4.7}
+
+    monkeypatch.setattr(
+        cleanup_cmd.ServiceCleaner,
+        "cleanup_ollama_old_unused",
+        fake_ollama,
+    )
+
+    @click.command()
+    def command():
+        cleanup_cmd._run_interactive_cleanup(plan, False, Scanner())
+
+    result = CliRunner().invoke(command, input="1\n")
+
+    assert result.exit_code == 0, result.output
+    assert "Ollama (modele >90 dni)" in result.output
+    assert ("ollama-old", 90, False) in calls
+    assert ("service", "npm") in calls
+    assert "Zwolniono 4.70 GB" in result.output
+
+
+def test_build_safe_age_actions_includes_old_ollama(monkeypatch):
+    models = [
+        {
+            "name": "old:7b",
+            "size_bytes": 5 * 1024**3,
+            "modified_at": "2025-01-01T00:00:00+00:00",
+        }
+    ]
+    monkeypatch.setattr(
+        cleanup_cmd.ServiceCleaner,
+        "list_ollama_models",
+        staticmethod(lambda: models),
+    )
+    monkeypatch.setattr(
+        cleanup_cmd.ServiceCleaner,
+        "list_running_ollama_models",
+        staticmethod(lambda: set()),
+    )
+
+    class Scanner:
+        def scan_service(self, service_type):
+            return []
+
+    actions = cleanup_cmd.ServiceCleaner(Scanner()).build_safe_age_actions()
+    kinds = [item["cleanup_kind"] for item in actions]
+    assert "ollama-old" in kinds
+    ollama = next(item for item in actions if item["cleanup_kind"] == "ollama-old")
+    assert ollama["risk_level"] == "safe"
+    assert ollama["safe_to_cleanup"] is True
+    assert "old:7b" in ollama["cleanup_command"]

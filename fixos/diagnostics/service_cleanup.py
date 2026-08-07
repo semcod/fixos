@@ -4,13 +4,23 @@ Handles planning and execution of service data cleanup operations.
 """
 
 import os
+import re
 import shlex
 import subprocess
+import json
+import urllib.error
+import urllib.request
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from typing import Dict, Any, List
 from ..constants import (
     DEFAULT_COMMAND_TIMEOUT,
 )
+
+# Unused Docker images older than this many days (``fixos cleanup --docker-old``).
+DEFAULT_DOCKER_OLD_UNUSED_DAYS = 30
+# Ollama models not modified for this many days (``fixos cleanup --ollama-old``).
+DEFAULT_OLLAMA_OLD_UNUSED_DAYS = 90
 
 
 class ServiceCleaner:
@@ -19,6 +29,432 @@ class ServiceCleaner:
     def __init__(self, scanner):
         """Initialize with a ServiceDataScanner instance."""
         self.scanner = scanner
+
+    @staticmethod
+    def docker_old_unused_until_hours(days: int = DEFAULT_DOCKER_OLD_UNUSED_DAYS) -> int:
+        """Convert a positive day count to Docker ``until=<Nh>`` hours."""
+        days_int = int(days)
+        if days_int < 1:
+            raise ValueError("days must be >= 1")
+        return days_int * 24
+
+    @staticmethod
+    def get_docker_old_unused_command(
+        days: int = DEFAULT_DOCKER_OLD_UNUSED_DAYS,
+    ) -> str:
+        """Bounded prune: unused images (and old build cache) older than N days.
+
+        - ``image prune -a`` only removes images not referenced by any container
+        - ``until=<Nh>`` keeps recent unused images
+        - never touches volumes or running containers
+        """
+        hours = ServiceCleaner.docker_old_unused_until_hours(days)
+        return (
+            f"docker image prune -a --force --filter until={hours}h && "
+            f"docker builder prune --force --filter until={hours}h"
+        )
+
+    @staticmethod
+    def _ollama_base_url() -> str:
+        host = os.environ.get("OLLAMA_HOST", "127.0.0.1:11434").strip()
+        if "://" not in host:
+            host = f"http://{host}"
+        return host.rstrip("/")
+
+    @staticmethod
+    def _parse_ollama_modified_at(value: str) -> datetime:
+        """Parse Ollama RFC3339 timestamps (may include >6 fractional digits)."""
+        text = value.strip()
+        if text.endswith("Z"):
+            text = text[:-1] + "+00:00"
+        match = re.match(
+            r"^(?P<head>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})"
+            r"(?:\.(?P<frac>\d+))?"
+            r"(?P<tz>[+-]\d{2}:\d{2})?$",
+            text,
+        )
+        if not match:
+            raise ValueError(f"unrecognized ollama timestamp: {value}")
+        frac = (match.group("frac") or "0")[:6].ljust(6, "0")
+        tz = match.group("tz") or "+00:00"
+        dt = datetime.fromisoformat(f"{match.group('head')}.{frac}{tz}")
+        return dt.astimezone(timezone.utc)
+
+    @staticmethod
+    def _ollama_api_get(path: str) -> Dict[str, Any]:
+        url = f"{ServiceCleaner._ollama_base_url()}{path}"
+        request = urllib.request.Request(url, method="GET")
+        with urllib.request.urlopen(request, timeout=10) as response:
+            return json.loads(response.read().decode("utf-8"))
+
+    @staticmethod
+    def list_ollama_models() -> List[Dict[str, Any]]:
+        """Return installed Ollama models with name/size/modified_at (UTC)."""
+        payload = ServiceCleaner._ollama_api_get("/api/tags")
+        models: List[Dict[str, Any]] = []
+        for item in payload.get("models") or []:
+            name = item.get("name") or item.get("model")
+            modified = item.get("modified_at")
+            if not name or not modified:
+                continue
+            models.append(
+                {
+                    "name": name,
+                    "size_bytes": int(item.get("size") or 0),
+                    "modified_at": modified,
+                    "modified_at_utc": ServiceCleaner._parse_ollama_modified_at(
+                        modified
+                    ).isoformat(),
+                }
+            )
+        return models
+
+    @staticmethod
+    def list_running_ollama_models() -> set[str]:
+        """Names of models currently loaded in memory (must not be deleted)."""
+        try:
+            payload = ServiceCleaner._ollama_api_get("/api/ps")
+        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError):
+            return set()
+        running: set[str] = set()
+        for item in payload.get("models") or []:
+            name = item.get("name") or item.get("model")
+            if name:
+                running.add(name)
+        return running
+
+    @staticmethod
+    def select_old_ollama_models(
+        models: List[Dict[str, Any]],
+        days: int = DEFAULT_OLLAMA_OLD_UNUSED_DAYS,
+        *,
+        now: datetime | None = None,
+        running: set[str] | None = None,
+    ) -> List[Dict[str, Any]]:
+        """Filter models whose modified_at is older than N days; skip running ones."""
+        days_int = int(days)
+        if days_int < 1:
+            raise ValueError("days must be >= 1")
+        cutoff = (now or datetime.now(timezone.utc)) - timedelta(days=days_int)
+        skip = running or set()
+        selected: List[Dict[str, Any]] = []
+        for model in models:
+            name = model["name"]
+            if name in skip:
+                continue
+            modified = ServiceCleaner._parse_ollama_modified_at(model["modified_at"])
+            if modified <= cutoff:
+                entry = dict(model)
+                entry["age_days"] = (cutoff + timedelta(days=days_int) - modified).days
+                selected.append(entry)
+        return selected
+
+    def cleanup_ollama_old_unused(
+        self,
+        days: int = DEFAULT_OLLAMA_OLD_UNUSED_DAYS,
+        dry_run: bool = False,
+    ) -> Dict[str, Any]:
+        """Remove Ollama models not modified for more than N days (skip running)."""
+        days_int = int(days)
+        if days_int < 1:
+            raise ValueError("days must be >= 1")
+
+        result: Dict[str, Any] = {
+            "service": "ollama-old",
+            "dry_run": dry_run,
+            "success": False,
+            "space_freed_gb": 0,
+            "output": "",
+            "error": "",
+            "command": "",
+            "days": days_int,
+            "models": [],
+            "skipped_running": [],
+        }
+
+        try:
+            installed = self.list_ollama_models()
+            running = self.list_running_ollama_models()
+            selected = self.select_old_ollama_models(
+                installed, days=days_int, running=running
+            )
+            skipped = sorted(
+                {
+                    model["name"]
+                    for model in installed
+                    if model["name"] in running
+                }
+            )
+            result["skipped_running"] = skipped
+            result["models"] = [
+                {
+                    "name": model["name"],
+                    "size_gb": round(model["size_bytes"] / (1024**3), 3),
+                    "modified_at": model["modified_at"],
+                    "age_days": model.get("age_days"),
+                }
+                for model in selected
+            ]
+            estimated_gb = round(
+                sum(model["size_bytes"] for model in selected) / (1024**3), 3
+            )
+            result["estimated_max_gb"] = estimated_gb
+            commands = [f"ollama rm {shlex.quote(model['name'])}" for model in selected]
+            result["command"] = " && ".join(commands) if commands else "(brak modeli)"
+
+            if not selected:
+                result["success"] = True
+                result["output"] = (
+                    f"Brak modeli Ollama starszych niż {days_int} dni"
+                    + (
+                        f" (pominięto uruchomione: {', '.join(skipped)})"
+                        if skipped
+                        else ""
+                    )
+                )
+                return result
+
+            if dry_run:
+                result["success"] = True
+                result["space_freed_gb"] = estimated_gb
+                lines = [
+                    f"[DRY RUN] Would remove {len(selected)} model(s) older than "
+                    f"{days_int} days:",
+                ]
+                for model in result["models"]:
+                    lines.append(
+                        f"  - {model['name']} ({model['size_gb']:.2f} GB, "
+                        f"modified {model['modified_at']})"
+                    )
+                if skipped:
+                    lines.append(
+                        "  Kept running: " + ", ".join(skipped)
+                    )
+                result["output"] = "\n".join(lines)
+                return result
+
+            outputs: List[str] = []
+            errors: List[str] = []
+            freed_bytes = 0
+            ok = True
+            for model in selected:
+                proc = subprocess.run(
+                    ["ollama", "rm", model["name"]],
+                    capture_output=True,
+                    text=True,
+                    timeout=DEFAULT_COMMAND_TIMEOUT,
+                )
+                if proc.stdout:
+                    outputs.append(proc.stdout.strip())
+                if proc.returncode != 0:
+                    ok = False
+                    errors.append(
+                        proc.stderr.strip() or f"ollama rm {model['name']} failed"
+                    )
+                else:
+                    freed_bytes += int(model["size_bytes"])
+
+            result["success"] = ok
+            result["output"] = "\n".join(line for line in outputs if line)
+            result["error"] = "\n".join(errors)
+            result["space_freed_gb"] = round(freed_bytes / (1024**3), 3)
+        except Exception as exc:
+            result["error"] = str(exc)
+
+        return result
+
+    def cleanup_docker_old_unused(
+        self,
+        days: int = DEFAULT_DOCKER_OLD_UNUSED_DAYS,
+        dry_run: bool = False,
+    ) -> Dict[str, Any]:
+        """Remove unused Docker images (and rebuildable build cache) older than N days."""
+        from .service_scanner import ServiceType
+
+        command = self.get_docker_old_unused_command(days)
+        hours = self.docker_old_unused_until_hours(days)
+        result: Dict[str, Any] = {
+            "service": "docker-old",
+            "dry_run": dry_run,
+            "success": False,
+            "space_freed_gb": 0,
+            "output": "",
+            "error": "",
+            "command": command,
+            "days": int(days),
+            "until_hours": hours,
+        }
+
+        images_reclaimable = 0.0
+        build_cache_reclaimable = 0.0
+        try:
+            services = self.scanner.scan_service(ServiceType.DOCKER)
+            if services:
+                usage = (services[0].details or {}).get("usage") or {}
+                images_reclaimable = float(
+                    (usage.get("Images") or {}).get("reclaimable_gb", 0.0)
+                )
+                build_cache_reclaimable = float(
+                    (usage.get("Build Cache") or {}).get("reclaimable_gb", 0.0)
+                )
+        except Exception:
+            pass
+
+        estimated_gb = round(images_reclaimable + build_cache_reclaimable, 3)
+        result["estimated_max_gb"] = estimated_gb
+
+        if dry_run:
+            result["success"] = True
+            result["space_freed_gb"] = estimated_gb
+            result["output"] = (
+                f"[DRY RUN] Would execute: {command}\n"
+                f"  Scope: unused images + build cache older than {int(days)} days "
+                f"({hours}h). Volumes and in-use images are kept."
+            )
+            return result
+
+        try:
+            measure = getattr(self.scanner, "measure_service_size_mb", None)
+            before_mb = None
+            if callable(measure):
+                before_mb = measure(ServiceType.DOCKER, "/var/lib/docker", refresh=True)
+
+            cleanup_result = subprocess.run(
+                command,
+                shell=True,
+                capture_output=True,
+                text=True,
+                timeout=DEFAULT_COMMAND_TIMEOUT,
+            )
+            result["returncode"] = cleanup_result.returncode
+            result["output"] = cleanup_result.stdout
+            result["error"] = cleanup_result.stderr
+            result["success"] = cleanup_result.returncode == 0
+
+            if callable(measure) and before_mb is not None:
+                after_mb = measure(ServiceType.DOCKER, "/var/lib/docker", refresh=True)
+                result["space_freed_gb"] = round(max(0.0, (before_mb - after_mb) / 1024), 3)
+            elif result["success"]:
+                # Daemon may not expose path size to non-root; keep estimate as hint.
+                result["space_freed_gb"] = 0
+        except Exception as exc:
+            result["error"] = str(exc)
+
+        return result
+
+    def build_safe_age_actions(
+        self, selected_services: List[str] | None = None
+    ) -> List[Dict[str, Any]]:
+        """Bounded age-based cleanups treated as safe (option [1] in interactive cleanup).
+
+        Includes:
+        - Ollama models not modified for ``DEFAULT_OLLAMA_OLD_UNUSED_DAYS``
+        - Unused Docker images older than ``DEFAULT_DOCKER_OLD_UNUSED_DAYS``
+        """
+        allow = {item.strip() for item in (selected_services or []) if item.strip()}
+
+        def allowed(*keys: str) -> bool:
+            return not allow or any(key in allow for key in keys)
+
+        actions: List[Dict[str, Any]] = []
+
+        if allowed("ollama", "ollama-old"):
+            try:
+                installed = self.list_ollama_models()
+                running = self.list_running_ollama_models()
+                selected = self.select_old_ollama_models(
+                    installed,
+                    days=DEFAULT_OLLAMA_OLD_UNUSED_DAYS,
+                    running=running,
+                )
+            except Exception:
+                selected = []
+            if selected:
+                size_bytes = sum(int(model["size_bytes"]) for model in selected)
+                size_gb = round(size_bytes / (1024**3), 3)
+                commands = [
+                    f"ollama rm {shlex.quote(model['name'])}" for model in selected
+                ]
+                actions.append(
+                    {
+                        "service_type": "ollama-old",
+                        "cleanup_kind": "ollama-old",
+                        "name": (
+                            f"Ollama (modele >{DEFAULT_OLLAMA_OLD_UNUSED_DAYS} dni)"
+                        ),
+                        "path": "",
+                        "size_mb": round(size_bytes / (1024**2), 1),
+                        "size_gb": size_gb,
+                        "description": (
+                            "Modele Ollama niezmieniane od "
+                            f"{DEFAULT_OLLAMA_OLD_UNUSED_DAYS}+ dni "
+                            "(pomija uruchomione)"
+                        ),
+                        "can_cleanup": True,
+                        "cleanup_command": " && ".join(commands),
+                        "preview_command": "ollama list",
+                        "safe_to_cleanup": True,
+                        "risk_level": "safe",
+                        "impact": "low",
+                        "items_count": len(selected),
+                        "details": {
+                            "days": DEFAULT_OLLAMA_OLD_UNUSED_DAYS,
+                            "models": [model["name"] for model in selected],
+                        },
+                        "days": DEFAULT_OLLAMA_OLD_UNUSED_DAYS,
+                    }
+                )
+
+        if allowed("docker", "docker-old"):
+            estimated_gb = 0.0
+            try:
+                from .service_scanner import ServiceType
+
+                docker_services = self.scanner.scan_service(ServiceType.DOCKER)
+                if docker_services:
+                    usage = (docker_services[0].details or {}).get("usage") or {}
+                    estimated_gb = float(
+                        (usage.get("Images") or {}).get("reclaimable_gb", 0.0)
+                    ) + float(
+                        (usage.get("Build Cache") or {}).get("reclaimable_gb", 0.0)
+                    )
+            except Exception:
+                estimated_gb = 0.0
+            if estimated_gb > 0:
+                command = self.get_docker_old_unused_command(
+                    DEFAULT_DOCKER_OLD_UNUSED_DAYS
+                )
+                actions.append(
+                    {
+                        "service_type": "docker-old",
+                        "cleanup_kind": "docker-old",
+                        "name": (
+                            f"Docker (nieużywane obrazy >"
+                            f"{DEFAULT_DOCKER_OLD_UNUSED_DAYS} dni)"
+                        ),
+                        "path": "/var/lib/docker",
+                        "size_mb": round(estimated_gb * 1024, 1),
+                        "size_gb": round(estimated_gb, 3),
+                        "description": (
+                            "Nieużywane obrazy Docker i stary build cache "
+                            f"(>{DEFAULT_DOCKER_OLD_UNUSED_DAYS} dni); bez wolumenów"
+                        ),
+                        "can_cleanup": True,
+                        "cleanup_command": command,
+                        "preview_command": "docker system df",
+                        "safe_to_cleanup": True,
+                        "risk_level": "safe",
+                        "impact": "low",
+                        "items_count": 0,
+                        "details": {
+                            "days": DEFAULT_DOCKER_OLD_UNUSED_DAYS,
+                            "estimated_max_gb": round(estimated_gb, 3),
+                        },
+                        "days": DEFAULT_DOCKER_OLD_UNUSED_DAYS,
+                    }
+                )
+
+        return actions
 
     def get_cleanup_plan(self, selected_services: List[str] = None) -> Dict[str, Any]:
         """Generate cleanup plan for services, split into 3 risk tiers."""
@@ -40,19 +476,27 @@ class ServiceCleaner:
             s for s in services if s.risk_level == RiskLevel.DANGEROUS.value
         ]
 
+        age_actions = self.build_safe_age_actions(selected_services)
+        safe_dicts = [self._service_to_dict(s) for s in safe_services]
+        # Age-bounded actions first so option [1] shows them prominently.
+        safe_to_cleanup = age_actions + safe_dicts
+        service_dicts = age_actions + [self._service_to_dict(s) for s in services]
+
         plan = {
             "threshold_mb": self.scanner.threshold_mb,
-            "services_found": len(services),
-            "total_size_gb": round(total_size_gb, 2),
-            "safe_cleanup_gb": round(sum(s.size_gb for s in safe_services), 2),
+            "services_found": len(service_dicts),
+            "total_size_gb": round(
+                total_size_gb + sum(item["size_gb"] for item in age_actions), 2
+            ),
+            "safe_cleanup_gb": round(sum(item["size_gb"] for item in safe_to_cleanup), 2),
             "requires_review_gb": round(sum(s.size_gb for s in review_services), 2),
             "dangerous_gb": round(sum(s.size_gb for s in dangerous_services), 2),
             "manager_reported_reclaimable_gb": round(
                 sum(float(s.details.get("reclaimable_size_gb", 0.0)) for s in services),
                 2,
             ),
-            "services": [self._service_to_dict(s) for s in services],
-            "safe_to_cleanup": [self._service_to_dict(s) for s in safe_services],
+            "services": service_dicts,
+            "safe_to_cleanup": safe_to_cleanup,
             "requires_review": [self._service_to_dict(s) for s in review_services],
             "dangerous": [self._service_to_dict(s) for s in dangerous_services],
         }
@@ -434,8 +878,11 @@ class ServiceCleaner:
                     "  docker system df",
                     "  # Pokazuje osobno SIZE i RECLAIMABLE",
                     "",
-                    "  docker builder prune --filter until=168h",
-                    "  # Usuwa wyłącznie odbudowywalny cache buildów starszy niż 7 dni",
+                    "  fixos cleanup -c docker --dry-run",
+                    "  # Domyślnie: tylko cache buildów >7 dni",
+                    "",
+                    "  fixos cleanup --docker-old --days 30 --dry-run",
+                    "  # Nieużywane obrazy (+ cache) starsze niż 30 dni",
                     "",
                     "  docker image prune -f",
                     "  # Usuwa tylko niepodpięte (dangling) obrazy",
@@ -451,6 +898,9 @@ class ServiceCleaner:
                     "🤖 OLLAMA CLEANUP:",
                     "  ollama list",
                     "  # See installed models",
+                    "",
+                    "  fixos cleanup --ollama-old --days 90 --dry-run",
+                    "  # Modele niezmieniane od 90+ dni (pomija uruchomione)",
                     "",
                     "  ollama rm <model_name>",
                     "  # Remove specific model",

@@ -73,6 +73,16 @@ def _print_welcome() -> None:
         ("fixos quickfix", "", "Naprawy offline bez API (baza znanych bugów)"),
         ("fixos cleanup", "", "Skanuj i czyść dane usług (Docker, Ollama)"),
         (
+            "fixos cleanup --docker-old",
+            "",
+            "Usuń nieużywane obrazy Docker starsze niż 30 dni",
+        ),
+        (
+            "fixos cleanup --ollama-old",
+            "",
+            "Usuń modele Ollama niezmieniane od 90+ dni",
+        ),
+        (
             "fixos projects",
             "",
             "Skanuj projekty dev (venv, node_modules, ~/github/*/*)",
@@ -90,7 +100,7 @@ def _print_welcome() -> None:
     ]
 
     for cmd, icon, desc in commands:
-        cmd_styled = click.style(f"{cmd:<26}", fg="yellow")
+        cmd_styled = click.style(f"{cmd:<32}", fg="yellow")
         click.echo(f"  {icon}  {cmd_styled} {desc}")
 
     click.echo()
@@ -141,6 +151,12 @@ def _print_welcome() -> None:
         click.echo(click.style("  Przykłady użycia:", fg="yellow", bold=True))
         click.echo(
             f"{click.style('     fixos fix', fg='yellow')}                           # pełna diagnostyka + naprawa"
+        )
+        click.echo(
+            f"{click.style('     fixos cleanup --docker-old --dry-run', fg='yellow')} # stare nieużywane obrazy Docker"
+        )
+        click.echo(
+            f"{click.style('     fixos cleanup --ollama-old --dry-run', fg='yellow')} # stare modele Ollama (90+ dni)"
         )
         click.echo(
             f"{click.style('     fixos fix --modules security,resources', fg='yellow')} # bezpieczeństwo + zasoby"

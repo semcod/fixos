@@ -17,6 +17,11 @@ from fixos.constants import DEFAULT_CLEANUP_THRESHOLD_MB
 # Re-export public symbols used by fixos.cli (backward-compat)
 from fixos.cli._cleanup_flatpak import _cleanup_flatpak_detailed  # noqa: F401
 from fixos.cli._cleanup_system import _cleanup_full_system
+from fixos.diagnostics.service_cleanup import (
+    DEFAULT_DOCKER_OLD_UNUSED_DAYS,
+    DEFAULT_OLLAMA_OLD_UNUSED_DAYS,
+    ServiceCleaner,
+)
 
 
 # ── Service display helpers ───────────────────────────────────────────────
@@ -129,17 +134,33 @@ def _error_message(result: dict) -> str:
     return "nieznany błąd"
 
 
+def _execute_planned_cleanup(scanner, svc: dict, *, dry_run: bool = False) -> dict:
+    """Run a planned cleanup entry (including age-bounded docker/ollama actions)."""
+    kind = svc.get("cleanup_kind")
+    cleaner = ServiceCleaner(scanner)
+    if kind == "ollama-old":
+        return cleaner.cleanup_ollama_old_unused(
+            days=int(svc.get("days") or DEFAULT_OLLAMA_OLD_UNUSED_DAYS),
+            dry_run=dry_run,
+        )
+    if kind == "docker-old":
+        return cleaner.cleanup_docker_old_unused(
+            days=int(svc.get("days") or DEFAULT_DOCKER_OLD_UNUSED_DAYS),
+            dry_run=dry_run,
+        )
+    return scanner.cleanup_service(
+        svc["service_type"],
+        dry_run=dry_run,
+        planned_service=svc,
+    )
+
+
 def _execute_safe_cleanup(services: list, scanner) -> float:
     """Execute cleanup for safe-to-remove services. Returns total space freed in GB."""
     total_freed = 0.0
     for svc in services:
-        svc_type = svc["service_type"]
-        click.echo(f"Czyszczenie {svc_type}...")
-        result = scanner.cleanup_service(
-            svc_type,
-            dry_run=False,
-            planned_service=svc,
-        )
+        click.echo(f"Czyszczenie {svc.get('name') or svc['service_type']}...")
+        result = _execute_planned_cleanup(scanner, svc, dry_run=False)
         if result["success"]:
             freed = result.get("space_freed_gb", 0)
             total_freed += freed
@@ -441,6 +462,112 @@ def _cleanup_single_service(
             click.echo(f"Output: {result['output']}")
 
 
+def _cleanup_docker_old_unused(
+    scanner, days: int, json_output: bool, dry_run: bool
+) -> None:
+    """Prune unused Docker images (and old build cache) older than N days."""
+    cleaner = ServiceCleaner(scanner)
+    try:
+        result = cleaner.cleanup_docker_old_unused(days=days, dry_run=dry_run)
+    except ValueError as exc:
+        click.echo(click.style(f"Błąd: {exc}", fg="red"))
+        return
+
+    if json_output:
+        import json
+
+        click.echo(json.dumps(result, indent=2, default=str))
+        return
+
+    click.echo(
+        click.style(
+            f"Docker — nieużywane obrazy starsze niż {days} dni",
+            fg="yellow",
+        )
+    )
+    click.echo(f"  Komenda: {result.get('command')}")
+    if dry_run:
+        click.echo(click.style("[TRYB DRY-RUN] - brak faktycznych zmian", fg="cyan"))
+
+    if result.get("success"):
+        if dry_run:
+            click.echo(click.style("Symulacja zakończona", fg="green"))
+            if result.get("output"):
+                for line in str(result["output"]).splitlines():
+                    click.echo(f"  {line}")
+            if result.get("estimated_max_gb", 0) > 0:
+                click.echo(
+                    f"  Szacowane maksimum (Images+Build Cache reclaimable): "
+                    f"{result['estimated_max_gb']:.2f} GB "
+                    f"(filtr until zwykle usunie mniej)"
+                )
+        else:
+            click.echo(click.style("Zakończono czyszczenie docker-old", fg="green"))
+            if result.get("space_freed_gb", 0) > 0:
+                click.echo(f"  Zwolniono: {result['space_freed_gb']:.2f} GB")
+            elif result.get("output"):
+                click.echo(f"  {result['output'].strip()[:500]}")
+    else:
+        click.echo(click.style(f"Błąd: {_error_message(result)}", fg="red"))
+        if result.get("output"):
+            click.echo(f"Output: {result['output']}")
+
+
+def _cleanup_ollama_old_unused(
+    scanner, days: int, json_output: bool, dry_run: bool
+) -> None:
+    """Remove Ollama models not modified for more than N days."""
+    cleaner = ServiceCleaner(scanner)
+    try:
+        result = cleaner.cleanup_ollama_old_unused(days=days, dry_run=dry_run)
+    except ValueError as exc:
+        click.echo(click.style(f"Błąd: {exc}", fg="red"))
+        return
+
+    if json_output:
+        import json
+
+        click.echo(json.dumps(result, indent=2, default=str))
+        return
+
+    click.echo(
+        click.style(
+            f"Ollama — modele niezmieniane od {days}+ dni",
+            fg="yellow",
+        )
+    )
+    if result.get("command"):
+        click.echo(f"  Komenda: {result['command']}")
+    if dry_run:
+        click.echo(click.style("[TRYB DRY-RUN] - brak faktycznych zmian", fg="cyan"))
+
+    if result.get("success"):
+        if dry_run:
+            click.echo(click.style("Symulacja zakończona", fg="green"))
+            if result.get("output"):
+                for line in str(result["output"]).splitlines():
+                    click.echo(f"  {line}")
+            if result.get("estimated_max_gb", 0) > 0:
+                click.echo(
+                    f"  Szacowane zwolnienie: {result['estimated_max_gb']:.2f} GB"
+                )
+            if result.get("skipped_running"):
+                click.echo(
+                    "  Pominięto uruchomione: "
+                    + ", ".join(result["skipped_running"])
+                )
+        else:
+            click.echo(click.style("Zakończono czyszczenie ollama-old", fg="green"))
+            if result.get("space_freed_gb", 0) > 0:
+                click.echo(f"  Zwolniono: {result['space_freed_gb']:.2f} GB")
+            if result.get("output"):
+                click.echo(f"  {result['output'].strip()[:500]}")
+    else:
+        click.echo(click.style(f"Błąd: {_error_message(result)}", fg="red"))
+        if result.get("output"):
+            click.echo(f"Output: {result['output']}")
+
+
 # ── Interactive cleanup orchestration ─────────────────────────────────────
 
 
@@ -540,11 +667,7 @@ def _execute_individual_cleanup(services: list, scanner) -> float:
                 continue
 
         click.echo(f"Czyszczenie {svc['name']}...")
-        result = scanner.cleanup_service(
-            svc["service_type"],
-            dry_run=False,
-            planned_service=svc,
-        )
+        result = _execute_planned_cleanup(scanner, svc, dry_run=False)
         if result["success"]:
             freed = float(result.get("space_freed_gb", 0))
             total_freed += freed
@@ -602,7 +725,37 @@ def _run_interactive_cleanup(plan: dict, list_only: bool, scanner) -> None:
     "--cleanup",
     "-c",
     default=None,
-    help="Wyczyść konkretną usługę (docker, ollama, npm, ...)",
+    help="Wyczyść konkretną usługę (docker, docker-old, ollama-old, ollama, npm, ...)",
+)
+@click.option(
+    "--docker-old",
+    "docker_old",
+    is_flag=True,
+    default=False,
+    help=(
+        "Usuń nieużywane obrazy Docker (i stary build cache) starsze niż --days "
+        f"(domyślnie {DEFAULT_DOCKER_OLD_UNUSED_DAYS}); nie rusza wolumenów ani obrazów w użyciu"
+    ),
+)
+@click.option(
+    "--ollama-old",
+    "ollama_old",
+    is_flag=True,
+    default=False,
+    help=(
+        "Usuń modele Ollama niezmieniane od --days dni "
+        f"(domyślnie {DEFAULT_OLLAMA_OLD_UNUSED_DAYS}); pomija modele aktualnie uruchomione"
+    ),
+)
+@click.option(
+    "--days",
+    default=None,
+    type=int,
+    help=(
+        "Wiek w dniach dla --docker-old "
+        f"(domyślnie {DEFAULT_DOCKER_OLD_UNUSED_DAYS}) lub --ollama-old "
+        f"(domyślnie {DEFAULT_OLLAMA_OLD_UNUSED_DAYS})"
+    ),
 )
 @click.option(
     "--dry-run",
@@ -626,7 +779,16 @@ def _run_interactive_cleanup(plan: dict, list_only: bool, scanner) -> None:
     help="Pełna analiza systemu (DNF, kernels, logs, Docker, cache)",
 )
 def cleanup_services(
-    threshold, services, json_output, cleanup, dry_run, list_only, full_analysis
+    threshold,
+    services,
+    json_output,
+    cleanup,
+    docker_old,
+    ollama_old,
+    days,
+    dry_run,
+    list_only,
+    full_analysis,
 ) -> None:
     """
     Skanuje i czyści dane usług przekraczające próg.
@@ -643,7 +805,12 @@ def cleanup_services(
       fixos cleanup -t 1000           # próg 1000MB (1GB)
       fixos cleanup -s docker,ollama  # tylko Docker i Ollama
       fixos cleanup --list              # tylko lista, bez czyszczenia
-      fixos cleanup -c docker --dry-run  # symulacja czyszczenia Dockera
+      fixos cleanup -c docker --dry-run  # tylko cache buildów >7 dni
+      fixos cleanup --docker-old --days 30 --dry-run
+      # nieużywane obrazy (+ cache) starsze niż 30 dni
+      fixos cleanup --ollama-old --days 90 --dry-run
+      # modele Ollama niezmieniane od 90+ dni
+      fixos cleanup -c ollama-old
       fixos cleanup --full              # pełna analiza systemu
     """
     if full_analysis:
@@ -651,6 +818,29 @@ def cleanup_services(
         return
 
     scanner = ServiceDataScanner(threshold_mb=threshold)
+
+    want_docker_old = docker_old or (cleanup == "docker-old")
+    want_ollama_old = ollama_old or (cleanup == "ollama-old")
+    if want_docker_old and want_ollama_old:
+        click.echo(
+            click.style(
+                "Wybierz jedno: --docker-old albo --ollama-old (nie oba naraz).",
+                fg="red",
+            )
+        )
+        return
+    if want_docker_old:
+        effective_days = (
+            days if days is not None else DEFAULT_DOCKER_OLD_UNUSED_DAYS
+        )
+        _cleanup_docker_old_unused(scanner, effective_days, json_output, dry_run)
+        return
+    if want_ollama_old:
+        effective_days = (
+            days if days is not None else DEFAULT_OLLAMA_OLD_UNUSED_DAYS
+        )
+        _cleanup_ollama_old_unused(scanner, effective_days, json_output, dry_run)
+        return
 
     if cleanup:
         if cleanup == "flatpak":

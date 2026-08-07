@@ -51,6 +51,23 @@
   rekurencyjnych skanów `/` oraz `/home` z szybkich kontroli.
 - Czyszczenie cache JetBrains trafia w aktualną ścieżkę i wymaga zamknięcia IDE.
 
+## [2.2.45] - 2026-08-07
+
+### Docs
+- Update README.md
+
+### Test
+- Update tests/unit/test_cleanup_cmd.py
+- Update tests/unit/test_service_cleanup.py
+
+### Other
+- Update VERSION
+- Update fixos/__init__.py
+- Update fixos/cli/cleanup_cmd.py
+- Update fixos/cli/main.py
+- Update fixos/diagnostics/service_cleanup.py
+- Update uv.lock
+
 ## [2.2.41] - 2026-07-23
 
 ### Docs
