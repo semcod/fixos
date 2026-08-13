@@ -44,7 +44,7 @@
   "conflictsWith": [],
   "integrationTicket": null,
   "delivery": {
-    "acceptedBaseSha": "81e1610a5a021adc496212263967e359c5da5bdd",
+    "acceptedBaseSha": "9b3ab40548461b2ff7b4b328f9bf1cde1c5611b5",
     "targetBranch": "main",
     "standardAdoption": {
       "sourceRepository": "wellmanifest/new-project",

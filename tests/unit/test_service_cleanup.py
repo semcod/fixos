@@ -3,14 +3,19 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from pathlib import Path
 
 from fixos.diagnostics.service_cleanup import ServiceCleaner
 from fixos.diagnostics.service_scanner import ServiceDataInfo, ServiceType
 
 
+def _home_path(*parts: str) -> str:
+    return str(Path.home().joinpath(*parts))
+
+
 class TestChromeCleanup:
     def test_chrome_cleanup_command_targets_scanned_profile(self):
-        path = "/home/tom/.config/google-chrome"
+        path = _home_path(".config", "google-chrome")
 
         command = ServiceCleaner.get_cleanup_command(ServiceType.CHROME, path)
 
@@ -22,7 +27,7 @@ class TestChromeCleanup:
         assert "Service Worker" in command
 
     def test_chrome_cache_cleanup_does_not_run_find_on_removed_path(self):
-        path = "/home/tom/.cache/google-chrome"
+        path = _home_path(".cache", "google-chrome")
 
         command = ServiceCleaner.get_cleanup_command(ServiceType.CHROME, path)
 
@@ -30,7 +35,7 @@ class TestChromeCleanup:
         assert "find" not in command
 
     def test_cleanup_service_reports_freed_space_for_chrome(self, monkeypatch):
-        path = "/home/tom/.config/google-chrome"
+        path = _home_path(".config", "google-chrome")
         initial_size_mb = 537.0
         service = ServiceDataInfo(
             service_type=ServiceType.CHROME,
@@ -513,8 +518,10 @@ class TestOllamaOldUnused:
         assert ServiceCleaner.get_risk_level(ServiceType.CONDA) == "safe"
 
     def test_steam_shadercache_is_safe_but_library_is_dangerous(self):
-        shadercache = "/home/tom/.local/share/Steam/steamapps/shadercache"
-        library_root = "/home/tom/.local/share/Steam"
+        shadercache = _home_path(
+            ".local", "share", "Steam", "steamapps", "shadercache"
+        )
+        library_root = _home_path(".local", "share", "Steam")
 
         assert ServiceCleaner.get_risk_level(ServiceType.STEAM, shadercache) == "safe"
         assert (
