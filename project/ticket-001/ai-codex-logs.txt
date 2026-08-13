@@ -1,0 +1,11 @@
+2026-08-13T10:58:00Z preflight: published new-project v0.16.1 revision 4e6ba5ec15873346446d67d8787f17f68f57f81e planned 37 CREATE operations, no overwrite, and one missing target prerequisite project/TICKETS.md.
+2026-08-13T10:59:00Z adoption: exact published 37-file package installed; existing root project.sh and analysis-owned project/README.md remained unchanged.
+2026-08-13T10:59:29Z ticket-001 allocated through the adopted clone-wide allocator on accepted base 81e1610a5a021adc496212263967e359c5da5bdd.
+2026-08-13T10:59:29Z SESSION_EXECUTION_AUTHORIZATION recorded from the user's instruction to continue, test and standardize Goal and FixOS.
+2026-08-13T11:04:00Z prerequisite: existing broad *.json and .github/ ignores hid managed adoption files; added narrow exceptions only for .governance JSON contracts, ticket intents and new-project-governance.yml.
+2026-08-13T11:05:00Z governance: staged bootstrap checked against accepted base with the explicit changed-path set; GOV-PASS reported 0 errors and 0 warnings.
+2026-08-13T11:06:00Z drift: goal governance adopt --check reported up-to-date wellmanifest/new-project 0.16.1 at 4e6ba5ec15873346446d67d8787f17f68f57f81e.
+2026-08-13T11:07:00Z tests: uv run pytest -q completed with 460 passed, 5 skipped and 16 deselected.
+2026-08-13T11:07:00Z compose: both docker/docker-compose.yml and docker/docker-compose.multi-system.yml rendered successfully; the latter emitted only the existing obsolete-version warning.
+2026-08-13T11:07:00Z delivery: goal governance verify-delivery resolved pull-request mode, require_goal_a=true, require_clean_governance=true and serverEnforcementRequired=true.
+2026-08-13T11:11:00Z docker: docker/base/Dockerfile built with --network host as image ee9281e74aac; --network none runtime reported fixos v2.2.47 and 8 docker-network cleanup tests passed; the uniquely labelled temporary image was deleted and no Docker network was created, removed or modified.
