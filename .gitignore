@@ -36,6 +36,9 @@ htmlcov/
 
 # Raporty fixos
 *.json
+!.governance/*.json
+!.governance/**/*.json
+!project/ticket-*/intent.json
 /reports/
 /tmp/
 
@@ -45,5 +48,10 @@ Thumbs.db
 .benchmarks/
 .code2llm_cache/
 .github/
+!.github/
+.github/*
+!.github/workflows/
+.github/workflows/*
+!.github/workflows/new-project-governance.yml
 .pyqual/
 .ruff_cache/

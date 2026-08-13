@@ -9,3 +9,4 @@
 2026-08-13T11:07:00Z compose: both docker/docker-compose.yml and docker/docker-compose.multi-system.yml rendered successfully; the latter emitted only the existing obsolete-version warning.
 2026-08-13T11:07:00Z delivery: goal governance verify-delivery resolved pull-request mode, require_goal_a=true, require_clean_governance=true and serverEnforcementRequired=true.
 2026-08-13T11:11:00Z docker: docker/base/Dockerfile built with --network host as image ee9281e74aac; --network none runtime reported fixos v2.2.47 and 8 docker-network cleanup tests passed; the uniquely labelled temporary image was deleted and no Docker network was created, removed or modified.
+2026-08-13T11:13:00Z advisory lint: full uv run ruff check fixos tests reported 32 findings in unchanged baseline application/test paths; adoption changes no application or test file, so lint cleanup remains outside ticket-001.
