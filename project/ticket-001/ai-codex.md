@@ -37,9 +37,11 @@ worktree.
 - After the prerequisite CI portability change reached `main`, merged that
   exact mainline into the ticket branch, refreshed `acceptedBaseSha`, and
   repeated governance, drift, delivery, Compose and all 465 selected tests.
+- Delivered exact candidate `ca8e19b...` through protected CI and deterministic
+  Validator approval, merged its unchanged tree as `647dd4b...`, confirmed
+  green post-merge Python and Docker CI, and started this metadata-only closure
+  from the integrated default branch.
 
 ## Blockers
 
-- None inside the recorded intent; proceed without a second confirmation.
-- New authority remains required for destructive action, secret access, new
-  external coordination, material objective expansion and trusted merge.
+- None; the bounded adoption and governed lifecycle are complete.

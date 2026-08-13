@@ -2,8 +2,8 @@
 
 - **ID**: ticket-001
 - **Owner**: unresolved:human
-- **Status**: IN_PROGRESS
-- **Workflow state**: PUBLICATION
+- **Status**: DONE
+- **Workflow state**: DONE
 - **Created**: 2026-08-13
 
 ## Goal and scope
@@ -25,6 +25,8 @@ Docker, workstream and governed Goal delivery contracts.
   and retains explicit direct-main/publish-only release modes.
 - [x] AC-05: Governance, package tests, Compose validation and representative
   Docker build/runtime checks pass before a protected PR.
+- [x] AC-06: Protected CI and deterministic Validator approval bind the exact
+  final head; its unchanged tree is merged and post-merge CI passes.
 
 ## Reviewed adoption plan
 
@@ -55,8 +57,17 @@ Docker, workstream and governed Goal delivery contracts.
   `1440421905...`, merged as `9b3ab40548...`, and passed post-merge Python and
   five-distribution Docker CI. PR #1 now includes that mainline history and is
   bound to `9b3ab40548...` as its refreshed accepted base.
-- The ticket remains `IN_PROGRESS / PUBLICATION`; merge requires independent,
-  trusted approval bound to the final PR head.
+- PR #1 passed Python 3.10/3.11/3.12, governance and the five-distribution
+  Docker matrix on exact head `ca8e19b43440df3f9ace7c5d3d17858407cdcb42`.
+  Validator review `4929641466` deterministically approved that SHA for
+  `ticket-001`; its LLM observations remained explicitly advisory.
+- PR #1 merged as `647dd4baf0ed3d98afbdc26c25211bc5a140479c`.
+  Its second parent is the approved head and both trees equal
+  `cc9bfba53413fb8c711f254cad89cf14987c172a`.
+- Post-merge CI runs `31724131145` and `31724131127` passed all supported
+  Python versions, Fedora, Ubuntu, Debian, Arch, Alpine and `test-summary`.
+  The remote implementation branch and its merged local worktree were removed
+  before this governance-only closure began from integrated `main`.
 
 ## Participants
 
