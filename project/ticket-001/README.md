@@ -46,6 +46,14 @@ Docker, workstream and governed Goal delivery contracts.
 - No use of the dirty live new-project worktree as adoption input.
 - No human-owned `user-*.md` file is created or modified.
 
+## Publication
+
+- Governed Goal pull-request delivery opened
+  [PR #1](https://github.com/semcod/fixos/pull/1) from the ticket-bound remote
+  branch after repeating all 465 selected tests.
+- The ticket remains `IN_PROGRESS / PUBLICATION`; merge requires independent,
+  trusted approval bound to the final PR head.
+
 ## Participants
 
 - Human participant: unresolved; no user-* file was created by this script.
