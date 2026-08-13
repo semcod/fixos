@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from fixos.diagnostics.service_scanner import (
     ServiceDataInfo,
     ServiceDataScanner,
@@ -10,10 +12,14 @@ from fixos.diagnostics.service_scanner import (
 from fixos.diagnostics.service_cleanup import ServiceCleaner
 
 
+def _home_path(*parts: str) -> str:
+    return str(Path.home().joinpath(*parts))
+
+
 class TestChromeSafetyClassification:
     def test_chrome_profile_is_marked_for_review(self, monkeypatch):
         scanner = ServiceDataScanner(threshold_mb=1)
-        profile_path = "/home/tom/.config/google-chrome"
+        profile_path = _home_path(".config", "google-chrome")
 
         monkeypatch.setattr(scanner, "_get_path_size_mb", lambda path: 537.0)
         monkeypatch.setattr(
@@ -28,7 +34,7 @@ class TestChromeSafetyClassification:
 
     def test_chrome_cache_path_is_marked_safe(self, monkeypatch):
         scanner = ServiceDataScanner(threshold_mb=1)
-        cache_path = "/home/tom/.cache/google-chrome"
+        cache_path = _home_path(".cache", "google-chrome")
 
         monkeypatch.setattr(scanner, "_get_path_size_mb", lambda path: 40.0)
         monkeypatch.setattr(
@@ -45,11 +51,13 @@ class TestChromeSafetyClassification:
 class TestServiceMerge:
     def test_scan_service_merges_multiple_paths(self, monkeypatch):
         scanner = ServiceDataScanner(threshold_mb=1)
+        cursor_cache = _home_path(".config", "Cursor", "Cache")
+        cursor_extensions = _home_path(".cursor", "extensions")
 
         def fake_analyze(service_type, path):
             sizes = {
-                "/home/tom/.config/Cursor/Cache": 16000.0,
-                "/home/tom/.cursor/extensions": 800.0,
+                cursor_cache: 16000.0,
+                cursor_extensions: 800.0,
             }
             size_mb = sizes.get(path, 0.0)
             if size_mb <= 0:
@@ -91,7 +99,7 @@ class TestRiskLevelClassification:
 
     def test_cursor_extensions_dir_is_dangerous_not_safe(self, monkeypatch):
         scanner = ServiceDataScanner(threshold_mb=1)
-        path = "/home/tom/.cursor/extensions"
+        path = _home_path(".cursor", "extensions")
 
         monkeypatch.setattr(scanner, "_get_path_size_mb", lambda p: 1200.0)
         monkeypatch.setattr(
@@ -107,7 +115,7 @@ class TestRiskLevelClassification:
 
     def test_cursor_cache_dir_is_safe(self, monkeypatch):
         scanner = ServiceDataScanner(threshold_mb=1)
-        path = "/home/tom/.config/Cursor/Cache"
+        path = _home_path(".config", "Cursor", "Cache")
 
         monkeypatch.setattr(scanner, "_get_path_size_mb", lambda p: 900.0)
         monkeypatch.setattr(
@@ -122,7 +130,7 @@ class TestRiskLevelClassification:
 
     def test_vscode_extensions_dir_is_dangerous(self, monkeypatch):
         scanner = ServiceDataScanner(threshold_mb=1)
-        path = "/home/tom/.vscode/extensions"
+        path = _home_path(".vscode", "extensions")
 
         monkeypatch.setattr(scanner, "_get_path_size_mb", lambda p: 2000.0)
         monkeypatch.setattr(
@@ -141,9 +149,9 @@ class TestRiskLevelClassification:
         merged into a single "safe" blob."""
         scanner = ServiceDataScanner(threshold_mb=1)
         sizes = {
-            "/home/tom/.config/Cursor/Cache": 900.0,
-            "/home/tom/.config/Cursor/CachedData": 100.0,
-            "/home/tom/.cursor/extensions": 1200.0,
+            _home_path(".config", "Cursor", "Cache"): 900.0,
+            _home_path(".config", "Cursor", "CachedData"): 100.0,
+            _home_path(".cursor", "extensions"): 1200.0,
         }
 
         monkeypatch.setattr(scanner, "_get_path_size_mb", lambda p: sizes.get(p, 0.0))
@@ -223,7 +231,7 @@ class TestDockerDaemonSizeFallback:
             scanner._details_provider, "get_details", lambda service_type, path: {}
         )
 
-        scanner._analyze_service_path(ServiceType.NPM, "/home/tom/.npm")
+        scanner._analyze_service_path(ServiceType.NPM, _home_path(".npm"))
 
         assert called["count"] == 0
 
