@@ -34,6 +34,9 @@ worktree.
 - Passed the deterministic governance gate, full package suite, both Compose
   parsers and an isolated representative image runtime without touching any
   Docker bridge network.
+- After the prerequisite CI portability change reached `main`, merged that
+  exact mainline into the ticket branch, refreshed `acceptedBaseSha`, and
+  repeated governance, drift, delivery, Compose and all 465 selected tests.
 
 ## Blockers
 

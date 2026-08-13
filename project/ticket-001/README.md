@@ -51,6 +51,10 @@ Docker, workstream and governed Goal delivery contracts.
 - Governed Goal pull-request delivery opened
   [PR #1](https://github.com/semcod/fixos/pull/1) from the ticket-bound remote
   branch after repeating all 465 selected tests.
+- The prerequisite portability PR #2 was independently approved at exact head
+  `1440421905...`, merged as `9b3ab40548...`, and passed post-merge Python and
+  five-distribution Docker CI. PR #1 now includes that mainline history and is
+  bound to `9b3ab40548...` as its refreshed accepted base.
 - The ticket remains `IN_PROGRESS / PUBLICATION`; merge requires independent,
   trusted approval bound to the final PR head.
 
