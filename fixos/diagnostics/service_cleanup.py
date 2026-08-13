@@ -19,6 +19,9 @@ from ..constants import (
 
 # Unused Docker images older than this many days (``fixos cleanup --docker-old``).
 DEFAULT_DOCKER_OLD_UNUSED_DAYS = 30
+# Orphaned Docker networks are removed regardless of age during Docker cleanup
+# or an explicit ``--docker-networks`` request. Active/built-in networks stay protected.
+DEFAULT_DOCKER_NETWORK_AGE_DAYS = 0
 # Ollama models not modified for this many days (``fixos cleanup --ollama-old``).
 DEFAULT_OLLAMA_OLD_UNUSED_DAYS = 90
 
@@ -31,7 +34,9 @@ class ServiceCleaner:
         self.scanner = scanner
 
     @staticmethod
-    def docker_old_unused_until_hours(days: int = DEFAULT_DOCKER_OLD_UNUSED_DAYS) -> int:
+    def docker_old_unused_until_hours(
+        days: int = DEFAULT_DOCKER_OLD_UNUSED_DAYS,
+    ) -> int:
         """Convert a positive day count to Docker ``until=<Nh>`` hours."""
         days_int = int(days)
         if days_int < 1:
@@ -179,11 +184,7 @@ class ServiceCleaner:
                 installed, days=days_int, running=running
             )
             skipped = sorted(
-                {
-                    model["name"]
-                    for model in installed
-                    if model["name"] in running
-                }
+                {model["name"] for model in installed if model["name"] in running}
             )
             result["skipped_running"] = skipped
             result["models"] = [
@@ -227,9 +228,7 @@ class ServiceCleaner:
                         f"modified {model['modified_at']})"
                     )
                 if skipped:
-                    lines.append(
-                        "  Kept running: " + ", ".join(skipped)
-                    )
+                    lines.append("  Kept running: " + ", ".join(skipped))
                 result["output"] = "\n".join(lines)
                 return result
 
@@ -308,8 +307,68 @@ class ServiceCleaner:
         cache = float((rows.get("Build Cache") or {}).get("size_gb", 0.0))
         return round(images + cache, 3)
 
-    def cleanup_docker_unused(self, dry_run: bool = False) -> Dict[str, Any]:
-        """Remove all unused Docker images + build cache (safe reclaimable set)."""
+    def _attach_orphan_network_cleanup(
+        self,
+        result: Dict[str, Any],
+        *,
+        include_networks: bool,
+        dry_run: bool,
+        network_days: int = DEFAULT_DOCKER_NETWORK_AGE_DAYS,
+    ) -> Dict[str, Any]:
+        """Attach bounded orphan-network cleanup to a Docker cleanup result."""
+        if not include_networks:
+            return result
+
+        primary_success = bool(result.get("success"))
+        try:
+            network_result = self.cleanup_docker_networks(
+                days=network_days,
+                dry_run=dry_run,
+            )
+        except Exception as exc:
+            network_result = {
+                "service": "docker-networks",
+                "dry_run": dry_run,
+                "success": False,
+                "candidates": [],
+                "removed": [],
+                "failed": [],
+                "error": str(exc),
+            }
+
+        result["network_cleanup"] = network_result
+        result["orphan_networks_found"] = len(network_result.get("candidates") or [])
+        result["orphan_networks_removed"] = len(network_result.get("removed") or [])
+
+        # Pool availability is a diagnostic after removal. A still-exhausted
+        # pool is reported by ``network_cleanup`` but does not turn a successful
+        # image/cache cleanup into a failure when every selected network was
+        # removed correctly.
+        network_removal_ok = not network_result.get("error") and not (
+            network_result.get("failed") or []
+        )
+        if not network_removal_ok and not result.get("error"):
+            failed = network_result.get("failed") or []
+            failure_text = "; ".join(
+                str(item.get("error") or item.get("name") or "network removal failed")
+                for item in failed
+            )
+            result["error"] = (
+                network_result.get("error")
+                or failure_text
+                or "orphan network cleanup failed"
+            )
+        result["success"] = primary_success and network_removal_ok
+        return result
+
+    def cleanup_docker_unused(
+        self,
+        dry_run: bool = False,
+        *,
+        include_networks: bool = False,
+        network_days: int = DEFAULT_DOCKER_NETWORK_AGE_DAYS,
+    ) -> Dict[str, Any]:
+        """Remove unused images/cache and optionally orphaned networks."""
         command = self.get_docker_unused_command()
         result: Dict[str, Any] = {
             "service": "docker-unused",
@@ -349,7 +408,12 @@ class ServiceCleaner:
                 "  Scope: all unused images + build cache. "
                 "Volumes and in-use images are kept."
             )
-            return result
+            return self._attach_orphan_network_cleanup(
+                result,
+                include_networks=include_networks,
+                dry_run=True,
+                network_days=network_days,
+            )
 
         try:
             before_gb = self._docker_images_and_cache_gb(refresh=True)
@@ -382,14 +446,39 @@ class ServiceCleaner:
         except Exception as exc:
             result["error"] = str(exc)
 
-        return result
+        return self._attach_orphan_network_cleanup(
+            result,
+            include_networks=include_networks,
+            dry_run=False,
+            network_days=network_days,
+        )
+
+    def cleanup_docker_networks(
+        self,
+        days: int = DEFAULT_DOCKER_NETWORK_AGE_DAYS,
+        dry_run: bool = False,
+        *,
+        network_ids: List[str] | None = None,
+    ) -> Dict[str, Any]:
+        """Remove unused custom networks and verify Docker address-pool allocation."""
+        from .docker_network_cleanup import DockerNetworkCleaner
+
+        return DockerNetworkCleaner().cleanup(
+            min_age_days=int(days),
+            dry_run=dry_run,
+            verify_pool=True,
+            network_ids=network_ids,
+        )
 
     def cleanup_docker_old_unused(
         self,
         days: int = DEFAULT_DOCKER_OLD_UNUSED_DAYS,
         dry_run: bool = False,
+        *,
+        include_networks: bool = False,
+        network_days: int = DEFAULT_DOCKER_NETWORK_AGE_DAYS,
     ) -> Dict[str, Any]:
-        """Remove unused Docker images (and rebuildable build cache) older than N days."""
+        """Remove old images/cache and optionally orphaned networks."""
         command = self.get_docker_old_unused_command(days)
         hours = self.docker_old_unused_until_hours(days)
         result: Dict[str, Any] = {
@@ -414,7 +503,9 @@ class ServiceCleaner:
                 usage = (services[0].details or {}).get("usage") or {}
                 result["estimated_max_gb"] = round(
                     float((usage.get("Images") or {}).get("reclaimable_gb", 0.0))
-                    + float((usage.get("Build Cache") or {}).get("reclaimable_gb", 0.0)),
+                    + float(
+                        (usage.get("Build Cache") or {}).get("reclaimable_gb", 0.0)
+                    ),
                     3,
                 )
                 result["estimate_note"] = (
@@ -434,7 +525,12 @@ class ServiceCleaner:
                 f"  Note: Docker reclaimable (~{result['estimated_max_gb']:.2f} GB) "
                 "includes younger unused images; age filter may free much less."
             )
-            return result
+            return self._attach_orphan_network_cleanup(
+                result,
+                include_networks=include_networks,
+                dry_run=True,
+                network_days=network_days,
+            )
 
         try:
             before_gb = self._docker_images_and_cache_gb(refresh=True)
@@ -464,7 +560,12 @@ class ServiceCleaner:
         except Exception as exc:
             result["error"] = str(exc)
 
-        return result
+        return self._attach_orphan_network_cleanup(
+            result,
+            include_networks=include_networks,
+            dry_run=False,
+            network_days=network_days,
+        )
 
     def build_safe_age_actions(
         self, selected_services: List[str] | None = None
@@ -473,7 +574,7 @@ class ServiceCleaner:
 
         Includes:
         - Ollama models not modified for ``DEFAULT_OLLAMA_OLD_UNUSED_DAYS``
-        - All unused Docker images + build cache (matches daemon reclaimable)
+        - All unused Docker images + build cache and orphaned custom networks
         """
         allow = {item.strip() for item in (selected_services or []) if item.strip()}
 
@@ -529,8 +630,11 @@ class ServiceCleaner:
                     }
                 )
 
-        if allowed("docker", "docker-old", "docker-unused"):
+        if allowed(
+            "docker", "docker-all", "docker-old", "docker-unused", "docker-networks"
+        ):
             estimated_gb = 0.0
+            network_candidates: List[Dict[str, Any]] = []
             try:
                 from .service_scanner import ServiceType
 
@@ -544,29 +648,77 @@ class ServiceCleaner:
                     )
             except Exception:
                 estimated_gb = 0.0
-            if estimated_gb > 0:
-                command = self.get_docker_unused_command()
+
+            try:
+                network_preview = self.cleanup_docker_networks(dry_run=True)
+                network_candidates = network_preview.get("candidates") or []
+            except Exception:
+                network_candidates = []
+
+            if estimated_gb > 0 or network_candidates:
+                has_images = estimated_gb > 0
+                description_parts = []
+                if has_images:
+                    description_parts.append(
+                        "wszystkie nieużywane obrazy Docker i build cache"
+                    )
+                if network_candidates:
+                    description_parts.append(
+                        f"sieci osierocone bez endpointów: {len(network_candidates)}"
+                    )
+                else:
+                    description_parts.append("brak wykrytych osieroconych sieci")
+                description = " oraz ".join(description_parts)
+                description = description[:1].upper() + description[1:]
+                command = (
+                    self.get_docker_unused_command()
+                    if has_images
+                    else "docker network rm "
+                    + " ".join(
+                        shlex.quote(str(network["id"]))
+                        for network in network_candidates
+                    )
+                )
                 actions.append(
                     {
-                        "service_type": "docker-unused",
-                        "cleanup_kind": "docker-unused",
-                        "name": "Docker (nieużywane obrazy)",
+                        "service_type": (
+                            "docker-unused" if has_images else "docker-networks"
+                        ),
+                        "cleanup_kind": (
+                            "docker-unused" if has_images else "docker-networks"
+                        ),
+                        "name": (
+                            "Docker (nieużywane zasoby)"
+                            if has_images
+                            else "Docker (osierocone sieci)"
+                        ),
                         "path": "/var/lib/docker",
                         "size_mb": round(estimated_gb * 1024, 1),
                         "size_gb": round(estimated_gb, 3),
                         "description": (
-                            "Wszystkie nieużywane obrazy Docker i build cache "
-                            "(bez wolumenów, bez obrazów podpiętych do kontenerów)"
+                            f"{description} (bez wolumenów, bez obrazów "
+                            "podpiętych do kontenerów)"
                         ),
                         "can_cleanup": True,
                         "cleanup_command": command,
-                        "preview_command": "docker system df",
+                        "preview_command": (
+                            "docker system df; docker network ls --filter dangling=true"
+                        ),
                         "safe_to_cleanup": True,
                         "risk_level": "safe",
                         "impact": "low",
-                        "items_count": 0,
+                        "items_count": len(network_candidates),
                         "details": {
                             "estimated_max_gb": round(estimated_gb, 3),
+                            "includes_orphan_networks": True,
+                            "orphan_networks": [
+                                {
+                                    "id": network["id"],
+                                    "name": network["name"],
+                                    "subnets": network.get("subnets") or [],
+                                }
+                                for network in network_candidates
+                            ],
                         },
                     }
                 )
@@ -605,7 +757,9 @@ class ServiceCleaner:
             "total_size_gb": round(
                 total_size_gb + sum(item["size_gb"] for item in age_actions), 2
             ),
-            "safe_cleanup_gb": round(sum(item["size_gb"] for item in safe_to_cleanup), 2),
+            "safe_cleanup_gb": round(
+                sum(item["size_gb"] for item in safe_to_cleanup), 2
+            ),
             "requires_review_gb": round(sum(s.size_gb for s in review_services), 2),
             "dangerous_gb": round(sum(s.size_gb for s in dangerous_services), 2),
             "manager_reported_reclaimable_gb": round(
@@ -670,10 +824,9 @@ class ServiceCleaner:
                 service = services[0]  # Backward-compatible single-service mode.
             initial_size = service.size_gb
 
-            protected_bulk_blocked = (
-                getattr(service, "risk_level", "review") == "dangerous"
-                and not self._is_allowed_protected_cleanup(service)
-            )
+            protected_bulk_blocked = getattr(
+                service, "risk_level", "review"
+            ) == "dangerous" and not self._is_allowed_protected_cleanup(service)
             if (
                 protected_bulk_blocked
                 or not service.can_cleanup

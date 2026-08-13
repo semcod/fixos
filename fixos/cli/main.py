@@ -73,9 +73,19 @@ def _print_welcome() -> None:
         ("fixos quickfix", "", "Naprawy offline bez API (baza znanych bugów)"),
         ("fixos cleanup", "", "Skanuj i czyść dane usług (Docker, Ollama)"),
         (
+            "fixos cleanup --docker-all",
+            "",
+            "Usuń unused images/cache i osierocone sieci",
+        ),
+        (
             "fixos cleanup --docker-old",
             "",
-            "Usuń nieużywane obrazy Docker starsze niż 30 dni",
+            "Usuń stare obrazy/cache i osierocone sieci",
+        ),
+        (
+            "fixos cleanup --docker-networks",
+            "",
+            "Usuń nieużywane sieci i sprawdź pulę adresową",
         ),
         (
             "fixos cleanup --ollama-old",

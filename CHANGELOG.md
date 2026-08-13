@@ -2,15 +2,25 @@
 
 ### Added
 
-- `fixos cleanup --docker-old [--days N]` oraz `-c docker-old`: usuwa wyłącznie
-  nieużywane obrazy Docker i build cache starsze niż N dni (domyślnie 30);
-  bez wolumenów i bez obrazów używanych przez kontenery.
+- `fixos cleanup --docker-networks [--days N]` oraz `-c docker-networks`:
+  bezpieczny podgląd i usuwanie niestandardowych sieci Docker bez endpointów,
+  z ochroną sieci aktywnych/wbudowanych i końcowym testem puli adresowej.
+- `fixos cleanup --docker-all` / `-c docker-all`: jedna operacja dla wszystkich
+  nieużywanych obrazów, build cache i osieroconych sieci, bez kontenerów i
+  wolumenów. `--docker-old` oraz interaktywne czyszczenie Dockera również
+  dołączają osierocone sieci.
+- `fixos projects --docker-networks`: opcjonalne usuwanie sieci `dangling`
+  należących do wybranych projektów Compose, z dopasowaniem po etykiecie,
+  osobnym potwierdzeniem i usuwaniem wyłącznie wcześniej pokazanych ID.
+- `fixos cleanup --docker-old [--days N]` oraz `-c docker-old`: usuwa
+  nieużywane obrazy Docker i build cache starsze niż N dni (domyślnie 30)
+  oraz osierocone sieci; bez wolumenów i obrazów używanych przez kontenery.
 - `fixos cleanup --ollama-old [--days N]` oraz `-c ollama-old`: usuwa modele
   Ollama niezmieniane od N dni (domyślnie 90), z pominięciem modeli
   aktualnie załadowanych (`/api/ps`).
 - Opcja interaktywna **[1] Wszystkie bezpieczne** obejmuje teraz także:
-  - **Docker (nieużywane obrazy)** — pełną pulę unused (zgodną z RECLAIMABLE
-    Images+Build Cache), bez filtra wieku,
+  - **Docker (nieużywane zasoby)** — pełną pulę unused Images+Build Cache
+    oraz osierocone sieci, bez filtra wieku,
   - **Ollama (modele >90 dni)** — gdy takie modele istnieją.
 - Pomiar zwolnionego miejsca Dockera przez `docker system df` przed/po oraz
   parsowanie `Total reclaimed space`; ostrzeżenie przy 0.00 GB mimo sukcesu
@@ -69,6 +79,28 @@
 - Skrócono domyślną diagnostykę przez równoległe moduły i usunięcie
   rekurencyjnych skanów `/` oraz `/home` z szybkich kontroli.
 - Czyszczenie cache JetBrains trafia w aktualną ścieżkę i wymaga zamknięcia IDE.
+
+## [2.2.47] - 2026-08-13
+
+### Docs
+- Update CHANGELOG.md
+- Update README.md
+- Update docs/architecture.md
+- Update docs/getting-started.md
+
+### Test
+- Update tests/unit/test_cleanup_cmd.py
+- Update tests/unit/test_docker_network_cleanup.py
+- Update tests/unit/test_projects_cmd.py
+- Update tests/unit/test_service_cleanup.py
+
+### Other
+- Update fixos/cli/cleanup_cmd.py
+- Update fixos/cli/main.py
+- Update fixos/cli/projects_cmd.py
+- Update fixos/diagnostics/docker_network_cleanup.py
+- Update fixos/diagnostics/service_cleanup.py
+- Update uv.lock
 
 ## [2.2.46] - 2026-08-07
 

@@ -7,7 +7,7 @@ opcjonalną analizę pogłębioną.
 CLI
 ├── quick ──> lokalny snapshot ──> historia trendu ──> wynik bez LLM
 ├── cleanup ──> skaner usług ──> klasyfikacja ryzyka ──> plan/potwierdzenie
-├── projects ──> skaner artefaktów projektów ──> plan/potwierdzenie
+├── projects ──> artefakty + sieci Compose projektu ──> plan/potwierdzenie
 ├── scan ──> moduły diagnostyczne ──> raport tekstowy/JSON/YAML
 └── fix ──> quick + diagnostyka ──> anonimizacja ──> LLM ──> HITL/auto
 ```
@@ -32,10 +32,14 @@ rekurencyjnie skanować systemu ani wykonywać surowych operacji usuwania.
 - `system_checks.py` oraz `checks/` — równoległe moduły diagnostyczne,
 - `service_scanner.py` i `service_cleanup.py` — wykrywanie danych usług,
   klasyfikację ryzyka i bezpieczne plany; osobne ścieżki dla
-  `docker-unused` / `docker-old` (prune unused images) oraz `ollama-old`
-  (modele po `modified_at`, z pominięciem `/api/ps`),
+  `docker-unused` / `docker-old` (prune unused images + osierocone sieci) oraz
+  `ollama-old` (modele po `modified_at`, z pominięciem `/api/ps`),
+- `docker_network_cleanup.py` — inwentaryzacja sieci `dangling`, ponowna
+  ochrona endpointów i sieci wbudowanych, usuwanie po dokładnym ID oraz
+  create/remove probe dostępności domyślnej puli adresowej,
 - `project_scanner.py` — artefakty zależne od projektu, np. `.venv`,
-  `node_modules` i `target`.
+  `node_modules` i `target`; opcjonalna ścieżka `projects --docker-networks`
+  filtruje sieci `dangling` po dokładnej etykiecie projektu Compose.
 
 Skaner raportuje ścieżkę, rozmiar, poziom ryzyka i dokładną operację. Cleaner
 otrzymuje wybrany wpis planu, dzięki czemu nie przelicza celu na inną ścieżkę

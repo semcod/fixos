@@ -7,6 +7,7 @@ caches, build output), and flags the ones untouched for a long time.
 """
 
 import json as json_module
+import re
 import subprocess
 from pathlib import Path
 
@@ -18,6 +19,7 @@ from fixos.constants import (
     PROJECT_SCAN_STALE_DAYS,
     PROJECT_SCAN_THRESHOLD_MB,
 )
+from fixos.diagnostics.docker_network_cleanup import DockerNetworkCleaner
 from fixos.diagnostics.project_scanner import ProjectArtifact, scan_all, summarize
 
 
@@ -60,10 +62,14 @@ def _artifact_to_dict(a: ProjectArtifact) -> dict:
     }
 
 
-def _display_summary(artifacts: list, base: Path, threshold: int, stale_days: int) -> None:
+def _display_summary(
+    artifacts: list, base: Path, threshold: int, stale_days: int
+) -> None:
     stats = summarize(artifacts)
     click.echo(
-        click.style(f"\nSkanowanie projektów w {base} (próg: {threshold} MB)...", fg="cyan")
+        click.style(
+            f"\nSkanowanie projektów w {base} (próg: {threshold} MB)...", fg="cyan"
+        )
     )
     click.echo(click.style("═" * 60, fg="cyan"))
     click.echo(
@@ -71,7 +77,9 @@ def _display_summary(artifacts: list, base: Path, threshold: int, stale_days: in
     )
     click.echo(f"  Całkowity rozmiar: {stats['total_gb']:.2f} GB")
     click.echo(click.style(f"  Bezpieczne: {stats['safe_gb']:.2f} GB", fg="green"))
-    click.echo(click.style(f"  Do rozważenia: {stats['review_gb']:.2f} GB", fg="yellow"))
+    click.echo(
+        click.style(f"  Do rozważenia: {stats['review_gb']:.2f} GB", fg="yellow")
+    )
     click.echo(
         click.style(
             f"  Nieużywane od >{stale_days} dni: {stats['stale_gb']:.2f} GB", fg="red"
@@ -122,13 +130,107 @@ def _group_by(artifacts: list, key_fn) -> dict:
     return groups
 
 
+def _compose_project_name(project_path: str) -> str | None:
+    """Conservative Docker Compose name derived from a project directory."""
+    basename = Path(project_path).name.lower()
+    normalized = re.sub(r"[^a-z0-9_-]+", "", basename).lstrip("_-")
+    return normalized or None
+
+
+def _cleanup_project_networks(project_paths: set[str], dry_run: bool) -> dict:
+    """Remove unused Compose networks belonging to selected projects only."""
+    compose_projects = sorted(
+        {
+            name
+            for project_path in project_paths
+            if (name := _compose_project_name(project_path)) is not None
+        }
+    )
+    if not compose_projects:
+        return {"success": True, "candidates": [], "removed": [], "failed": []}
+
+    cleaner = DockerNetworkCleaner()
+    preview = cleaner.cleanup(
+        dry_run=True,
+        verify_pool=False,
+        compose_projects=compose_projects,
+    )
+    if preview.get("error"):
+        click.echo(
+            click.style(
+                f"Nie udało się sprawdzić sieci Docker: {preview['error']}", fg="red"
+            )
+        )
+        return preview
+
+    candidates = preview.get("candidates") or []
+    if not candidates:
+        click.echo("Brak nieużywanych sieci Docker powiązanych z wybranymi projektami.")
+        return preview
+
+    click.echo(
+        click.style(
+            "\nNieużywane sieci Docker powiązane z wybranymi projektami:",
+            fg="yellow",
+            bold=True,
+        )
+    )
+    for network in candidates:
+        subnet_text = ", ".join(network.get("subnets") or []) or "brak podsieci"
+        click.echo(
+            f"  • {network['name']} ({network['short_id']}, {subnet_text}, "
+            f"projekt Compose: {network.get('compose_project')})"
+        )
+
+    if dry_run:
+        click.echo("[DRY RUN] Sieci nie zostaną usunięte.")
+        return preview
+
+    if not click.confirm(
+        f"Usunąć te nieużywane sieci Docker ({len(candidates)})?",
+        default=False,
+    ):
+        click.echo(click.style("Pominięto usuwanie sieci Docker.", fg="yellow"))
+        return preview
+
+    result = cleaner.cleanup(
+        dry_run=False,
+        verify_pool=True,
+        compose_projects=compose_projects,
+        network_ids=[network["id"] for network in candidates],
+    )
+    for network in result.get("removed") or []:
+        click.echo(click.style(f"  Usunięto sieć {network['name']}", fg="green"))
+    for network in result.get("failed") or []:
+        click.echo(
+            click.style(
+                f"  Nie usunięto {network['name']}: {network.get('error')}", fg="red"
+            )
+        )
+
+    probe = result.get("pool_probe") or {}
+    if probe.get("available") is True:
+        click.echo(click.style("  Pula adresowa Docker jest dostępna.", fg="green"))
+    elif probe.get("available") is False:
+        click.echo(
+            click.style(
+                f"  Pula adresowa nadal niedostępna: {probe.get('error')}", fg="red"
+            )
+        )
+    return result
+
+
 def _pick_from_groups(groups: dict, label_fn=str) -> list:
     """Numbered, size-sorted list of groups; user types comma-separated
     indices (e.g. '1,3,5'), 'all', or Enter to pick nothing."""
-    items = sorted(groups.items(), key=lambda kv: sum(a.size_mb for a in kv[1]), reverse=True)
+    items = sorted(
+        groups.items(), key=lambda kv: sum(a.size_mb for a in kv[1]), reverse=True
+    )
     for i, (key, group_artifacts) in enumerate(items, start=1):
         total = sum(a.size_mb for a in group_artifacts)
-        click.echo(f"  [{i}] {label_fn(key)} — {_size_str(total)} ({len(group_artifacts)} art.)")
+        click.echo(
+            f"  [{i}] {label_fn(key)} — {_size_str(total)} ({len(group_artifacts)} art.)"
+        )
 
     raw = click.prompt(
         "Numery po przecinku (np. 1,3,5), 'all' dla wszystkich, Enter by pominąć",
@@ -270,8 +372,25 @@ def _execute_cleanup(artifacts: list, dry_run: bool) -> float:
     default=False,
     help="Symuluj czyszczenie bez faktycznego usuwania",
 )
+@click.option(
+    "--docker-networks",
+    is_flag=True,
+    default=False,
+    help=(
+        "Po czyszczeniu usuń za potwierdzeniem nieużywane sieci Docker Compose "
+        "powiązane z wybranymi projektami"
+    ),
+)
 def projects_cmd(
-    path, threshold, stale_days, only_stale, max_depth, json_output, list_only, dry_run
+    path,
+    threshold,
+    stale_days,
+    only_stale,
+    max_depth,
+    json_output,
+    list_only,
+    dry_run,
+    docker_networks,
 ) -> None:
     """
     Skanuje projekty deweloperskie (np. ~/github/*/*) w poszukiwaniu
@@ -285,8 +404,14 @@ def projects_cmd(
       fixos projects --only-stale             # tylko dawno nieużywane
       fixos projects --list                   # tylko lista, bez czyszczenia
       fixos projects --dry-run                # podgląd bez usuwania
+      fixos projects --only-stale --docker-networks --dry-run
+      # stare artefakty oraz należące do ich projektów sieci Compose
     """
-    base = Path(path).expanduser() if path else Path(PROJECT_SCAN_DEFAULT_PATH).expanduser()
+    base = (
+        Path(path).expanduser()
+        if path
+        else Path(PROJECT_SCAN_DEFAULT_PATH).expanduser()
+    )
     if not base.exists():
         click.echo(click.style(f"Katalog {base} nie istnieje.", fg="red"))
         return
@@ -298,7 +423,9 @@ def projects_cmd(
         artifacts = [a for a in artifacts if a.stale]
 
     if json_output:
-        click.echo(json_module.dumps([_artifact_to_dict(a) for a in artifacts], indent=2))
+        click.echo(
+            json_module.dumps([_artifact_to_dict(a) for a in artifacts], indent=2)
+        )
         return
 
     if not artifacts:
@@ -316,19 +443,36 @@ def projects_cmd(
     if list_only:
         return
 
+    selected_safe: list[ProjectArtifact] = []
     safe = [a for a in artifacts if a.risk_level == "safe"]
     if safe:
         if dry_run:
+            selected_safe = safe
             _execute_cleanup(safe, dry_run=True)
         else:
-            selected = _select_artifacts(safe)
-            if selected:
-                freed = _execute_cleanup(selected, dry_run=False)
+            selected_safe = _select_artifacts(safe)
+            if selected_safe:
+                freed = _execute_cleanup(selected_safe, dry_run=False)
                 click.echo(
-                    click.style(f"\nŁącznie zwolniono: {freed:.2f} GB", fg="green", bold=True)
+                    click.style(
+                        f"\nŁącznie zwolniono: {freed:.2f} GB", fg="green", bold=True
+                    )
                 )
             else:
                 click.echo(click.style("Pominięto czyszczenie.", fg="yellow"))
+
+    if docker_networks and selected_safe:
+        _cleanup_project_networks(
+            {artifact.project_path for artifact in selected_safe},
+            dry_run=dry_run,
+        )
+    elif docker_networks:
+        click.echo(
+            click.style(
+                "Brak wybranych projektów — pominięto usuwanie sieci Docker.",
+                fg="yellow",
+            )
+        )
 
     review = [a for a in artifacts if a.risk_level == "review"]
     if review:

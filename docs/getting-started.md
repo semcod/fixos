@@ -61,6 +61,7 @@ Najpierw wykonaj podgląd:
 fixos cleanup --list
 fixos cleanup -c npm --dry-run
 fixos cleanup --docker-old --days 30 --dry-run
+fixos cleanup --docker-networks --dry-run
 fixos cleanup --ollama-old --days 90 --dry-run
 ```
 
@@ -69,6 +70,11 @@ Następnie uruchom interaktywne czyszczenie:
 ```bash
 fixos cleanup
 ```
+
+Gdy Docker zgłasza wyczerpanie puli adresowej, rozpocznij od podglądu
+`fixos cleanup --docker-networks --dry-run`, a następnie uruchom tę samą komendę
+bez `--dry-run`. fixOS usuwa tylko sieci bez endpointów, chroni sieci wbudowane
+i kończy operację testem utworzenia oraz usunięcia tymczasowej sieci.
 
 fixOS dzieli dane na trzy poziomy:
 
@@ -94,6 +100,17 @@ fixos scan --yaml
 
 Pełna inwentaryzacja plików jest kosztowna i uruchamiana jawnie przez moduły
 rozszerzone. Do szybkiej odpowiedzi używaj `fixos quick`.
+
+Bezpieczne czyszczenie Dockera może objąć również osierocone sieci:
+
+```bash
+fixos cleanup --docker-all --dry-run
+fixos cleanup --docker-old --days 30 --dry-run
+fixos cleanup --docker-networks --dry-run
+```
+
+Pierwsze dwie akcje łączą obrazy/cache z sieciami; trzecia pozostawia obrazy
+bez zmian. Żadna z nich nie usuwa kontenerów ani wolumenów.
 
 ## Analiza i naprawa z LLM
 
@@ -125,7 +142,12 @@ Artefakty projektów są skanowane osobno od globalnych cache:
 ```bash
 fixos projects --dry-run
 fixos projects --path ~/github --only-stale
+fixos projects --path ~/github --only-stale --docker-networks --dry-run
 ```
+
+Flaga `--docker-networks` pokazuje, a po osobnym potwierdzeniu usuwa wyłącznie
+nieużywane sieci Docker Compose oznaczone etykietą wybranego projektu. Nie
+usuwa repozytoriów, kontenerów ani wolumenów.
 
 ## Co dalej
 

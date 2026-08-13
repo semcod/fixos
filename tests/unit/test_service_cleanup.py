@@ -216,11 +216,109 @@ class TestRiskLevelClassification:
         assert "until=" not in command
         assert "--volumes" not in command
 
+    def test_docker_cleanup_can_attach_orphan_network_cleanup(self, monkeypatch):
+        class FakeScanner:
+            def scan_service(self, service_type):
+                return []
+
+        cleaner = ServiceCleaner(FakeScanner())
+        monkeypatch.setattr(
+            cleaner,
+            "cleanup_docker_networks",
+            lambda days=0, dry_run=False: {
+                "success": True,
+                "candidates": [{"id": "a" * 64, "name": "old_default"}],
+                "removed": [],
+                "failed": [],
+                "pool_probe": {"available": None},
+            },
+        )
+
+        result = cleaner.cleanup_docker_unused(
+            dry_run=True,
+            include_networks=True,
+        )
+
+        assert result["success"] is True
+        assert result["orphan_networks_found"] == 1
+        assert result["orphan_networks_removed"] == 0
+        assert result["network_cleanup"]["candidates"][0]["name"] == "old_default"
+
+    def test_safe_actions_include_network_only_cleanup(self, monkeypatch):
+        class FakeScanner:
+            def scan_service(self, service_type):
+                return []
+
+        cleaner = ServiceCleaner(FakeScanner())
+        monkeypatch.setattr(cleaner, "list_ollama_models", lambda: [])
+        monkeypatch.setattr(cleaner, "list_running_ollama_models", lambda: set())
+        monkeypatch.setattr(
+            cleaner,
+            "cleanup_docker_networks",
+            lambda days=0, dry_run=False: {
+                "success": True,
+                "candidates": [
+                    {
+                        "id": "a" * 64,
+                        "name": "old_default",
+                        "subnets": ["10.64.1.0/24"],
+                    }
+                ],
+                "removed": [],
+                "failed": [],
+            },
+        )
+
+        actions = cleaner.build_safe_age_actions(selected_services=["docker"])
+
+        assert len(actions) == 1
+        action = actions[0]
+        assert action["cleanup_kind"] == "docker-networks"
+        assert action["size_gb"] == 0
+        assert action["details"]["orphan_networks"] == [
+            {
+                "id": "a" * 64,
+                "name": "old_default",
+                "subnets": ["10.64.1.0/24"],
+            }
+        ]
+
+    def test_exhausted_pool_is_advisory_after_successful_network_removal(
+        self, monkeypatch
+    ):
+        class FakeScanner:
+            def scan_service(self, service_type):
+                return []
+
+        cleaner = ServiceCleaner(FakeScanner())
+        monkeypatch.setattr(
+            cleaner,
+            "cleanup_docker_networks",
+            lambda days=0, dry_run=False: {
+                "success": False,
+                "candidates": [{"id": "a" * 64, "name": "old_default"}],
+                "removed": [{"id": "a" * 64, "name": "old_default"}],
+                "failed": [],
+                "pool_probe": {
+                    "available": False,
+                    "error": "address pools exhausted",
+                },
+            },
+        )
+
+        result = cleaner.cleanup_docker_old_unused(
+            days=30,
+            dry_run=True,
+            include_networks=True,
+        )
+
+        assert result["success"] is True
+        assert result["orphan_networks_removed"] == 1
+        assert result["network_cleanup"]["pool_probe"]["available"] is False
+
     def test_parse_docker_reclaimed_gb(self):
         assert (
-            ServiceCleaner._parse_docker_reclaimed_gb(
-                "Total reclaimed space: 12.34GB"
-            )
+            ServiceCleaner._parse_docker_reclaimed_gb("Total reclaimed space: 12.34GB")
             == 12.34
         )
 
@@ -546,7 +644,9 @@ class TestConsistentPostCleanupMeasurement:
     def test_stale_protected_plan_cannot_execute_old_bulk_command(self, monkeypatch):
         class FakeScanner:
             def scan_service(self, service_type):
-                raise AssertionError("the exact plan should be checked without a rescan")
+                raise AssertionError(
+                    "the exact plan should be checked without a rescan"
+                )
 
         def fail_run(*args, **kwargs):
             raise AssertionError("protected command must never reach subprocess")

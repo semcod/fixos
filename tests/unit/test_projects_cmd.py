@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import click
+from click.testing import CliRunner
 
 from fixos.cli import projects_cmd as pc
 from fixos.diagnostics.project_scanner import ProjectArtifact
@@ -45,7 +46,9 @@ class TestGroupBy:
     def test_groups_by_ecosystem(self):
         a1 = _artifact(ecosystem="python")
         a2 = _artifact(ecosystem="node", artifact_name="node_modules")
-        a3 = _artifact(ecosystem="python", project_name="other", project_path="/x/other")
+        a3 = _artifact(
+            ecosystem="python", project_name="other", project_path="/x/other"
+        )
 
         groups = pc._group_by([a1, a2, a3], lambda a: a.ecosystem)
 
@@ -60,6 +63,121 @@ class TestGroupBy:
         groups = pc._group_by([a1, a2], lambda a: a.project_path)
 
         assert groups == {"/x/a": [a1], "/x/b": [a2]}
+
+
+class TestDockerProjectNetworks:
+    def test_normalizes_directory_name_like_compose(self):
+        assert pc._compose_project_name("/x/My.App") == "myapp"
+        assert pc._compose_project_name("/x/-_-") is None
+
+    def test_dry_run_lists_only_related_networks_without_removing(
+        self, monkeypatch, capsys
+    ):
+        calls = []
+        candidate = {
+            "id": "a" * 64,
+            "short_id": "a" * 12,
+            "name": "oldapp_default",
+            "compose_project": "oldapp",
+            "subnets": ["10.64.1.0/24"],
+        }
+
+        class FakeCleaner:
+            def cleanup(self, **kwargs):
+                calls.append(kwargs)
+                return {
+                    "success": True,
+                    "candidates": [candidate],
+                    "removed": [],
+                    "failed": [],
+                }
+
+        monkeypatch.setattr(pc, "DockerNetworkCleaner", FakeCleaner)
+
+        pc._cleanup_project_networks({"/workspace/oldapp"}, dry_run=True)
+
+        assert calls == [
+            {
+                "dry_run": True,
+                "verify_pool": False,
+                "compose_projects": ["oldapp"],
+            }
+        ]
+        output = capsys.readouterr().out
+        assert "oldapp_default" in output
+        assert "10.64.1.0/24" in output
+        assert "DRY RUN" in output
+
+    def test_confirmed_cleanup_removes_only_previewed_ids(self, monkeypatch):
+        calls = []
+        candidate = {
+            "id": "a" * 64,
+            "short_id": "a" * 12,
+            "name": "oldapp_default",
+            "compose_project": "oldapp",
+            "subnets": ["10.64.1.0/24"],
+        }
+
+        class FakeCleaner:
+            def cleanup(self, **kwargs):
+                calls.append(kwargs)
+                if kwargs["dry_run"]:
+                    return {
+                        "success": True,
+                        "candidates": [candidate],
+                        "removed": [],
+                        "failed": [],
+                    }
+                return {
+                    "success": True,
+                    "candidates": [candidate],
+                    "removed": [candidate],
+                    "failed": [],
+                    "pool_probe": {"available": True},
+                }
+
+        monkeypatch.setattr(pc, "DockerNetworkCleaner", FakeCleaner)
+        monkeypatch.setattr(click, "confirm", lambda *args, **kwargs: True)
+
+        result = pc._cleanup_project_networks({"/workspace/oldapp"}, dry_run=False)
+
+        assert result["removed"] == [candidate]
+        assert calls[1]["network_ids"] == [candidate["id"]]
+        assert calls[1]["compose_projects"] == ["oldapp"]
+
+    def test_cli_routes_stale_selected_projects_to_network_cleanup(
+        self, monkeypatch, tmp_path
+    ):
+        stale = _artifact(
+            project_name="oldapp",
+            project_path=str(tmp_path / "oldapp"),
+            stale=True,
+            days=120,
+        )
+        captured = {}
+        monkeypatch.setattr(pc, "scan_all", lambda *args, **kwargs: [stale])
+        monkeypatch.setattr(
+            pc,
+            "_cleanup_project_networks",
+            lambda paths, dry_run: captured.update(paths=paths, dry_run=dry_run),
+        )
+
+        result = CliRunner().invoke(
+            pc.projects_cmd,
+            [
+                "--path",
+                str(tmp_path),
+                "--only-stale",
+                "--docker-networks",
+                "--dry-run",
+            ],
+        )
+
+        assert result.exit_code == 0, result.output
+        assert captured == {
+            "paths": {str(tmp_path / "oldapp")},
+            "dry_run": True,
+        }
 
 
 class TestPickFromGroups:
@@ -142,7 +260,9 @@ class TestSelectArtifacts:
         monkeypatch.setattr(click, "prompt", lambda *a, **k: "3")
         called = {}
         monkeypatch.setattr(
-            pc, "_pick_from_groups", lambda groups, **k: called.setdefault("groups", groups)
+            pc,
+            "_pick_from_groups",
+            lambda groups, **k: called.setdefault("groups", groups),
         )
 
         pc._select_artifacts(artifacts)
@@ -154,7 +274,9 @@ class TestSelectArtifacts:
         monkeypatch.setattr(click, "prompt", lambda *a, **k: "4")
         called = {}
         monkeypatch.setattr(
-            pc, "_pick_from_groups", lambda groups, **k: called.setdefault("groups", groups)
+            pc,
+            "_pick_from_groups",
+            lambda groups, **k: called.setdefault("groups", groups),
         )
 
         pc._select_artifacts(artifacts)

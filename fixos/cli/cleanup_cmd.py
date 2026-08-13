@@ -18,6 +18,7 @@ from fixos.constants import DEFAULT_CLEANUP_THRESHOLD_MB
 from fixos.cli._cleanup_flatpak import _cleanup_flatpak_detailed  # noqa: F401
 from fixos.cli._cleanup_system import _cleanup_full_system
 from fixos.diagnostics.service_cleanup import (
+    DEFAULT_DOCKER_NETWORK_AGE_DAYS,
     DEFAULT_DOCKER_OLD_UNUSED_DAYS,
     DEFAULT_OLLAMA_OLD_UNUSED_DAYS,
     ServiceCleaner,
@@ -144,11 +145,22 @@ def _execute_planned_cleanup(scanner, svc: dict, *, dry_run: bool = False) -> di
             dry_run=dry_run,
         )
     if kind == "docker-unused":
-        return cleaner.cleanup_docker_unused(dry_run=dry_run)
+        return cleaner.cleanup_docker_unused(
+            dry_run=dry_run,
+            include_networks=True,
+        )
     if kind == "docker-old":
         return cleaner.cleanup_docker_old_unused(
             days=int(svc.get("days") or DEFAULT_DOCKER_OLD_UNUSED_DAYS),
             dry_run=dry_run,
+            include_networks=True,
+        )
+    if kind == "docker-networks":
+        planned_networks = (svc.get("details") or {}).get("orphan_networks") or []
+        return cleaner.cleanup_docker_networks(
+            days=int(svc.get("days") or DEFAULT_DOCKER_NETWORK_AGE_DAYS),
+            dry_run=dry_run,
+            network_ids=[network["id"] for network in planned_networks] or None,
         )
     return scanner.cleanup_service(
         svc["service_type"],
@@ -168,6 +180,13 @@ def _execute_safe_cleanup(services: list, scanner) -> float:
             total_freed += freed
             if freed > 0:
                 click.echo(click.style(f"  Zwolniono {freed:.2f} GB", fg="green"))
+            elif result.get("network_cleanup"):
+                click.echo(
+                    click.style(
+                        "  Czyszczenie obrazów/cache zakończone; wynik sieci poniżej.",
+                        fg="green",
+                    )
+                )
             else:
                 click.echo(
                     click.style(
@@ -183,6 +202,13 @@ def _execute_safe_cleanup(services: list, scanner) -> float:
                         click.echo(f"    {line}")
         else:
             click.echo(click.style(f"  Błąd: {_error_message(result)}", fg="red"))
+        network_result = result.get("network_cleanup")
+        if network_result:
+            _display_docker_network_result(
+                network_result,
+                dry_run=False,
+                title="  Docker — osierocone sieci",
+            )
     return total_freed
 
 
@@ -357,9 +383,7 @@ def _single_service_target(service_name: str, scanner) -> dict | None:
 
     risk_order = {"safe": 0, "review": 1, "dangerous": 2}
     executable = [
-        item
-        for item in entries
-        if item.can_cleanup and item.cleanup_command.strip()
+        item for item in entries if item.can_cleanup and item.cleanup_command.strip()
     ]
     candidates = executable or entries
     selected = min(
@@ -478,13 +502,63 @@ def _cleanup_single_service(
             click.echo(f"Output: {result['output']}")
 
 
+def _cleanup_docker_all_unused(scanner, json_output: bool, dry_run: bool) -> None:
+    """Prune all unused Docker images/cache plus orphaned networks."""
+    result = ServiceCleaner(scanner).cleanup_docker_unused(
+        dry_run=dry_run,
+        include_networks=True,
+    )
+
+    if json_output:
+        import json
+
+        click.echo(json.dumps(result, indent=2, default=str))
+        return
+
+    click.echo(
+        click.style(
+            "Docker — nieużywane obrazy, build cache i osierocone sieci",
+            fg="yellow",
+        )
+    )
+    click.echo(f"  Komenda obrazów/cache: {result.get('command')}")
+    if dry_run:
+        click.echo(click.style("[TRYB DRY-RUN] - brak faktycznych zmian", fg="cyan"))
+
+    if result.get("success"):
+        if dry_run:
+            click.echo(click.style("Symulacja zakończona", fg="green"))
+            if result.get("estimated_max_gb", 0) > 0:
+                click.echo(
+                    f"  Maksymalnie Images+Build Cache: "
+                    f"{result['estimated_max_gb']:.2f} GB"
+                )
+        else:
+            click.echo(click.style("Zakończono czyszczenie Dockera", fg="green"))
+            click.echo(f"  Zwolniono: {result.get('space_freed_gb', 0):.2f} GB")
+    else:
+        click.echo(click.style(f"Błąd: {_error_message(result)}", fg="red"))
+
+    network_result = result.get("network_cleanup")
+    if network_result:
+        _display_docker_network_result(
+            network_result,
+            dry_run=dry_run,
+            title="Docker — osierocone sieci znalezione przy czyszczeniu",
+        )
+
+
 def _cleanup_docker_old_unused(
     scanner, days: int, json_output: bool, dry_run: bool
 ) -> None:
     """Prune unused Docker images (and old build cache) older than N days."""
     cleaner = ServiceCleaner(scanner)
     try:
-        result = cleaner.cleanup_docker_old_unused(days=days, dry_run=dry_run)
+        result = cleaner.cleanup_docker_old_unused(
+            days=days,
+            dry_run=dry_run,
+            include_networks=True,
+        )
     except ValueError as exc:
         click.echo(click.style(f"Błąd: {exc}", fg="red"))
         return
@@ -528,6 +602,92 @@ def _cleanup_docker_old_unused(
         if result.get("output"):
             click.echo(f"Output: {result['output']}")
 
+    network_result = result.get("network_cleanup")
+    if network_result:
+        _display_docker_network_result(
+            network_result,
+            dry_run=dry_run,
+            title="Docker — osierocone sieci znalezione przy czyszczeniu",
+        )
+
+
+def _display_docker_network_result(
+    result: dict,
+    *,
+    dry_run: bool,
+    title: str = "Docker — osierocone sieci",
+) -> None:
+    """Render a standalone or attached orphan-network cleanup result."""
+    days = int(result.get("min_age_days") or 0)
+    age_text = "bez limitu wieku" if days == 0 else f"starsze niż {days} dni"
+    click.echo(click.style(f"{title} ({age_text})", fg="yellow"))
+    candidates = result.get("candidates") or []
+    if candidates:
+        click.echo(f"  Kandydaci: {len(candidates)}")
+        for network in candidates:
+            subnets = ", ".join(network.get("subnets") or [])
+            subnet_text = f", podsieć {subnets}" if subnets else ""
+            click.echo(
+                f"    • {network['name']} ({network['short_id']}{subnet_text}, "
+                f"wiek {network['age_days']:.1f} dni)"
+            )
+    else:
+        click.echo("  Brak osieroconych sieci spełniających kryteria.")
+
+    if dry_run:
+        click.echo(click.style("[TRYB DRY-RUN] - brak faktycznych zmian", fg="cyan"))
+        click.echo("  Test puli adresowej pominięty, ponieważ tworzyłby sieć testową.")
+        return
+
+    removed = result.get("removed") or []
+    failed = result.get("failed") or []
+    click.echo(f"  Usunięto: {len(removed)}")
+    for network in removed:
+        click.echo(f"    ✓ {network['name']}")
+    for network in failed:
+        click.echo(
+            click.style(
+                f"    Błąd {network['name']}: {network.get('error') or 'nieznany'}",
+                fg="red",
+            )
+        )
+
+    probe = result.get("pool_probe") or {}
+    if probe.get("available") is True:
+        click.echo(
+            click.style(
+                "  Pula adresowa: dostępna (test create/remove PASS)", fg="green"
+            )
+        )
+    elif probe.get("available") is False:
+        click.echo(
+            click.style(
+                f"  Pula adresowa nadal niedostępna: "
+                f"{probe.get('error') or result.get('error') or 'nieznany błąd'}",
+                fg="red",
+            )
+        )
+
+
+def _cleanup_docker_networks(
+    scanner, days: int, json_output: bool, dry_run: bool
+) -> None:
+    """Usuń sieci Docker bez endpointów i potwierdź dostępność puli."""
+    cleaner = ServiceCleaner(scanner)
+    try:
+        result = cleaner.cleanup_docker_networks(days=days, dry_run=dry_run)
+    except ValueError as exc:
+        click.echo(click.style(f"Błąd: {exc}", fg="red"))
+        return
+
+    if json_output:
+        import json
+
+        click.echo(json.dumps(result, indent=2, default=str))
+        return
+
+    _display_docker_network_result(result, dry_run=dry_run)
+
 
 def _cleanup_ollama_old_unused(
     scanner, days: int, json_output: bool, dry_run: bool
@@ -569,8 +729,7 @@ def _cleanup_ollama_old_unused(
                 )
             if result.get("skipped_running"):
                 click.echo(
-                    "  Pominięto uruchomione: "
-                    + ", ".join(result["skipped_running"])
+                    "  Pominięto uruchomione: " + ", ".join(result["skipped_running"])
                 )
         else:
             click.echo(click.style("Zakończono czyszczenie ollama-old", fg="green"))
@@ -647,9 +806,7 @@ def _select_individual_services(services: list) -> list:
     )
     selected = []
     for svc in services:
-        label = (
-            f"  {svc['name']} ({_size_str(svc)}) " f"[{_selection_description(svc)}]"
-        )
+        label = f"  {svc['name']} ({_size_str(svc)}) [{_selection_description(svc)}]"
         if not svc.get("can_cleanup") or not svc.get("cleanup_command", "").strip():
             click.echo(f"{label} — brak bezpiecznej operacji zbiorczej")
             preview = svc.get("preview_command")
@@ -690,6 +847,13 @@ def _execute_individual_cleanup(services: list, scanner) -> float:
             click.echo(click.style(f"  Zwolniono {freed:.2f} GB", fg="green"))
         else:
             click.echo(click.style(f"  Błąd: {_error_message(result)}", fg="red"))
+        network_result = result.get("network_cleanup")
+        if network_result:
+            _display_docker_network_result(
+                network_result,
+                dry_run=False,
+                title="  Docker — osierocone sieci",
+            )
     return total_freed
 
 
@@ -749,7 +913,10 @@ def _run_interactive_cleanup(plan: dict, list_only: bool, scanner) -> None:
     "--cleanup",
     "-c",
     default=None,
-    help="Wyczyść konkretną usługę (docker, docker-old, ollama-old, ollama, npm, ...)",
+    help=(
+        "Wyczyść konkretną usługę "
+        "(docker, docker-all, docker-old, docker-networks, ollama-old, npm, ...)"
+    ),
 )
 @click.option(
     "--docker-old",
@@ -757,8 +924,29 @@ def _run_interactive_cleanup(plan: dict, list_only: bool, scanner) -> None:
     is_flag=True,
     default=False,
     help=(
-        "Usuń nieużywane obrazy Docker (i stary build cache) starsze niż --days "
-        f"(domyślnie {DEFAULT_DOCKER_OLD_UNUSED_DAYS}); nie rusza wolumenów ani obrazów w użyciu"
+        "Usuń nieużywane obrazy Docker i build cache starsze niż --days "
+        "oraz wszystkie osierocone sieci; "
+        f"domyślnie {DEFAULT_DOCKER_OLD_UNUSED_DAYS} dni, bez wolumenów"
+    ),
+)
+@click.option(
+    "--docker-all",
+    "docker_all",
+    is_flag=True,
+    default=False,
+    help=(
+        "Usuń wszystkie nieużywane obrazy, build cache i osierocone sieci; "
+        "nie usuwa kontenerów ani wolumenów"
+    ),
+)
+@click.option(
+    "--docker-networks",
+    "docker_networks",
+    is_flag=True,
+    default=False,
+    help=(
+        "Usuń niestandardowe sieci Docker bez endpointów i sprawdź pulę adresową; "
+        "chroni bridge/host/none oraz wszystkie sieci używane przez kontenery"
     ),
 )
 @click.option(
@@ -777,7 +965,9 @@ def _run_interactive_cleanup(plan: dict, list_only: bool, scanner) -> None:
     type=int,
     help=(
         "Wiek w dniach dla --docker-old "
-        f"(domyślnie {DEFAULT_DOCKER_OLD_UNUSED_DAYS}) lub --ollama-old "
+        f"(domyślnie {DEFAULT_DOCKER_OLD_UNUSED_DAYS}), --docker-networks "
+        f"(domyślnie {DEFAULT_DOCKER_NETWORK_AGE_DAYS}, czyli wszystkie nieużywane) "
+        "lub --ollama-old "
         f"(domyślnie {DEFAULT_OLLAMA_OLD_UNUSED_DAYS})"
     ),
 )
@@ -808,6 +998,8 @@ def cleanup_services(
     json_output,
     cleanup,
     docker_old,
+    docker_all,
+    docker_networks,
     ollama_old,
     days,
     dry_run,
@@ -830,8 +1022,12 @@ def cleanup_services(
       fixos cleanup -s docker,ollama  # tylko Docker i Ollama
       fixos cleanup --list              # tylko lista, bez czyszczenia
       fixos cleanup -c docker --dry-run  # tylko cache buildów >7 dni
+      fixos cleanup --docker-all --dry-run
+      # wszystkie unused images/cache + osierocone sieci
       fixos cleanup --docker-old --days 30 --dry-run
-      # nieużywane obrazy (+ cache) starsze niż 30 dni
+      # stare obrazy/cache + osierocone sieci
+      fixos cleanup --docker-networks --dry-run
+      # sieci bez endpointów; wykonanie kończy test puli adresowej
       fixos cleanup --ollama-old --days 90 --dry-run
       # modele Ollama niezmieniane od 90+ dni
       fixos cleanup -c ollama-old
@@ -844,25 +1040,51 @@ def cleanup_services(
     scanner = ServiceDataScanner(threshold_mb=threshold)
 
     want_docker_old = docker_old or (cleanup == "docker-old")
+    want_docker_all = docker_all or cleanup in {"docker-all", "docker-unused"}
+    want_docker_networks = docker_networks or (cleanup == "docker-networks")
     want_ollama_old = ollama_old or (cleanup == "ollama-old")
-    if want_docker_old and want_ollama_old:
+    if want_docker_old and want_docker_all:
         click.echo(
             click.style(
-                "Wybierz jedno: --docker-old albo --ollama-old (nie oba naraz).",
+                "Wybierz jeden zakres obrazów: --docker-old albo -c docker-all.",
                 fg="red",
             )
         )
         return
-    if want_docker_old:
-        effective_days = (
-            days if days is not None else DEFAULT_DOCKER_OLD_UNUSED_DAYS
+    if want_ollama_old and (want_docker_old or want_docker_all or want_docker_networks):
+        click.echo(
+            click.style(
+                "Czyszczenie Ollama i Dockera uruchom jako osobne akcje.",
+                fg="red",
+            )
         )
+        return
+    if (
+        docker_networks
+        and cleanup
+        and cleanup
+        not in {"docker-all", "docker-unused", "docker-old", "docker-networks"}
+    ):
+        click.echo(
+            click.style(
+                "--docker-networks można łączyć tylko z docker-all lub docker-old.",
+                fg="red",
+            )
+        )
+        return
+    if want_docker_all:
+        _cleanup_docker_all_unused(scanner, json_output, dry_run)
+        return
+    if want_docker_old:
+        effective_days = days if days is not None else DEFAULT_DOCKER_OLD_UNUSED_DAYS
         _cleanup_docker_old_unused(scanner, effective_days, json_output, dry_run)
         return
+    if want_docker_networks:
+        effective_days = days if days is not None else DEFAULT_DOCKER_NETWORK_AGE_DAYS
+        _cleanup_docker_networks(scanner, effective_days, json_output, dry_run)
+        return
     if want_ollama_old:
-        effective_days = (
-            days if days is not None else DEFAULT_OLLAMA_OLD_UNUSED_DAYS
-        )
+        effective_days = days if days is not None else DEFAULT_OLLAMA_OLD_UNUSED_DAYS
         _cleanup_ollama_old_unused(scanner, effective_days, json_output, dry_run)
         return
 

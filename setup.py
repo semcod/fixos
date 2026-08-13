@@ -2,10 +2,11 @@ from setuptools import setup, find_packages
 from pathlib import Path
 
 long_description = (Path(__file__).parent / "README.md").read_text(encoding="utf-8")
+version = "2.2.47"
 
 setup(
     name="fixos",
-    version="2.2.46",
+    version=version,
     description="AI-powered Linux/Windows diagnostics and repair with anonymization",
     long_description=long_description,
     long_description_content_type="text/markdown",

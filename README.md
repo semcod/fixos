@@ -19,13 +19,13 @@ AI-powered OS Diagnostics
 
 ## AI Cost Tracking
 
-![PyPI](https://img.shields.io/badge/pypi-costs-blue) ![Version](https://img.shields.io/badge/version-2.2.46-blue) ![Python](https://img.shields.io/badge/python-3.9+-blue) ![License](https://img.shields.io/badge/license-Apache--2.0-green)
-![AI Cost](https://img.shields.io/badge/AI%20Cost-$4.84-orange) ![Human Time](https://img.shields.io/badge/Human%20Time-40.6h-blue) ![Model](https://img.shields.io/badge/Model-openrouter%2Fqwen%2Fqwen3--coder--next-lightgrey)
+![PyPI](https://img.shields.io/badge/pypi-costs-blue) ![Version](https://img.shields.io/badge/version-2.2.47-blue) ![Python](https://img.shields.io/badge/python-3.9+-blue) ![License](https://img.shields.io/badge/license-Apache--2.0-green)
+![AI Cost](https://img.shields.io/badge/AI%20Cost-$4.85-orange) ![Human Time](https://img.shields.io/badge/Human%20Time-40.8h-blue) ![Model](https://img.shields.io/badge/Model-openrouter%2Fqwen%2Fqwen3--coder--next-lightgrey)
 
-- 🤖 **LLM usage:** $4.8388 (151 commits)
-- 👤 **Human dev:** ~$4059 (40.6h @ $100/h, 30min dedup)
+- 🤖 **LLM usage:** $4.8536 (152 commits)
+- 👤 **Human dev:** ~$4079 (40.8h @ $100/h, 30min dedup)
 
-Generated on 2026-08-07 using [openrouter/qwen/qwen3-coder-next](https://openrouter.ai/qwen/qwen3-coder-next)
+Generated on 2026-08-13 using [openrouter/qwen/qwen3-coder-next](https://openrouter.ai/qwen/qwen3-coder-next)
 
 ---
 
@@ -74,10 +74,13 @@ fixos quick --deep      – szybki wynik, potem pełny skan danych usług
 fixos fix               – diagnoza + sesja naprawcza z AI (HITL)
 fixos scan              – diagnostyka systemu bez AI
 fixos cleanup           – skanuj i czyść dane usług (Docker, npm, pip, ...)
-fixos cleanup --docker-old – nieużywane obrazy Docker starsze niż N dni (--days)
+fixos cleanup --docker-all – wszystkie unused images/cache + osierocone sieci
+fixos cleanup --docker-old – stare unused images/cache + osierocone sieci
+fixos cleanup --docker-networks – tylko osierocone sieci + test puli
 fixos cleanup --ollama-old – modele Ollama niezmieniane od N dni (domyślnie 90)
 fixos cleanup --full    – pełny audit systemu + dev projects
 fixos projects          – skanuj projekty dev (venv, node_modules, ~/github/*/*)
+fixos projects --docker-networks – nieużywane sieci Compose wybranych projektów
 fixos orchestrate       – zaawansowana orkiestracja (graf problemów DAG)
 fixos llm               – lista 12 providerów LLM + linki do kluczy API
 fixos token set KEY     – zapisz klucz API do .env (auto-detekcja providera)
@@ -113,11 +116,18 @@ fixos cleanup --full --dry-run
 
 # Podgląd usług + interaktywne czyszczenie (opcja [1] = wszystkie bezpieczne)
 fixos cleanup --list
-fixos cleanup --dry-run   # tylko gdy -c / --docker-old / --ollama-old
+fixos cleanup --dry-run   # tylko gdy -c / --docker-all / --docker-old / ...
 fixos cleanup
 
-# Nieużywane obrazy Docker starsze niż 30 dni (filtr wieku; może zwolnić mniej niż RECLAIMABLE)
+# Wszystkie unused images/cache oraz osierocone sieci (bez wolumenów)
+fixos cleanup --docker-all --dry-run
+
+# Obrazy/cache starsze niż 30 dni oraz wszystkie osierocone sieci
 fixos cleanup --docker-old --days 30 --dry-run
+
+# Sieci Docker bez endpointów; aktywne i wbudowane pozostają chronione
+fixos cleanup --docker-networks --dry-run
+fixos cleanup --docker-networks
 
 # Modele Ollama niezmieniane od 90+ dni (pomija uruchomione)
 fixos cleanup --ollama-old --days 90 --dry-run
@@ -140,6 +150,9 @@ fixos projects
 
 # Tylko artefakty nieużywane od >60 dni (bez świeżych venv)
 fixos projects --only-stale
+
+# Stare artefakty + podgląd powiązanych, nieużywanych sieci Compose
+fixos projects --only-stale --docker-networks --dry-run
 
 # Podgląd bez usuwania
 fixos projects --dry-run
@@ -230,9 +243,9 @@ Każda znaleziona usługa jest klasyfikowana do jednej z trzech grup:
 
 - **bezpieczne** – cache do odtworzenia jednym poleceniem (pip/npm/cargo/conda/nix/brew...)
   oraz ograniczone, jawnie bezpieczne akcje wiekowe / reclaimable:
-  - **Docker (nieużywane obrazy)** — wszystkie unused images + build cache
-    (bez wolumenów, bez obrazów podpiętych do kontenerów); odpowiada puli
-    `RECLAIMABLE` Images+Build Cache,
+  - **Docker (nieużywane zasoby)** — wszystkie unused images + build cache
+    oraz osierocone sieci bez endpointów (bez wolumenów, bez obrazów
+    podpiętych do kontenerów); część dyskowa odpowiada puli `RECLAIMABLE`,
   - **Ollama (modele >90 dni)** — modele niezmieniane od 90+ dni; pomija
     modele aktualnie załadowane w pamięci.
   Tylko tę grupę usuwa opcja **[1] Wszystkie bezpieczne**.
@@ -245,12 +258,25 @@ Każda znaleziona usługa jest klasyfikowana do jednej z trzech grup:
   zbiorcze kasowanie modeli „na ślepo”, klastrów, maszyn wirtualnych, rozszerzeń i
   wolumenów jest wyłączone.
 
-Dedykowane flagi (też dostępne jako `-c docker-old` / `-c ollama-old`):
+Dedykowane flagi (też dostępne jako `-c docker-all`, `-c docker-old`,
+`-c docker-networks` oraz `-c ollama-old`):
 
 ```bash
-fixos cleanup --docker-old --days 30 --dry-run   # tylko unused starsze niż N dni
+fixos cleanup --docker-all --dry-run               # all unused + sieci
+fixos cleanup --docker-old --days 30 --dry-run     # stare unused + sieci
+fixos cleanup --docker-networks --dry-run         # sieci bez endpointów
 fixos cleanup --ollama-old --days 90 --dry-run   # modele niezmieniane od N dni
 ```
+
+Osierocone sieci są czyszczone automatycznie razem z `--docker-all`,
+`--docker-old` oraz dockerową pozycją w „Wszystkie bezpieczne”. Samodzielne
+`--docker-networks` pozostaje dostępne, gdy obrazy i cache mają pozostać.
+Mechanizm pobiera kandydatów z `dangling=true`, ponownie sprawdza brak
+endpointów, chroni sieci `bridge`, `host` i `none`, a usuwa dokładne ID zamiast
+wykonywać szeroki prune. Po wykonaniu tworzy i natychmiast usuwa sieć testową
+oznaczoną `dev.fixos.cleanup-probe=true`; sukces potwierdza, że daemon może
+ponownie przydzielić podsieć. Opcjonalne `--days N` dla samodzielnej akcji
+ogranicza ją do sieci mających co najmniej N dni; domyślne `0` obejmuje wszystkie.
 
 `RECLAIMABLE` Dockera obejmuje też świeże unused images. Filtr `--docker-old`
 (domyślnie 30 dni) może więc zwolnić **znacznie mniej** niż szacunek całej puli —
@@ -278,6 +304,14 @@ nazwie), `node_modules`/`.next`/`.turbo` (tylko gdy jest `package.json`),
 "do rozważenia" (mogą zawierać coś do opublikowania). Flaguje artefakty
 nieużywane od >60 dni (`--stale-days`) oraz projekty ze zduplikowanymi
 virtualenvami (np. i `venv`, i `.venv` naraz).
+
+Opcjonalne `--docker-networks` dołącza do czyszczenia wybranych projektów
+ich nieużywane sieci Docker Compose. Dopasowanie wymaga dokładnej etykiety
+`com.docker.compose.project`; sieci bez tej etykiety nie są zgadywane po
+nazwie. fixOS ponownie wymaga stanu `dangling`, chroni sieci z endpointami,
+pokazuje nazwę, ID i podsieć, a przed usunięciem pyta o osobne potwierdzenie.
+Usuwane są tylko ID pokazane w podglądzie, po czym wykonywany jest test puli
+adresowej. Repozytorium projektu, kontenery i wolumeny pozostają nietknięte.
 
 ```bash
 $ fixos projects --only-stale

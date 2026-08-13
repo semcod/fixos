@@ -197,9 +197,10 @@ def test_single_docker_dry_run_marks_reclaimable_as_upper_bound():
 def test_docker_old_flag_routes_to_age_filtered_prune(monkeypatch):
     captured = {}
 
-    def fake_cleanup(self, days=30, dry_run=False):
+    def fake_cleanup(self, days=30, dry_run=False, include_networks=False):
         captured["days"] = days
         captured["dry_run"] = dry_run
+        captured["include_networks"] = include_networks
         return {
             "success": True,
             "command": f"docker image prune -a --force --filter until={days * 24}h",
@@ -222,7 +223,11 @@ def test_docker_old_flag_routes_to_age_filtered_prune(monkeypatch):
     )
 
     assert result.exit_code == 0, result.output
-    assert captured == {"days": 30, "dry_run": True}
+    assert captured == {
+        "days": 30,
+        "dry_run": True,
+        "include_networks": True,
+    }
     assert "nieużywane obrazy starsze niż 30 dni" in result.output
     assert "until=720h" in result.output
 
@@ -230,8 +235,9 @@ def test_docker_old_flag_routes_to_age_filtered_prune(monkeypatch):
 def test_docker_old_alias_via_cleanup_flag(monkeypatch):
     captured = {}
 
-    def fake_cleanup(self, days=30, dry_run=False):
+    def fake_cleanup(self, days=30, dry_run=False, include_networks=False):
         captured["days"] = days
+        captured["include_networks"] = include_networks
         return {
             "success": True,
             "command": "docker image prune -a --force --filter until=1440h",
@@ -255,7 +261,124 @@ def test_docker_old_alias_via_cleanup_flag(monkeypatch):
 
     assert result.exit_code == 0, result.output
     assert captured["days"] == 60
+    assert captured["include_networks"] is True
     assert "60 dni" in result.output
+
+
+def test_docker_all_cleans_unused_data_and_orphan_networks(monkeypatch):
+    captured = {}
+
+    def fake_cleanup(self, dry_run=False, include_networks=False):
+        captured.update(
+            dry_run=dry_run,
+            include_networks=include_networks,
+        )
+        return {
+            "success": True,
+            "command": "docker image prune -a --force",
+            "estimated_max_gb": 3.0,
+            "space_freed_gb": 0,
+            "network_cleanup": {
+                "success": True,
+                "min_age_days": 0,
+                "candidates": [
+                    {
+                        "id": "a" * 64,
+                        "short_id": "a" * 12,
+                        "name": "old_default",
+                        "age_days": 90.0,
+                        "subnets": ["10.64.1.0/24"],
+                    }
+                ],
+                "removed": [],
+                "failed": [],
+                "pool_probe": {"available": None},
+            },
+        }
+
+    monkeypatch.setattr(
+        cleanup_cmd.ServiceCleaner,
+        "cleanup_docker_unused",
+        fake_cleanup,
+    )
+
+    result = CliRunner().invoke(
+        cleanup_cmd.cleanup_services,
+        ["--docker-all", "--dry-run"],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert captured == {"dry_run": True, "include_networks": True}
+    assert "old_default" in result.output
+    assert "10.64.1.0/24" in result.output
+
+
+def test_docker_old_can_be_combined_with_explicit_network_flag(monkeypatch):
+    captured = {}
+
+    def fake_cleanup(self, days=30, dry_run=False, include_networks=False):
+        captured.update(days=days, include_networks=include_networks)
+        return {
+            "success": True,
+            "command": "docker image prune -a --force --filter until=720h",
+            "output": "",
+            "estimated_max_gb": 0,
+            "space_freed_gb": 0,
+            "days": days,
+            "network_cleanup": {
+                "success": True,
+                "min_age_days": 0,
+                "candidates": [],
+                "removed": [],
+                "failed": [],
+                "pool_probe": {"available": None},
+            },
+        }
+
+    monkeypatch.setattr(
+        cleanup_cmd.ServiceCleaner,
+        "cleanup_docker_old_unused",
+        fake_cleanup,
+    )
+
+    result = CliRunner().invoke(
+        cleanup_cmd.cleanup_services,
+        ["--docker-old", "--docker-networks", "--dry-run"],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert captured == {"days": 30, "include_networks": True}
+
+
+def test_planned_orphan_network_cleanup_uses_previewed_ids(monkeypatch):
+    captured = {}
+
+    def fake_cleanup(self, days=0, dry_run=False, network_ids=None):
+        captured.update(days=days, dry_run=dry_run, network_ids=network_ids)
+        return {"success": True, "removed": [], "failed": []}
+
+    monkeypatch.setattr(
+        cleanup_cmd.ServiceCleaner,
+        "cleanup_docker_networks",
+        fake_cleanup,
+    )
+    planned = {
+        "cleanup_kind": "docker-networks",
+        "details": {
+            "orphan_networks": [
+                {"id": "a" * 64, "name": "old_default"},
+            ]
+        },
+    }
+
+    result = cleanup_cmd._execute_planned_cleanup(object(), planned)
+
+    assert result["success"] is True
+    assert captured == {
+        "days": 0,
+        "dry_run": False,
+        "network_ids": ["a" * 64],
+    }
 
 
 def test_welcome_menu_lists_docker_old_option():
@@ -264,10 +387,77 @@ def test_welcome_menu_lists_docker_old_option():
     result = CliRunner().invoke(cli, [])
 
     assert result.exit_code == 0
+    assert "fixos cleanup --docker-all" in result.output
+    assert "unused images/cache i osierocone sieci" in result.output
     assert "fixos cleanup --docker-old" in result.output
-    assert "nieużywane obrazy Docker" in result.output
+    assert "stare obrazy/cache i osierocone sieci" in result.output
+    assert "fixos cleanup --docker-networks" in result.output
+    assert "pulę adresową" in result.output
     assert "fixos cleanup --ollama-old" in result.output
     assert "modele Ollama" in result.output
+
+
+def test_docker_networks_flag_routes_to_safe_network_cleanup(monkeypatch):
+    captured = {}
+
+    def fake_cleanup(self, days=0, dry_run=False):
+        captured["days"] = days
+        captured["dry_run"] = dry_run
+        return {
+            "success": True,
+            "candidates": [
+                {
+                    "id": "a" * 64,
+                    "short_id": "a" * 12,
+                    "name": "old_default",
+                    "age_days": 12.5,
+                }
+            ],
+            "removed": [],
+            "failed": [],
+            "pool_probe": {"available": None, "error": "skipped in dry-run"},
+        }
+
+    monkeypatch.setattr(
+        cleanup_cmd.ServiceCleaner,
+        "cleanup_docker_networks",
+        fake_cleanup,
+    )
+
+    result = CliRunner().invoke(
+        cleanup_cmd.cleanup_services,
+        ["--docker-networks", "--days", "7", "--dry-run"],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert captured == {"days": 7, "dry_run": True}
+    assert "old_default" in result.output
+    assert "brak faktycznych zmian" in result.output
+
+
+def test_docker_networks_alias_reports_successful_pool_probe(monkeypatch):
+    def fake_cleanup(self, days=0, dry_run=False):
+        return {
+            "success": True,
+            "candidates": [],
+            "removed": [],
+            "failed": [],
+            "pool_probe": {"available": True, "removed": True, "error": ""},
+        }
+
+    monkeypatch.setattr(
+        cleanup_cmd.ServiceCleaner,
+        "cleanup_docker_networks",
+        fake_cleanup,
+    )
+
+    result = CliRunner().invoke(
+        cleanup_cmd.cleanup_services,
+        ["-c", "docker-networks"],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "Pula adresowa: dostępna" in result.output
 
 
 def test_ollama_old_flag_defaults_to_90_days(monkeypatch):
@@ -302,6 +492,7 @@ def test_ollama_old_flag_defaults_to_90_days(monkeypatch):
     assert captured == {"days": 90, "dry_run": True}
     assert "90" in result.output
     assert "ollama rm" in result.output
+
 
 def test_safe_option_one_runs_ollama_old_age_action(monkeypatch):
     safe = _service("Npm", "safe")
