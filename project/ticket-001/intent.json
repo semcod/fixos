@@ -1,0 +1,112 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-001",
+  "summary": "Adopt new-project v0.16.1 governance",
+  "workstream": "governance",
+  "classification": {
+    "kind": "SERVICE",
+    "priority": "P1",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    ".governance/**",
+    ".gitignore",
+    "AGENTS.md",
+    "goal.yaml",
+    "project.bat",
+    "project/governance-check.bat",
+    "project/governance-check.sh",
+    "project/new-ticket.sh",
+    "project/readme.sh",
+    "scripts/runtime.sh",
+    "project/ticket-001/**",
+    "TODO.md",
+    "project/TICKETS.md"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md",
+    "fixos/**",
+    "tests/**",
+    "pyproject.toml",
+    "uv.lock",
+    "VERSION",
+    "setup.py",
+    "CHANGELOG.md",
+    "README.md",
+    "project.sh",
+    "project/README.md",
+    ".env",
+    "**/*.pem",
+    "**/*secret*"
+  ],
+  "stacks": ["python"],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "9b3ab40548461b2ff7b4b328f9bf1cde1c5611b5",
+    "targetBranch": "main",
+    "standardAdoption": {
+      "sourceRepository": "wellmanifest/new-project",
+      "fromRevision": null,
+      "toRevision": "4e6ba5ec15873346446d67d8787f17f68f57f81e"
+    },
+    "outcome": "FixOS adopts immutable new-project v0.16.1 governance and protected Goal delivery without changing package behavior",
+    "nonGoals": [
+      "No source, tests, dependency manifest or version change",
+      "No package publication, tag or GitHub Release",
+      "No replacement of project-owned analysis files",
+      "No Docker network deletion or mutation"
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 30,
+    "budgets": {
+      "maxImplementationFiles": 5,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Install the published standard atomically, then keep target-specific stack, Docker and delivery settings in the two local configuration files",
+      "components": [
+        {
+          "name": "target-governance-configuration",
+          "paths": [".governance/manifest.json", ".gitignore", "goal.yaml"]
+        },
+        {
+          "name": "adoption-bootstrap",
+          "paths": [".governance/manifest.lock.json", "project.bat"]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {"impact": "none", "states": [], "evidence": []},
+      "rollback": "Revert the unmerged adoption branch; after merge use a separately governed upgrade or revert"
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-02",
+        "commands": ["goal governance adopt --check", "inspect manifest.lock.json"],
+        "evidence": "project/ticket-001/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-03",
+        "commands": ["./project/governance-check.sh", "docker compose config"],
+        "evidence": "project/ticket-001/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-04",
+        "commands": ["goal governance verify-delivery", "goal push --help"],
+        "evidence": "project/ticket-001/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-05",
+        "commands": ["pytest -q", "representative Docker build and runtime"],
+        "evidence": "project/ticket-001/ai-codex-logs.txt"
+      }
+    ]
+  }
+}

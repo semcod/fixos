@@ -8,6 +8,11 @@ Ostatni przegląd: 2026-07-23.
 
 ## Aktywne
 
+- [ ] Dostarczyć [ticket-001](project/ticket-001/README.md): przypiąć pełny
+  standard `wellmanifest/new-project` v0.16.1, skonfigurować ścieżki FixOS,
+  istniejący Docker i chroniony delivery Goal, a następnie potwierdzić drift,
+  governance, testy oraz kontenery. Stan: `IN_PROGRESS / PUBLICATION`.
+
 - [ ] Uzupełnić semantykę wyboru `critical` w
   `fixos/cli/_cleanup_utils.py::_parse_selection`. Obecna funkcja nie otrzymuje
   priorytetów elementów, dlatego `critical` wybiera wszystkie pozycje.
