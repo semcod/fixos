@@ -22,7 +22,6 @@ from typing import Any, Iterable
 
 import psutil
 
-
 HISTORY_SCHEMA = "fixos-quick-history-v1"
 MAX_HISTORY_ITEMS = 192
 
@@ -414,9 +413,48 @@ def _cached_docker_review(
     }
 
 
+def _sample_process_load(
+    logical_cpus: int, *, interval: float = 0.12
+) -> tuple[float, list[dict[str, Any]]]:
+    """Sample system and per-process CPU over the same bounded interval."""
+    sampled_processes: list[psutil.Process] = []
+    for process in psutil.process_iter(["pid", "name", "memory_percent"]):
+        try:
+            process.cpu_percent(interval=None)
+            sampled_processes.append(process)
+        except (psutil.Error, OSError):
+            continue
+
+    system_cpu_percent = psutil.cpu_percent(interval=interval)
+    processes: list[dict[str, Any]] = []
+    for process in sampled_processes:
+        try:
+            info = process.info
+            processes.append(
+                {
+                    "pid": info["pid"],
+                    "name": info.get("name") or "?",
+                    "memory_percent": round(float(info.get("memory_percent") or 0), 1),
+                    "cpu_percent": round(float(process.cpu_percent(interval=None)), 1),
+                }
+            )
+        except (psutil.Error, OSError):
+            continue
+
+    processes.sort(
+        key=lambda row: (
+            max(row["cpu_percent"] / logical_cpus, row["memory_percent"]),
+            row["cpu_percent"],
+            row["memory_percent"],
+        ),
+        reverse=True,
+    )
+    return system_cpu_percent, processes[:5]
+
+
 def _resource_snapshot() -> dict[str, Any]:
-    cpu_percent = psutil.cpu_percent(interval=0.12)
     logical_cpus = psutil.cpu_count() or 1
+    cpu_percent, processes = _sample_process_load(logical_cpus)
     try:
         load_1, load_5, load_15 = os.getloadavg()
     except (AttributeError, OSError):
@@ -425,26 +463,6 @@ def _resource_snapshot() -> dict[str, Any]:
     swap = psutil.swap_memory()
     disk_mount = Path.home().anchor or "/"
     disk = psutil.disk_usage(disk_mount)
-
-    processes: list[dict[str, Any]] = []
-    for process in psutil.process_iter(
-        ["pid", "name", "memory_percent", "cpu_percent"]
-    ):
-        try:
-            info = process.info
-            processes.append(
-                {
-                    "pid": info["pid"],
-                    "name": info.get("name") or "?",
-                    "memory_percent": round(float(info.get("memory_percent") or 0), 1),
-                    "cpu_percent": round(float(info.get("cpu_percent") or 0), 1),
-                }
-            )
-        except (psutil.Error, OSError):
-            continue
-    processes.sort(
-        key=lambda row: (row["memory_percent"], row["cpu_percent"]), reverse=True
-    )
 
     return {
         "cpu": {
@@ -471,7 +489,7 @@ def _resource_snapshot() -> dict[str, Any]:
             "free_bytes": disk.free,
             "percent": disk.percent,
         },
-        "top_processes": processes[:5],
+        "top_processes": processes,
     }
 
 

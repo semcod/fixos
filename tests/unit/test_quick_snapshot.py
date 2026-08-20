@@ -174,3 +174,33 @@ def test_developer_profile_uses_its_disk_threshold():
 
     assert thresholds["disk_usage_warning"] == 75
     assert alerts[0]["resource"] == "disk"
+
+
+def test_process_load_is_sampled_and_ranked_by_cpu_or_memory(monkeypatch):
+    class FakeProcess:
+        def __init__(self, pid, name, memory_percent, sampled_cpu):
+            self.info = {
+                "pid": pid,
+                "name": name,
+                "memory_percent": memory_percent,
+            }
+            self.sampled_cpu = sampled_cpu
+            self.calls = 0
+
+        def cpu_percent(self, interval=None):
+            self.calls += 1
+            return 0 if self.calls == 1 else self.sampled_cpu
+
+    memory_hog = FakeProcess(101, "memory-hog", 30, 0)
+    cpu_hog = FakeProcess(202, "cpu-hog", 20, 400)
+    idle = FakeProcess(303, "idle", 1, 0)
+    processes = [memory_hog, cpu_hog, idle]
+    monkeypatch.setattr(quick_snapshot.psutil, "process_iter", lambda attrs: processes)
+    monkeypatch.setattr(quick_snapshot.psutil, "cpu_percent", lambda interval: 42.5)
+
+    system_cpu, top = quick_snapshot._sample_process_load(8, interval=0)
+
+    assert system_cpu == 42.5
+    assert [item["pid"] for item in top] == [202, 101, 303]
+    assert top[0]["cpu_percent"] == 400
+    assert all(process.calls == 2 for process in processes)

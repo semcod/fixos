@@ -118,18 +118,16 @@ def render_quick_snapshot(snapshot: dict[str, Any], *, compact: bool = False) ->
         click.echo(
             click.style(f"  {alert['severity'].upper()}: {alert['message']}", fg=color)
         )
-    pressured = {
-        alert["resource"]
-        for alert in snapshot["alerts"]
-        if alert["resource"] in {"cpu", "memory"}
-    }
-    if pressured and resources.get("top_processes"):
-        top = ", ".join(
-            f"{item['name']} (RAM {item['memory_percent']:.1f}%, "
-            f"CPU {item['cpu_percent']:.1f}%)"
-            for item in resources["top_processes"][:3]
-        )
-        click.echo(f"  Największe procesy teraz: {top}")
+    top_processes = resources.get("top_processes", [])
+    if top_processes:
+        click.echo("  Najbardziej obciążające procesy teraz:")
+        limit = 3 if compact else 5
+        for item in top_processes[:limit]:
+            click.echo(
+                f"    • {item['name']} (PID {item['pid']}): "
+                f"CPU {item['cpu_percent']:.1f}% · "
+                f"RAM {item['memory_percent']:.1f}%"
+            )
     click.echo(f"  Wynik w {snapshot['duration_ms']} ms (bez LLM).")
 
 
