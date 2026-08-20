@@ -1,0 +1,8 @@
+2026-08-20 focused: pytest orphaned_workloads + cleanup_utils -> 12 passed
+2026-08-20 scoped lint: Ruff -> all checks passed
+2026-08-20 governance before full validation -> 0 errors, 0 warnings
+2026-08-20 live read-only scan: host candidates=3; containerized protected=11;
+  PIDs 8271 and 12022 protected; Docker candidates unchanged=14; no mutation
+2026-08-20 full validation: 516 passed, 5 skipped, 16 deselected
+2026-08-20 compileall: passed
+2026-08-20 final pre-publication governance: 0 errors, 0 warnings

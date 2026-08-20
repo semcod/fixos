@@ -45,9 +45,9 @@ Ostatni przegląd: 2026-07-23.
   governance, testy oraz kontenery. Stan: `DONE / DONE`; PR #1 został scalony
   bez zmiany zatwierdzonego drzewa jako `647dd4b...`, a testy po merge przeszły.
 
-- [ ] Uzupełnić semantykę wyboru `critical` w
-  `fixos/cli/_cleanup_utils.py::_parse_selection`. Obecna funkcja nie otrzymuje
-  priorytetów elementów, dlatego `critical` wybiera wszystkie pozycje.
+- [ ] Dostarczyć [ticket-007](project/ticket-007/README.md): wykluczyć procesy
+  kontenerowe z czyszczenia procesów hosta i uzupełnić semantykę wyboru
+  `critical`, który obecnie wybiera wszystkie pozycje.
 - [ ] Regenerować dokumentację API (`docs/api.md`, `docs/modules.md`,
   `docs/coverage.md` i `docs/dependency-graph.md`) w wydaniu, w którym generator
   potrafi zachować ręczne strony `docs/README.md`, `docs/getting-started.md`

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from fixos.diagnostics.utils import format_size as _format_size
 
 
@@ -58,7 +60,12 @@ def _parse_size_to_gb(size_str: str) -> float:
         return 0
 
 
-def _parse_selection(selection: str, max_count: int) -> list:
+def _parse_selection(
+    selection: str,
+    max_count: int,
+    *,
+    priorities: Sequence[str] | None = None,
+) -> list[int]:
     """Parse user selection into list of indices."""
     selection = selection.strip().lower()
 
@@ -69,7 +76,13 @@ def _parse_selection(selection: str, max_count: int) -> list:
         return list(range(max_count))
 
     if selection == "critical":
-        return [i for i in range(max_count)]  # TODO: filter by priority
+        if priorities is None:
+            return []
+        return [
+            index
+            for index, priority in enumerate(priorities[:max_count])
+            if str(priority).strip().casefold() == "critical"
+        ]
 
     try:
         indices = []

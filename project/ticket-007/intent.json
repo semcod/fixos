@@ -1,0 +1,108 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-007",
+  "summary": "Harden orphan cleanup process selection",
+  "workstream": "application",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P0",
+    "origin": "regression"
+  },
+  "allowedPaths": [
+    "project/ticket-007/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/diagnostics/orphaned_workloads.py",
+    "fixos/cli/_cleanup_utils.py",
+    "fixos/cli/_cleanup_flatpak.py",
+    "tests/unit/test_orphaned_workloads.py",
+    "tests/unit/test_cleanup_utils.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md",
+    "docs/**",
+    "README.md",
+    "CHANGELOG.md",
+    "VERSION",
+    "pyproject.toml",
+    "uv.lock",
+    ".env",
+    "**/*.pem",
+    "**/*secret*"
+  ],
+  "stacks": ["python"],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "0009cf32f365ba2c5aba9b8c8606b0f34610976e",
+    "targetBranch": "main",
+    "outcome": "FixOS cannot target containerized processes through host-process cleanup and critical selection matches documented priorities",
+    "nonGoals": [
+      "No process or container termination during implementation validation",
+      "No automatic cleanup or broader candidate classification changes",
+      "No JetBrains health command or persistent ignore configuration in this ticket",
+      "No runtime dependency or public API change",
+      "No user documentation change in the application workstream"
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 30,
+    "budgets": {
+      "maxImplementationFiles": 5,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Keep container-boundary evidence and signal-time checks in orphan diagnostics, while the private cleanup selector receives explicit priorities from its sole caller",
+      "components": [
+        {
+          "name": "orphaned-workload-diagnostics",
+          "paths": [
+            "fixos/diagnostics/orphaned_workloads.py",
+            "tests/unit/test_orphaned_workloads.py"
+          ]
+        },
+        {
+          "name": "cleanup-selection",
+          "paths": [
+            "fixos/cli/_cleanup_utils.py",
+            "fixos/cli/_cleanup_flatpak.py",
+            "tests/unit/test_cleanup_utils.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "multi-state",
+        "states": ["empty", "error", "success"],
+        "evidence": ["focused unit tests", "read-only live orphan scan"]
+      },
+      "rollback": "Revert the two safety changes and focused tests; implementation validation performs no cleanup"
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-05",
+        "commands": [
+          "pytest -q tests/unit/test_orphaned_workloads.py tests/unit/test_cleanup_utils.py",
+          "fixos cleanup --orphaned-projects --days 3 --process-hours 12 --json"
+        ],
+        "evidence": "project/ticket-007/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-06",
+        "commands": [
+          "ruff check on changed Python files",
+          "python -m compileall -q fixos",
+          "pytest -q",
+          "./project/governance-check.sh"
+        ],
+        "evidence": "project/ticket-007/ai-codex-logs.txt"
+      }
+    ]
+  }
+}
