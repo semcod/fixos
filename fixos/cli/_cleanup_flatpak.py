@@ -127,7 +127,11 @@ def _cleanup_flatpak_detailed(scanner, json_output: bool, dry_run: bool) -> None
         )
 
     # Parsuj wybór
-    selected_indices = _parse_selection(selection, len(recommendations))
+    selected_indices = _parse_selection(
+        selection,
+        len(recommendations),
+        priorities=[rec.get("priority", "") for rec in recommendations],
+    )
 
     if not selected_indices:
         click.echo(click.style("\n⏭️ Nie wybrano żadnych akcji.", fg="yellow"))

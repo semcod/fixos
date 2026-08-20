@@ -83,6 +83,7 @@ def _runner_for(containers: list[dict], calls: list[list[str]]):
 
 def _cleaner(*, containers=(), records=(), connections=(), **kwargs):
     calls: list[list[str]] = []
+    kwargs.setdefault("cgroup_provider", lambda pid: None)
     return (
         OrphanedWorkloadCleaner(
             runner=_runner_for(list(containers), calls),
@@ -165,6 +166,67 @@ def test_scan_reports_connected_agent_and_protects_current_ancestry():
     protected = next(item for item in scan["processes"] if item["root_pid"] == 800)
     assert protected["protected"] is True
     assert [item["root_pid"] for item in scan["process_candidates"]] == [20]
+
+
+def test_scan_protects_containerized_development_servers():
+    records = [
+        _record(30, 1, "node", ("node", "/app/server.mjs"), hours=48),
+        _record(31, 1, "php", ("php", "-S", "0.0.0.0:8080"), hours=48),
+        _record(32, 1, "node", ("node", "/app/server.mjs"), hours=48),
+    ]
+    cgroups = {
+        30: "0::/system.slice/docker-526ba0510087ceff3da278b68cc83adb537b1218b1d1342dfacf1ef3330b0012.scope\n",
+        31: "0::/kubepods.slice/kubepods-burstable.slice/cri-containerd-deadbeef1234567890.scope\n",
+        32: "0::/machine.slice/libpod-0123456789abcdef.scope\n",
+    }
+    cleaner, _ = _cleaner(
+        records=records,
+        cgroup_provider=cgroups.get,
+    )
+
+    scan = cleaner.scan(min_process_hours=12)
+
+    assert scan["process_candidates"] == []
+    assert {item["root_pid"] for item in scan["protected_processes"]} == {
+        30,
+        31,
+        32,
+    }
+    assert all(item["containerized"] for item in scan["protected_processes"])
+    assert all(
+        item["reason"] == "containerized-process"
+        for item in scan["protected_processes"]
+    )
+
+
+def test_cleanup_rechecks_container_membership_before_signalling():
+    records = [_record(30, 1, "node", ("node", "/tmp/server.mjs"), hours=48)]
+    identities = {item.pid: item.create_time for item in records}
+    cgroup_reads = iter(
+        [
+            None,
+            "0::/system.slice/docker-526ba0510087ceff3da278b68cc83adb537b1218b1d1342dfacf1ef3330b0012.scope\n",
+        ]
+    )
+    signalled: list[int] = []
+    cleaner, _ = _cleaner(
+        records=records,
+        cgroup_provider=lambda pid: next(cgroup_reads),
+        identity_provider=identities.get,
+        terminator=lambda pid, force: signalled.append(pid),
+    )
+
+    result = cleaner.cleanup(
+        process_identities=[(30, identities[30])],
+        min_process_hours=12,
+        apply=True,
+        grace_seconds=0,
+    )
+
+    assert result["success"] is False
+    assert result["failed"][0]["error"] == "current tree intersects a container runtime"
+    assert result["failed"][0]["containerized_pids"] == [30]
+    assert signalled == []
 
 
 def test_cleanup_disables_restart_stops_exact_container_and_keeps_objects():

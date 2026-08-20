@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import time
 from collections import defaultdict
@@ -29,6 +30,11 @@ STARTUP_RESTART_POLICIES = frozenset({"always", "unless-stopped"})
 TERMINAL_CONTAINER_STATES = frozenset({"created", "dead", "exited", "removing"})
 DEFAULT_ORPHANED_PROJECT_DAYS = 3
 DEFAULT_STALE_PROCESS_HOURS = 12
+CONTAINER_CGROUP_PATTERN = re.compile(
+    r"(?:^|/)(?:docker|libpod|cri-containerd)[-/][0-9a-f]{12,64}"
+    r"(?:\.scope)?(?:/|$)",
+    re.IGNORECASE,
+)
 
 
 class OrphanedWorkloadSafetyError(RuntimeError):
@@ -44,6 +50,7 @@ class OrphanedWorkloadCleaner:
         runner: Callable[..., subprocess.CompletedProcess[str]] | None = None,
         process_provider: Callable[[], Sequence[ProcessRecord]] | None = None,
         connection_provider: Callable[[], Iterable[Any]] | None = None,
+        cgroup_provider: Callable[[int], str | None] | None = None,
         cwd_provider: Callable[[int], str | None] | None = None,
         rss_provider: Callable[[int], int] | None = None,
         identity_provider: Callable[[int], float | None] | None = None,
@@ -58,6 +65,7 @@ class OrphanedWorkloadCleaner:
         self._runner = runner or subprocess.run
         self._process_provider = process_provider or collect_processes
         self._connection_provider = connection_provider or self._connections
+        self._cgroup_provider = cgroup_provider or self._process_cgroup
         self._cwd_provider = cwd_provider or self._process_cwd
         self._rss_provider = rss_provider or self._process_rss
         self._identity_provider = identity_provider or self._process_identity
@@ -82,6 +90,24 @@ class OrphanedWorkloadCleaner:
             return psutil.Process(pid).cwd()
         except (psutil.Error, OSError):
             return None
+
+    @staticmethod
+    def _process_cgroup(pid: int) -> str | None:
+        try:
+            return Path(f"/proc/{pid}/cgroup").read_text(
+                encoding="utf-8", errors="replace"
+            )
+        except (OSError, ValueError):
+            return None
+
+    @staticmethod
+    def _is_container_cgroup(value: str | None) -> bool:
+        if not value:
+            return False
+        normalized = value.casefold()
+        return "/kubepods" in normalized or bool(
+            CONTAINER_CGROUP_PATTERN.search(normalized)
+        )
 
     @staticmethod
     def _process_rss(pid: int) -> int:
@@ -329,6 +355,11 @@ class OrphanedWorkloadCleaner:
         protected = self._protected_pids(by_pid)
         now_epoch = self._now().astimezone(timezone.utc).timestamp()
         connections = list(self._connection_provider())
+        containerized_pids = {
+            record.pid
+            for record in records
+            if self._is_container_cgroup(self._cgroup_provider(record.pid))
+        }
         candidates: list[dict[str, Any]] = []
         ide_member_pids: set[int] = set()
 
@@ -352,6 +383,7 @@ class OrphanedWorkloadCleaner:
                     members,
                     by_pid,
                     protected,
+                    containerized_pids,
                     established,
                     ports,
                     now_epoch,
@@ -378,6 +410,7 @@ class OrphanedWorkloadCleaner:
                     members,
                     by_pid,
                     protected,
+                    containerized_pids,
                     established,
                     ports,
                     now_epoch,
@@ -393,11 +426,14 @@ class OrphanedWorkloadCleaner:
         members: tuple[int, ...],
         by_pid: dict[int, ProcessRecord],
         protected: set[int],
+        containerized_pids: set[int],
         established: int,
         ports: list[int],
         now_epoch: float,
     ) -> dict[str, Any]:
         member_set = set(members)
+        containerized = bool(member_set & containerized_pids)
+        is_protected = bool(member_set & protected) or containerized
         return {
             "kind": kind,
             "root_pid": root.pid,
@@ -414,11 +450,16 @@ class OrphanedWorkloadCleaner:
             ),
             "established_connections": established,
             "listen_ports": ports,
-            "protected": bool(member_set & protected),
-            "candidate": not bool(member_set & protected),
-            "reason": "stale-pycharm-agent-tree"
-            if kind == "ide-agent"
-            else "client-free-development-server",
+            "containerized": containerized,
+            "protected": is_protected,
+            "candidate": not is_protected,
+            "reason": "containerized-process"
+            if containerized
+            else (
+                "stale-pycharm-agent-tree"
+                if kind == "ide-agent"
+                else "client-free-development-server"
+            ),
         }
 
     def scan(
@@ -511,6 +552,17 @@ class OrphanedWorkloadCleaner:
             return {**candidate, "error": "selected root no longer exists"}
         children = self._children(records)
         members = list(self._tree(root_pid, children))
+        containerized = [
+            pid
+            for pid in members
+            if self._is_container_cgroup(self._cgroup_provider(pid))
+        ]
+        if containerized:
+            return {
+                **candidate,
+                "containerized_pids": containerized,
+                "error": "current tree intersects a container runtime",
+            }
         protected = self._protected_pids(by_pid)
         if set(members) & protected:
             return {**candidate, "error": "current tree intersects protected processes"}
