@@ -1,0 +1,109 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-009",
+  "summary": "Persist orphan project pins",
+  "workstream": "application",
+  "classification": {
+    "kind": "FEATURE",
+    "priority": "P1",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-009/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/orphan_pins.py",
+    "fixos/diagnostics/orphaned_workloads.py",
+    "fixos/cli/cleanup_cmd.py",
+    "fixos/cli/main.py",
+    "tests/unit/test_orphan_pins.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md",
+    "docs/**",
+    "README.md",
+    "CHANGELOG.md",
+    "VERSION",
+    "pyproject.toml",
+    "uv.lock",
+    ".env",
+    "**/*.pem",
+    "**/*secret*"
+  ],
+  "stacks": ["python"],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "881ac6f4941f453738d1cae48c14ebebeb7b9c56",
+    "targetBranch": "main",
+    "outcome": "FixOS users can persistently protect intentionally retained missing-path Compose projects from orphan cleanup",
+    "nonGoals": [
+      "No Docker stop, restart-policy update, removal or data deletion in pin management",
+      "No process cleanup behavior change",
+      "No wildcard or relative-path pins",
+      "No runtime dependency or public API path change",
+      "No user documentation change in the application workstream"
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 30,
+    "budgets": {
+      "maxImplementationFiles": 5,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Use one strict XDG JSON store as an injected scan dependency and keep Click as a thin management and rendering adapter",
+      "components": [
+        {
+          "name": "orphan-pin-state-and-diagnostics",
+          "paths": [
+            "fixos/orphan_pins.py",
+            "fixos/diagnostics/orphaned_workloads.py",
+            "tests/unit/test_orphan_pins.py"
+          ]
+        },
+        {
+          "name": "cleanup-cli",
+          "paths": [
+            "fixos/cli/cleanup_cmd.py",
+            "fixos/cli/main.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "multi-state",
+        "states": ["empty", "error", "success"],
+        "evidence": ["focused CLI tests", "live read-only orphan scan"]
+      },
+      "rollback": "Revert the store, scan injection, CLI options and tests; the standalone JSON state is inert without this feature"
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-05",
+        "commands": [
+          "pytest -q tests/unit/test_orphan_pins.py tests/unit/test_cleanup_cmd.py tests/unit/test_orphaned_workloads.py",
+          "fixos cleanup --list-orphan-pins --json",
+          "fixos cleanup --orphaned-projects --days 3 --dry-run --json"
+        ],
+        "evidence": "project/ticket-009/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-06",
+        "commands": [
+          "ruff check on changed Python files",
+          "python -m compileall -q fixos",
+          "pytest -q",
+          "./project/governance-check.sh"
+        ],
+        "evidence": "project/ticket-009/ai-codex-logs.txt"
+      }
+    ]
+  }
+}

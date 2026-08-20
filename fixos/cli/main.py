@@ -98,6 +98,11 @@ def _print_welcome() -> None:
             "Wybierz obciążenia projektów, których katalog już nie istnieje",
         ),
         (
+            "fixos cleanup --list-orphan-pins",
+            "",
+            "Zarządzaj trwałą ochroną zachowanych projektów Compose",
+        ),
+        (
             "fixos jetbrains doctor",
             "",
             "Diagnozuj JVM, EDT i logi IDE bez zamykania okien",
