@@ -46,6 +46,11 @@ separate JetBrains diagnostics and persistent-ignore enhancements.
   including previously misclassified PIDs 8271 and 12022. No signal was sent.
 - Focused tests pass 12/12; the full suite passes 516 tests with 5 skipped and
   16 deselected. Scoped Ruff, compileall and governance validation are clean.
+- Published PR #14 at exact head `c525f3b...`. Validator run 32360346263
+  approved it as review 4981799288 after two stable policy reads, merged it as
+  `cb10227...` and deleted the remote implementation branch.
+- Began this governance-only closure from the integrated merge commit and
+  marked the ticket `DONE / DONE` without changing implementation files.
 
 ## Blockers
 

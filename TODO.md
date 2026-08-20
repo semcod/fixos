@@ -45,9 +45,10 @@ Ostatni przegląd: 2026-07-23.
   governance, testy oraz kontenery. Stan: `DONE / DONE`; PR #1 został scalony
   bez zmiany zatwierdzonego drzewa jako `647dd4b...`, a testy po merge przeszły.
 
-- [ ] Dostarczyć [ticket-007](project/ticket-007/README.md): wykluczyć procesy
+- [x] Dostarczyć [ticket-007](project/ticket-007/README.md): wykluczyć procesy
   kontenerowe z czyszczenia procesów hosta i uzupełnić semantykę wyboru
-  `critical`, który obecnie wybiera wszystkie pozycje.
+  `critical`. Stan: `DONE / DONE`; PR #14 został zatwierdzony przez Validator
+  App dla dokładnego HEAD `c525f3b...` i scalony jako `cb10227...`.
 - [ ] Regenerować dokumentację API (`docs/api.md`, `docs/modules.md`,
   `docs/coverage.md` i `docs/dependency-graph.md`) w wydaniu, w którym generator
   potrafi zachować ręczne strony `docs/README.md`, `docs/getting-started.md`
