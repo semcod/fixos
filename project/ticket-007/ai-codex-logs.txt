@@ -6,3 +6,6 @@
 2026-08-20 full validation: 516 passed, 5 skipped, 16 deselected
 2026-08-20 compileall: passed
 2026-08-20 final pre-publication governance: 0 errors, 0 warnings
+2026-08-20 publication: PR #14 exact head c525f3ba1f5efe767a15dc7119beb1bbf2236aff
+2026-08-20 validator: run 32360346263, review 4981799288, two stable reads
+2026-08-20 merge: cb10227b243124d8b4de76903ed9a01a08f8f6da; branch deleted

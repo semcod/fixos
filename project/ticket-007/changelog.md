@@ -12,3 +12,8 @@
   fail closed without them.
 - Added deterministic unit coverage and confirmed the change with a live,
   read-only system scan.
+
+## [0.1.1] - 2026-08-20
+
+- Recorded protected exact-head approval and merge of PR #14.
+- Closed the integrated ticket without changing executable code.
