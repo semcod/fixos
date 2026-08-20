@@ -8,9 +8,10 @@ Ostatni przegląd: 2026-07-23.
 
 ## Aktywne
 
-- [ ] Dostarczyć [ticket-010](project/ticket-010/README.md): poprawić wykrywanie
+- [x] Dostarczyć [ticket-010](project/ticket-010/README.md): poprawić wykrywanie
   głównej JVM JetBrains i dodać bezpieczne sterowanie dokładnymi wtyczkami AI
-  oraz helperami Qoder bez zamykania okien IDE.
+  oraz helperami Qoder bez zamykania okien IDE. Stan: `DONE / DONE`; PR #20
+  zatwierdzono dla dokładnego HEAD `d500e3f...` i scalono jako `f38c473...`.
 
 - [x] Dostarczyć [ticket-009](project/ticket-009/README.md): dodać trwałe,
   zarządzalne przypięcia katalogów projektów Compose, które pozostają widoczne

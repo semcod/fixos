@@ -19,3 +19,8 @@ ruff check changed Python files: passed
 python -m compileall -q fixos: passed
 ./project/governance-check.sh
 GOV-PASS: passed (0 errors, 0 warnings)
+
+2026-08-20 protected publication
+PR #20 head=d500e3f6dc17673774fe2cd07a9ac233866f5af8
+validator_run=32365098029 review=4982270230 result=approved
+merge_commit=f38c473d569ee4beafc5e95857c0e144b199e14b
