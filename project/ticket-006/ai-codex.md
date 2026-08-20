@@ -32,6 +32,10 @@ explicit, confirmed mutation path, and state both effects and non-effects.
   the non-deleting cleanup flow.
 - Verified the text against the installed menu/help and passed the full suite
   with 510 tests, 5 skips and 16 intentional deselections.
+- Published PR #12 at exact head `a6a3fff...`; Validator run 32357794634
+  approved review 4981558384 after two stable reads and merged it as
+  `db81ef8...`, deleting the implementation branch.
+- Began this governance-only closure from the integrated merge commit.
 
 ## Blockers
 
