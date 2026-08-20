@@ -8,9 +8,11 @@ Ostatni przegląd: 2026-07-23.
 
 ## Aktywne
 
-- [ ] Dostarczyć [ticket-009](project/ticket-009/README.md): dodać trwałe,
+- [x] Dostarczyć [ticket-009](project/ticket-009/README.md): dodać trwałe,
   zarządzalne przypięcia katalogów projektów Compose, które pozostają widoczne
   w diagnostyce, ale są chronione przed czyszczeniem osieroconych obciążeń.
+  Stan: `DONE / DONE`; PR #18 zatwierdzono dla dokładnego HEAD `6643838...`
+  i scalono jako `942fa1d...`.
 
 - [x] Dostarczyć [ticket-008](project/ticket-008/README.md): udostępnić
   `fixos jetbrains doctor` z diagnostyką JVM, EDT i logów oraz opcjonalnym,

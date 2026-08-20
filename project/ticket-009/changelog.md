@@ -12,3 +12,8 @@
   including during fresh apply-time revalidation.
 - Verified 14 `relcom` containers are protected with zero Docker candidates;
   no container, process, volume, image, network or IDE window was changed.
+
+## [0.1.1] - 2026-08-20
+
+- Recorded protected exact-head approval and merge of PR #18.
+- Closed the integrated ticket without changing executable code.
