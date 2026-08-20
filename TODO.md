@@ -8,10 +8,11 @@ Ostatni przegląd: 2026-07-23.
 
 ## Aktywne
 
-- [ ] Dostarczyć [ticket-005](project/ticket-005/README.md): zawsze pokazywać
+- [x] Dostarczyć [ticket-005](project/ticket-005/README.md): zawsze pokazywać
   próbkowane procesy najbardziej obciążające CPU lub RAM w `fixos quick` oraz
   zweryfikować konserwatywny przegląd usług Docker nieaktywnych od ponad trzech
-  dni. Stan: `IN_PROGRESS / PUBLICATION`.
+  dni. Stan: `DONE / DONE`; PR #8 został zatwierdzony przez Validator App i
+  scalony jako `715f961...`, a testy po merge przeszły.
 
 - [x] Dostarczyć [ticket-002](project/ticket-002/README.md): wykrywanie świeżych
   łańcuchów procesów blokujących starsze aplikacje oraz bezpieczne, jawnie

@@ -2,8 +2,8 @@
 
 - **ID**: ticket-005
 - **Owner**: unresolved:human
-- **Status**: IN_PROGRESS
-- **Workflow state**: PUBLICATION
+- **Status**: DONE
+- **Workflow state**: DONE
 - **Created**: 2026-08-20
 
 ## Goal and scope
@@ -35,6 +35,20 @@ stopping containers that cannot be tied safely to an inactive clean repository.
   mapping.
 - Focused tests passed 11/11; the full suite passed with 502 tests, 5 skips and
   16 intentional deselections.
+
+## Publication
+
+- [PR #8](https://github.com/semcod/fixos/pull/8) passed the three-version
+  Python suite, five-distribution Docker matrix, summary and remote lifecycle
+  checks on exact head `03925dcbd4b3790d2206ef08304e4e7d5f4042e9`.
+- Repository-scoped Validator App review `4981345256` approved that exact head
+  for `ticket-005` after two stable policy reads.
+- The protected validator merged PR #8 as
+  `715f9611ab02c0808c7c5b74ed92d8eafb84086a`; the remote implementation branch
+  was deleted automatically.
+- Post-merge runs `32355746239` and `32355746264` passed the Python and complete
+  five-distribution Docker suites, including `test-summary`, on integrated
+  `main`.
 
 ## Participants
 

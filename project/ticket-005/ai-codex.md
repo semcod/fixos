@@ -39,6 +39,11 @@ the current live state contains no candidate satisfying all safety checks.
 - Added deterministic tests for sampling, ranking and below-threshold display.
 - Verified 11 focused tests and a full result of 502 passed, 5 skipped and 16
   deselected; Ruff, Black, compilation, diff checks and governance passed.
+- Published exact head `03925dc...` as PR #8. Validator App review `4981345256`
+  approved it after two stable policy reads and the protected workflow merged
+  it as `715f961...`, then deleted the remote implementation branch.
+- Verified post-merge Python and five-distribution Docker runs on integrated
+  `main`, then created this governance-only closure.
 
 ## Blockers
 
