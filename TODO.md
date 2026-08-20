@@ -8,6 +8,10 @@ Ostatni przegląd: 2026-07-23.
 
 ## Aktywne
 
+- [ ] Dostarczyć [ticket-010](project/ticket-010/README.md): poprawić wykrywanie
+  głównej JVM JetBrains i dodać bezpieczne sterowanie dokładnymi wtyczkami AI
+  oraz helperami Qoder bez zamykania okien IDE.
+
 - [x] Dostarczyć [ticket-009](project/ticket-009/README.md): dodać trwałe,
   zarządzalne przypięcia katalogów projektów Compose, które pozostają widoczne
   w diagnostyce, ale są chronione przed czyszczeniem osieroconych obciążeń.
