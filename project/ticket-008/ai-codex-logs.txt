@@ -1,0 +1,9 @@
+2026-08-20 focused: pytest jetbrains_recovery + jetbrains_cmd -> 20 passed
+2026-08-20 scoped lint excluding legacy main.py registration -> clean
+2026-08-20 live read-only doctor PID 143907: warning; CPU=215.8%; RSS=12.16 GiB;
+  threads=668; heap=88.9%; AI quota errors=28; EDT=RUNNABLE/not contended;
+  gc_recommended=false; no mutation
+2026-08-20 help/menu: fixos jetbrains doctor visible with safety options
+2026-08-20 full validation: 523 passed, 5 skipped, 16 deselected
+2026-08-20 compileall: passed
+2026-08-20 final pre-publication governance: 0 errors, 0 warnings

@@ -8,6 +8,10 @@ Ostatni przegląd: 2026-07-23.
 
 ## Aktywne
 
+- [ ] Dostarczyć [ticket-008](project/ticket-008/README.md): udostępnić
+  `fixos jetbrains doctor` z diagnostyką JVM, EDT i logów oraz opcjonalnym,
+  ściśle uzasadnionym GC bez zamykania okien IDE.
+
 - [x] Dostarczyć [ticket-006](project/ticket-006/README.md): opisać użycie,
   kryteria, potwierdzenia i rezultat funkcji
   `fixos cleanup --orphaned-projects`. Stan: `DONE / DONE`; PR #12 został
