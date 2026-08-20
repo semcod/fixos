@@ -2,8 +2,8 @@
 
 - **ID**: ticket-003
 - **Owner**: unresolved:human
-- **Status**: IN_PROGRESS
-- **Workflow state**: PUBLICATION
+- **Status**: DONE
+- **Workflow state**: DONE
 - **Created**: 2026-08-20
 
 ## Goal and scope
@@ -74,6 +74,23 @@ option. Containers, images, networks and volumes are never deleted.
   made no changes. The pre-publication installed executable was correctly
   identified as stale and is updated only after the governed revision is
   published.
+
+## Publication
+
+- [PR #4](https://github.com/semcod/fixos/pull/4) passed the three-version
+  Python suite, five-distribution Docker matrix, summary and remote lifecycle
+  checks on exact head `50c71fbf10a135c9776bb5fc3a449a120357322b`.
+- Repository-scoped Validator App review `4980723215` approved that exact head
+  for `ticket-003` after deterministic validation and two stable policy reads.
+- The protected validator merged PR #4 as
+  `085c6365968a11a86ffad0c218826194f0ef2277`; the remote implementation branch
+  was deleted automatically.
+- Post-merge runs `32350212540`, `32350212622` and `32350211916` passed every
+  Python, Docker, build, deploy, dispatch and report check on integrated
+  `main`. The temporary clean validator worktree was removed without touching
+  the unrelated dirty validator checkout.
+- The local FixOS environment now runs editable version 2.2.47 from integrated
+  `main`, and the ordinary `fixos` welcome/help screens expose the new command.
 
 ## Participants
 

@@ -20,3 +20,9 @@
 2026-08-20 cli-installed-prepublication: installed executable was an older package and did not yet expose the option; update deferred until governed source publication
 2026-08-20 cli-final-full: pytest -q -> 474 passed, 5 skipped, 16 deselected
 2026-08-20 cli-final-governance: passed -> 0 errors, 0 warnings
+2026-08-20 protected-delivery: PR #4 exact head 50c71fbf10a135c9776bb5fc3a449a120357322b passed 10 implementation checks
+2026-08-20 validator: run 32349993900 passed; repository-scoped App review 4980723215 approved exact head for ticket-003 after 2 stable policy reads
+2026-08-20 merge: protected validator merged PR #4 as 085c6365968a11a86ffad0c218826194f0ef2277; remote implementation branch absent
+2026-08-20 post-merge: runs 32350212540, 32350212622 and 32350211916 passed Python 3.10/3.11/3.12, Fedora/Ubuntu/Debian/Arch/Alpine, summary, build, deploy, dispatch and report checks
+2026-08-20 workspace-audit: exact temporary validator worktree removed through Git; unrelated dirty validator checkout and worktrees preserved
+2026-08-20 local-install: ordinary fixos resolves editable version 2.2.47 from integrated main and exposes docker-stale-services with default threshold 3

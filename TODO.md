@@ -8,11 +8,12 @@ Ostatni przegląd: 2026-07-23.
 
 ## Aktywne
 
-- [ ] Dostarczyć [ticket-003](project/ticket-003/README.md): konserwatywnie
+- [x] Dostarczyć [ticket-003](project/ticket-003/README.md): konserwatywnie
   wykrywać stare kontenery Docker uruchamiane automatycznie, wiązać je z
   nieaktywnymi repozytoriami Git i wyłączać autostart wyłącznie po jawnym
   wyborze, bez usuwania danych Dockera oraz udostępnić ten przepływ w menu
-  `fixos cleanup`. Stan: `IN_PROGRESS / PUBLICATION`.
+  `fixos cleanup`. Stan: `DONE / DONE`; PR #4 został zatwierdzony przez
+  Validator App i scalony jako `085c636...`, a testy po merge przeszły.
 
 - [x] Dostarczyć [ticket-001](project/ticket-001/README.md): przypiąć pełny
   standard `wellmanifest/new-project` v0.16.1, skonfigurować ścieżki FixOS,
