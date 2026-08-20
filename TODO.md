@@ -8,6 +8,10 @@ Ostatni przegląd: 2026-07-23.
 
 ## Aktywne
 
+- [ ] Dostarczyć [ticket-006](project/ticket-006/README.md): opisać użycie,
+  kryteria, potwierdzenia i rezultat funkcji
+  `fixos cleanup --orphaned-projects`. Stan: `IN_PROGRESS / PUBLICATION`.
+
 - [x] Dostarczyć [ticket-005](project/ticket-005/README.md): zawsze pokazywać
   próbkowane procesy najbardziej obciążające CPU lub RAM w `fixos quick` oraz
   zweryfikować konserwatywny przegląd usług Docker nieaktywnych od ponad trzech

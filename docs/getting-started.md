@@ -90,6 +90,43 @@ grupy. Element bez bezpiecznej operacji usuwania pokazuje tylko diagnostykę.
 
 Po opcji `[1]` odśwież stan: `fixos cleanup --list` (listy podsumowania
 pochodzą ze skanu sprzed wykonania).
+
+### Osierocone obciążenia projektów
+
+Menu wyświetlane przez samo `fixos` zawiera akcję
+`fixos cleanup --orphaned-projects`. Jest to skrót informacyjny: uruchomienie
+menu niczego automatycznie nie zatrzymuje. Najpierw obejrzyj kandydatów:
+
+```bash
+fixos cleanup --orphaned-projects --days 3 --dry-run
+fixos cleanup --orphaned-projects --days 3 --list
+fixos cleanup --orphaned-projects --days 3 --process-hours 12 --json
+```
+
+Równoważny alias to `fixos cleanup -c orphaned-projects`. Domyślny próg wynosi
+3 dni dla kontenerów i 12 godzin dla procesów. Kontener Compose trafia na listę
+tylko wtedy, gdy ma politykę startową `always` lub `unless-stopped`, jego
+bezwzględna ścieżka katalogu projektu już nie istnieje, a wiek przekracza próg.
+Procesy obejmują stare drzewa agentów PyCharma oraz serwery developerskie PHP
+lub Node bez podłączonych klientów. Wynik pokazuje PID, wiek, potomków, RAM,
+porty i połączenia.
+
+FixOS chroni własne drzewo procesu, konta systemowe, główny proces JetBrains
+oraz bieżące procesy Codex. Sam wiek nie powoduje zmiany. Bez `--dry-run` lub
+`--list` wybierasz dokładne numery (`1,3-5` albo `all`), następnie osobno
+potwierdzasz:
+
+1. ustawienie `restart=no` i zatrzymanie wybranych kontenerów,
+2. łagodne zakończenie wybranych drzew procesów,
+3. opcjonalne wymuszenie tylko dla procesów, które nie zakończyły się łagodnie.
+
+Przed zmianą FixOS wykonuje świeży skan i ponownie sprawdza pełny identyfikator
+kontenera oraz czas utworzenia PID. Procesy są kończone od liści do korzenia.
+Po sukcesie wybrane kontenery pozostają zapisane w stanie `exited` z
+`restart=no`, a wybrane drzewa procesów nie działają. Kontenery, wolumeny,
+obrazy, sieci, katalogi projektów i pliki nie są usuwane. Ponowne uruchomienie
+dry-run powinno pokazać, że wykonane cele nie są już kandydatami.
+
 ## Diagnostyka bez LLM
 
 ```bash

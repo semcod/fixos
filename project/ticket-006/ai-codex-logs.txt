@@ -1,0 +1,6 @@
+2026-08-20 scope: documentation-only integration ticket for the merged ticket-004 command; no source/test changes
+2026-08-20 help-consistency: installed welcome and cleanup help expose --orphaned-projects, --process-hours and retained-data wording
+2026-08-20 full: pytest -q -> 510 passed, 5 skipped, 16 deselected
+2026-08-20 governance-first: metadata-only ui evidence mismatch found and corrected; no documentation/content defect
+2026-08-20 publication: all acceptance criteria satisfied; ticket transitioned to IN_PROGRESS / PUBLICATION
+2026-08-20 final-governance: passed -> 0 errors, 0 warnings; git diff --check passed
