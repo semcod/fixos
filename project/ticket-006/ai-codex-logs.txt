@@ -4,3 +4,7 @@
 2026-08-20 governance-first: metadata-only ui evidence mismatch found and corrected; no documentation/content defect
 2026-08-20 publication: all acceptance criteria satisfied; ticket transitioned to IN_PROGRESS / PUBLICATION
 2026-08-20 final-governance: passed -> 0 errors, 0 warnings; git diff --check passed
+2026-08-20 protected-delivery: PR #12 exact head a6a3fff0453b7f3f07ddac78d1ea437b5eb0c60c passed all hosted checks
+2026-08-20 validator: run 32357794634; App review 4981558384 approved exact head after 2 stable policy reads
+2026-08-20 merge: PR #12 merged as db81ef8a15e15994b698a5140e82cfaa323d63ea; remote implementation branch deleted
+2026-08-20 closure: ticket transitioned to DONE / DONE from integrated main in a governance-only change

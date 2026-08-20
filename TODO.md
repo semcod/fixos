@@ -8,9 +8,10 @@ Ostatni przegląd: 2026-07-23.
 
 ## Aktywne
 
-- [ ] Dostarczyć [ticket-006](project/ticket-006/README.md): opisać użycie,
+- [x] Dostarczyć [ticket-006](project/ticket-006/README.md): opisać użycie,
   kryteria, potwierdzenia i rezultat funkcji
-  `fixos cleanup --orphaned-projects`. Stan: `IN_PROGRESS / PUBLICATION`.
+  `fixos cleanup --orphaned-projects`. Stan: `DONE / DONE`; PR #12 został
+  zatwierdzony przez Validator App i scalony jako `db81ef8...`.
 
 - [x] Dostarczyć [ticket-005](project/ticket-005/README.md): zawsze pokazywać
   próbkowane procesy najbardziej obciążające CPU lub RAM w `fixos quick` oraz
