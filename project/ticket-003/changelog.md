@@ -1,5 +1,14 @@
 # Ticket Changelog (ticket-003)
 
+## [0.1.1] - 2026-08-20
+
+- Passed exact-head CI and repository-scoped Validator App approval, then
+  merged PR #4 through the protected autonomous merge path.
+- Passed post-merge Python, Docker, build/deploy/dispatch/report checks and
+  verified automatic implementation-branch deletion.
+- Updated the local FixOS environment to integrated 2.2.47 and closed the
+  ticket from merged `main` in this governance-only change.
+
 ## [0.1.0] - 2026-08-20
 
 - Initial governance scaffold created.
