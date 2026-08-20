@@ -1,0 +1,22 @@
+2026-08-20T08:00:00Z scope: user-authorized Docker startup optimizer; no live mutation authorized or performed
+2026-08-20 focused: pytest -q tests/unit/test_docker_startup_optimizer.py -> 9 passed
+2026-08-20 static: compileall and ruff -> passed
+2026-08-20 live-read-only: 191 containers; 103 docker exec helpers matched; 3 candidates; 0 changes
+2026-08-20 live-candidates: cybermysz-app, cybermysz-mailpit, cybermysz-traefik -> ../if-uri/cybermysz-pl; clean; last commit 2026-07-15T09:45:10+00:00; 35.9 inactive days
+2026-08-20 preliminary-combined-worktree: pytest -q -> 495 passed, 5 skipped, 16 deselected
+2026-08-20 worktree-separation: ticket-002 files preserved byte-identically in sibling worktree; ticket-002 governance -> 0 errors, 0 warnings
+2026-08-20 final-independent-full: pytest -q -> 469 passed, 5 skipped, 16 deselected
+2026-08-20 final-independent-governance: passed -> 0 errors, 0 warnings
+2026-08-20 authorized-live-apply: min_inactive_days=3; 13 exact candidates; docker update --restart=no plus opt-in bounded stop; 13 changed; 0 failed; no Docker objects deleted
+2026-08-20 live-repositories: ../subactor/contractor-portal (1), ../if-uri/cybermysz-pl (3), ../subactor/onedev-agent (7), ../subactor/views (1), ../zlecenia/wydruk-etykiet (1)
+2026-08-20 restarting-edge: ifuri-onedev-scheduler-1 had restart=no but remained restarting; exact full-ID stop succeeded and status verified exited
+2026-08-20 post-live: all 13 selected containers exited with restart=no; 10/10 former helper PIDs absent; docker exec helper count 102 -> 92; stale candidates remaining 0
+2026-08-20 pycharm-post-live: PID 143907 alive; threads 884 -> 843; five CPU samples averaged 494.9%; Docker cleanup not sufficient to claim IDE recovery
+2026-08-20 regression: focused 10 passed; compileall and ruff passed
+2026-08-20 final-after-live: pytest -q -> 470 passed, 5 skipped, 16 deselected
+2026-08-20 cli-expansion: user explicitly authorized menu integration and publication; ticket returned through EDIT and VALIDATION
+2026-08-20 cli-focused: optimizer plus cleanup CLI -> 31 passed; compileall passed; scoped ruff passed (existing main.py E402 registration layout excluded)
+2026-08-20 cli-live-source: welcome/help expose docker-stale-services; 3-day dry-run -> 0 candidates, 92 helpers, 0 changes
+2026-08-20 cli-installed-prepublication: installed executable was an older package and did not yet expose the option; update deferred until governed source publication
+2026-08-20 cli-final-full: pytest -q -> 474 passed, 5 skipped, 16 deselected
+2026-08-20 cli-final-governance: passed -> 0 errors, 0 warnings

@@ -393,6 +393,8 @@ def test_welcome_menu_lists_docker_old_option():
     assert "stare obrazy/cache i osierocone sieci" in result.output
     assert "fixos cleanup --docker-networks" in result.output
     assert "pulę adresową" in result.output
+    assert "fixos cleanup --docker-stale-services" in result.output
+    assert "wyłącz autostart" in result.output
     assert "fixos cleanup --ollama-old" in result.output
     assert "modele Ollama" in result.output
 
@@ -578,3 +580,148 @@ def test_build_safe_age_actions_includes_old_ollama(monkeypatch):
     assert ollama["risk_level"] == "safe"
     assert ollama["safe_to_cleanup"] is True
     assert "old:7b" in ollama["cleanup_command"]
+
+
+def _stale_container(index: int) -> dict:
+    container_id = str(index) * 64
+    return {
+        "id": container_id,
+        "short_id": container_id[:12],
+        "name": f"old-service-{index}",
+        "repository": f"/work/repo-{index}",
+        "inactivity_days": 4.0 + index,
+        "status": "running",
+        "restart_policy": "unless-stopped",
+        "docker_exec_helpers": [{"pid": 4000 + index}],
+    }
+
+
+def test_docker_stale_services_dry_run_defaults_to_three_days(monkeypatch):
+    captured = {}
+
+    class Optimizer:
+        def scan(self, min_inactive_days):
+            captured["days"] = min_inactive_days
+            return {
+                "candidates": [_stale_container(1)],
+                "docker_exec_helper_count": 1,
+            }
+
+        def optimize(self, *args, **kwargs):
+            raise AssertionError("dry-run menu must not mutate Docker")
+
+    monkeypatch.setattr(cleanup_cmd, "DockerStartupOptimizer", Optimizer)
+
+    result = CliRunner().invoke(
+        cleanup_cmd.cleanup_services,
+        ["--docker-stale-services", "--dry-run"],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert captured == {"days": 3}
+    assert "old-service-1" in result.output
+    assert "[TRYB DRY-RUN]" in result.output
+    assert "brak zmian w Dockerze" in result.output
+
+
+def test_docker_stale_services_selects_exact_ids_and_confirms_stop(monkeypatch):
+    candidates = [_stale_container(1), _stale_container(2), _stale_container(3)]
+    captured = {}
+
+    class Optimizer:
+        def scan(self, min_inactive_days):
+            return {
+                "candidates": candidates,
+                "docker_exec_helper_count": 3,
+            }
+
+        def optimize(self, container_ids, **kwargs):
+            captured["ids"] = container_ids
+            captured.update(kwargs)
+            selected = [candidates[0], candidates[2]]
+            return {
+                "success": True,
+                "changed": [
+                    {
+                        **candidate,
+                        "restart_policy": "no",
+                        "status": "exited",
+                    }
+                    for candidate in selected
+                ],
+                "failed": [],
+            }
+
+    monkeypatch.setattr(cleanup_cmd, "DockerStartupOptimizer", Optimizer)
+
+    result = CliRunner().invoke(
+        cleanup_cmd.cleanup_services,
+        ["--docker-stale-services", "--days", "5"],
+        input="1,3\ny\ny\n",
+    )
+
+    assert result.exit_code == 0, result.output
+    assert captured == {
+        "ids": [candidates[0]["id"], candidates[2]["id"]],
+        "min_inactive_days": 5,
+        "apply": True,
+        "stop_running": True,
+    }
+    assert "old-service-1" in result.output
+    assert "old-service-3" in result.output
+    assert "Optymalizacja usług Docker zakończona" in result.output
+
+
+def test_docker_stale_services_can_disable_autostart_without_stopping(monkeypatch):
+    candidate = _stale_container(1)
+    captured = {}
+
+    class Optimizer:
+        def scan(self, min_inactive_days):
+            return {
+                "candidates": [candidate],
+                "docker_exec_helper_count": 1,
+            }
+
+        def optimize(self, container_ids, **kwargs):
+            captured.update(kwargs)
+            return {
+                "success": True,
+                "changed": [
+                    {
+                        **candidate,
+                        "restart_policy": "no",
+                        "status": "running",
+                    }
+                ],
+                "failed": [],
+            }
+
+    monkeypatch.setattr(cleanup_cmd, "DockerStartupOptimizer", Optimizer)
+
+    result = CliRunner().invoke(
+        cleanup_cmd.cleanup_services,
+        ["-c", "docker-stale-services"],
+        input="all\ny\nn\n",
+    )
+
+    assert result.exit_code == 0, result.output
+    assert captured["apply"] is True
+    assert captured["stop_running"] is False
+    assert "stan=running" in result.output
+
+
+def test_docker_stale_services_rejects_combined_cleanup_modes(monkeypatch):
+    class Optimizer:
+        def __init__(self):
+            raise AssertionError("conflicting modes must fail before scanning")
+
+    monkeypatch.setattr(cleanup_cmd, "DockerStartupOptimizer", Optimizer)
+
+    result = CliRunner().invoke(
+        cleanup_cmd.cleanup_services,
+        ["--docker-stale-services", "--docker-old"],
+    )
+
+    assert result.exit_code == 0
+    assert "uruchom osobno" in result.output
