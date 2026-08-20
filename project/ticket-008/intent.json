@@ -1,0 +1,109 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-008",
+  "summary": "Expose JetBrains doctor CLI",
+  "workstream": "application",
+  "classification": {
+    "kind": "FEATURE",
+    "priority": "P1",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-008/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/diagnostics/jetbrains_recovery.py",
+    "fixos/cli/jetbrains_cmd.py",
+    "fixos/cli/main.py",
+    "tests/unit/test_jetbrains_recovery.py",
+    "tests/unit/test_jetbrains_cmd.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md",
+    "docs/**",
+    "README.md",
+    "CHANGELOG.md",
+    "VERSION",
+    "pyproject.toml",
+    "uv.lock",
+    ".env",
+    "**/*.pem",
+    "**/*secret*"
+  ],
+  "stacks": ["python"],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "7ec3ffbc5ac50de74f218f01df8b299a6c93355d",
+    "targetBranch": "main",
+    "outcome": "FixOS users can diagnose the shared JetBrains JVM and optionally run a justified window-preserving GC for one exact PID",
+    "nonGoals": [
+      "No IDE window, JVM, helper process or project termination",
+      "No plugin disablement or JetBrains configuration edit",
+      "No GC without correlated heap and stall evidence",
+      "No persistent ignore configuration in this ticket",
+      "No runtime dependency or public API path change",
+      "No user documentation change in the application workstream"
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 30,
+    "budgets": {
+      "maxImplementationFiles": 5,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Keep all JVM safety and evidence in JetBrainsRecovery and add a thin Click adapter for discovery, rendering and explicit confirmation",
+      "components": [
+        {
+          "name": "jetbrains-recovery-diagnostics",
+          "paths": [
+            "fixos/diagnostics/jetbrains_recovery.py",
+            "tests/unit/test_jetbrains_recovery.py"
+          ]
+        },
+        {
+          "name": "jetbrains-cli",
+          "paths": [
+            "fixos/cli/jetbrains_cmd.py",
+            "fixos/cli/main.py",
+            "tests/unit/test_jetbrains_cmd.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "multi-state",
+        "states": ["empty", "error", "success"],
+        "evidence": ["focused CLI tests", "live read-only doctor"]
+      },
+      "rollback": "Revert the CLI registration, quota signal and focused tests; no persistent state is created"
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-05",
+        "commands": [
+          "pytest -q tests/unit/test_jetbrains_recovery.py tests/unit/test_jetbrains_cmd.py",
+          "fixos jetbrains doctor --json"
+        ],
+        "evidence": "project/ticket-008/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-06",
+        "commands": [
+          "ruff check on changed Python files",
+          "python -m compileall -q fixos",
+          "pytest -q",
+          "./project/governance-check.sh"
+        ],
+        "evidence": "project/ticket-008/ai-codex-logs.txt"
+      }
+    ]
+  }
+}

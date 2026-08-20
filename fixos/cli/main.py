@@ -98,6 +98,11 @@ def _print_welcome() -> None:
             "Wybierz obciążenia projektów, których katalog już nie istnieje",
         ),
         (
+            "fixos jetbrains doctor",
+            "",
+            "Diagnozuj JVM, EDT i logi IDE bez zamykania okien",
+        ),
+        (
             "fixos cleanup --ollama-old",
             "",
             "Usuń modele Ollama niezmieniane od 90+ dni",
@@ -229,6 +234,7 @@ from fixos.cli.cleanup_cmd import cleanup_services
 from fixos.cli.projects_cmd import projects_cmd
 from fixos.cli.features_cmd import features
 from fixos.cli.quick_cmd import quick
+from fixos.cli.jetbrains_cmd import jetbrains
 
 cli.add_command(quick)
 cli.add_command(rollback)
@@ -249,3 +255,4 @@ cli.add_command(orchestrate)
 cli.add_command(cleanup_services)
 cli.add_command(projects_cmd)
 cli.add_command(features)
+cli.add_command(jetbrains)

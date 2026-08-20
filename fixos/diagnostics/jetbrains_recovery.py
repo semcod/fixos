@@ -102,6 +102,7 @@ class JetBrainsLogSignals:
     project_disposals: int = 0
     working_directory_errors: int = 0
     git_stash_refresh_failures: int = 0
+    ai_quota_errors: int = 0
     missing_working_directories: tuple[str, ...] = ()
 
     @property
@@ -167,6 +168,7 @@ def analyze_idea_log(
     disposals = 0
     workdir_errors = 0
     stash_failures = 0
+    quota_errors = 0
     missing_paths: set[str] = set()
     include_continuation = since_timestamp is None
 
@@ -200,6 +202,11 @@ def analyze_idea_log(
             missing_paths.add(missing_match.group("path"))
         if "gitstashtacker" in lowered or "gitstashtracker" in lowered:
             stash_failures += 1
+        if "quotamanager2impl" in lowered and (
+            "resultdoesnotmatchconditionexception" in lowered
+            or "quota refill state is: error" in lowered
+        ):
+            quota_errors += 1
 
     return JetBrainsLogSignals(
         write_action_waits=write_waits,
@@ -208,6 +215,7 @@ def analyze_idea_log(
         project_disposals=disposals,
         working_directory_errors=workdir_errors,
         git_stash_refresh_failures=stash_failures,
+        ai_quota_errors=quota_errors,
         missing_working_directories=tuple(sorted(missing_paths)),
     )
 
@@ -440,6 +448,8 @@ class JetBrainsRecovery:
             reasons.append("repeated-missing-working-directory")
         if signals.git_stash_refresh_failures >= 3:
             reasons.append("git-stash-refresh-loop")
+        if signals.ai_quota_errors >= 3:
+            reasons.append("ai-quota-refresh-loop")
         if metrics.cpu_percent >= 100.0:
             reasons.append("high-ide-cpu")
         if metrics.thread_count >= 600:
@@ -461,7 +471,11 @@ class JetBrainsRecovery:
             and signals.max_edt_grab_ms >= 2_000
         ):
             severity = "high"
-        elif signals.has_stall_evidence or metrics.cpu_percent >= 100.0:
+        elif (
+            signals.has_stall_evidence
+            or signals.ai_quota_errors >= 3
+            or metrics.cpu_percent >= 100.0
+        ):
             severity = "warning"
         else:
             severity = "normal"

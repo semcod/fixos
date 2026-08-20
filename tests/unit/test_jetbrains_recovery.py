@@ -117,6 +117,20 @@ def test_log_analysis_ignores_events_before_lookback():
     assert signals.write_action_waits == 1
 
 
+def test_log_analysis_reports_ai_quota_loop_without_stall_evidence():
+    signals = analyze_idea_log(
+        "\n".join(
+            "2026-08-20 08:30:00,000 INFO - #c.i.m.l.c.q.QuotaManager2Impl - "
+            "New quota refill state is: Error(exception="
+            "ResultDoesNotMatchConditionException)"
+            for _ in range(4)
+        )
+    )
+
+    assert signals.ai_quota_errors == 4
+    assert signals.has_stall_evidence is False
+
+
 def datetime_timestamp(value: str) -> float:
     from datetime import datetime
 
@@ -221,6 +235,36 @@ def test_high_cpu_without_heap_pressure_does_not_justify_gc(tmp_path):
     assert diagnosis.gc_recommended is False
     assert diagnosis.severity == "warning"
     assert "high-process-memory" in diagnosis.reason_codes
+
+
+def test_quota_loop_is_warning_but_does_not_justify_gc(tmp_path):
+    process = _process()
+    log = tmp_path / "idea.log"
+    log.write_text(
+        "\n".join(
+            "2026-08-20 08:00:30,000 INFO - #c.i.m.l.c.q.QuotaManager2Impl - "
+            "New quota refill state is: Error(exception="
+            "ResultDoesNotMatchConditionException)"
+            for _ in range(3)
+        ),
+        encoding="utf-8",
+    )
+
+    def runner(command, **kwargs):
+        return _completed(command, "committed 100000K, used 50000K")
+
+    diagnosis = JetBrainsRecovery(
+        process_provider=lambda: [process],
+        metrics_provider=lambda pid: _metrics(cpu=10.0, memory=10.0, threads=100),
+        runner=runner,
+        clock=lambda: datetime_timestamp("2026-08-20 08:01:00,000"),
+        jcmd_finder=lambda item: Path("/fake/jcmd"),
+        log_finder=lambda item: log,
+    ).diagnose(100, lookback_seconds=120, capture_thread_dump=False)
+
+    assert diagnosis.severity == "warning"
+    assert "ai-quota-refresh-loop" in diagnosis.reason_codes
+    assert diagnosis.gc_recommended is False
 
 
 def _diagnosis(*, recommended: bool = True, log_path: Path | None = None):
