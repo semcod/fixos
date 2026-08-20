@@ -80,3 +80,9 @@ tree analysis and post-action verification, not a heuristic that equates
 - Rebased the ticket onto integrated `main` at `8ec98ff...`, preserving the
   completed Docker startup optimizer from ticket 003 and refreshing the
   accepted base before publication.
+- Published exact head `70609fb...` as PR #6. Validator App review
+  `4981125970` approved it after two stable reads and the protected workflow
+  merged it as `10c550c...`, then deleted the remote branch.
+- Returned to integrated `main`, removed the clean released implementation and
+  temporary validator worktrees through Git, and began this governance-only
+  closure.
