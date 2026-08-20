@@ -16,6 +16,11 @@ from fixos.diagnostics.docker_startup_optimizer import (
     DEFAULT_DOCKER_STALE_SERVICE_DAYS,
     DockerStartupOptimizer,
 )
+from fixos.diagnostics.orphaned_workloads import (
+    DEFAULT_ORPHANED_PROJECT_DAYS,
+    DEFAULT_STALE_PROCESS_HOURS,
+    OrphanedWorkloadCleaner,
+)
 from fixos.diagnostics.service_scanner import ServiceDataScanner
 from fixos.constants import DEFAULT_CLEANUP_THRESHOLD_MB
 
@@ -811,6 +816,156 @@ def _cleanup_docker_stale_services(
         click.echo(click.style("Optymalizacja usług Docker zakończona.", fg="green"))
 
 
+def _display_orphaned_candidates(scan: dict) -> list[tuple[str, dict]]:
+    """Render one exact selection list for Docker and process-tree candidates."""
+    click.echo(click.style("Osierocone obciążenia projektów", fg="yellow"))
+    combined: list[tuple[str, dict]] = []
+    for candidate in scan["docker_candidates"]:
+        combined.append(("docker", candidate))
+        click.echo(
+            f"  [{len(combined)}] Docker {candidate['name']} "
+            f"({candidate['short_id']}) — {candidate['age_days']:.1f} dni, "
+            f"restart={candidate['restart_policy']}, stan={candidate['status']}"
+        )
+        click.echo(f"      brak katalogu: {candidate['working_dir']}")
+    for candidate in scan["process_candidates"]:
+        combined.append(("process", candidate))
+        ports = ",".join(str(port) for port in candidate["listen_ports"]) or "brak"
+        click.echo(
+            f"  [{len(combined)}] Proces {candidate['reason']} PID "
+            f"{candidate['root_pid']} — {candidate['age_hours']:.1f} h, "
+            f"procesy={candidate['process_count']}, RAM={candidate['memory_mb']:.1f} MB"
+        )
+        click.echo(
+            f"      porty={ports}, aktywne połączenia="
+            f"{candidate['established_connections']}"
+        )
+    if not combined:
+        click.echo("  Brak obciążeń spełniających bezpieczne kryteria.")
+    return combined
+
+
+def _cleanup_orphaned_projects(
+    days: int,
+    process_hours: float,
+    json_output: bool,
+    dry_run: bool,
+    list_only: bool,
+) -> None:
+    """Interactively clean exact missing-project containers and process trees."""
+    cleaner = OrphanedWorkloadCleaner()
+    try:
+        scan = cleaner.scan(
+            min_age_days=days,
+            min_process_hours=process_hours,
+        )
+    except (RuntimeError, ValueError) as exc:
+        if json_output:
+            import json
+
+            click.echo(json.dumps({"success": False, "error": str(exc)}))
+        else:
+            click.echo(click.style(f"Błąd: {exc}", fg="red"))
+        return
+
+    if json_output:
+        import json
+
+        click.echo(json.dumps(scan, indent=2, default=str))
+        return
+
+    combined = _display_orphaned_candidates(scan)
+    if not combined:
+        return
+    if dry_run or list_only:
+        mode = "DRY-RUN" if dry_run else "LISTA"
+        click.echo(
+            click.style(
+                f"[TRYB {mode}] - brak zmian w Dockerze i procesach",
+                fg="cyan",
+            )
+        )
+        return
+
+    raw_selection = click.prompt(
+        "Wybierz numery obciążeń (np. 1,3-5 lub all; 0 pomija)",
+        default="0",
+        show_default=True,
+    ).strip()
+    if raw_selection.lower() == "all":
+        selected_numbers = set(range(1, len(combined) + 1))
+    else:
+        selected_numbers = {
+            number
+            for number in _parse_numeric_range_set(raw_selection)
+            if 1 <= number <= len(combined)
+        }
+    if not selected_numbers:
+        click.echo(click.style("Pominięto osierocone obciążenia.", fg="yellow"))
+        return
+
+    selected = [combined[number - 1] for number in sorted(selected_numbers)]
+    docker_selected = [item for kind, item in selected if kind == "docker"]
+    process_selected = [item for kind, item in selected if kind == "process"]
+    if docker_selected and not click.confirm(
+        "Wyłączyć autostart i zatrzymać wybrane kontenery (bez usuwania danych)?",
+        default=False,
+    ):
+        docker_selected = []
+    force_processes = False
+    if process_selected and not click.confirm(
+        "Zakończyć łagodnie wybrane drzewa procesów?",
+        default=False,
+    ):
+        process_selected = []
+    elif process_selected:
+        force_processes = click.confirm(
+            "Wymusić zakończenie procesów, które nie wyjdą łagodnie?",
+            default=False,
+        )
+    if not docker_selected and not process_selected:
+        click.echo(click.style("Nie wykonano zmian.", fg="yellow"))
+        return
+
+    result = cleaner.cleanup(
+        docker_ids=[item["id"] for item in docker_selected],
+        process_identities=[
+            (item["root_pid"], item["create_time"]) for item in process_selected
+        ],
+        min_age_days=days,
+        min_process_hours=process_hours,
+        apply=True,
+        force_processes=force_processes,
+    )
+    for changed in result["docker_changed"]:
+        click.echo(
+            click.style(
+                f"  ✓ Docker {changed['name']}: restart=no, "
+                f"stan={changed['status']}",
+                fg="green",
+            )
+        )
+    for changed in result["processes_changed"]:
+        click.echo(
+            click.style(
+                f"  ✓ Proces PID {changed['root_pid']}: zakończono "
+                f"{len(changed['target_pids'])} procesów",
+                fg="green",
+            )
+        )
+    for failed in result["failed"]:
+        target = failed.get("name") or failed.get("root_pid") or failed.get("id")
+        message = failed.get("error") or "; ".join(failed.get("errors") or ())
+        click.echo(click.style(f"  Błąd {target}: {message}", fg="red"))
+    if result["success"]:
+        click.echo(
+            click.style(
+                "Czyszczenie osieroconych obciążeń zakończone; dane zachowano.",
+                fg="green",
+            )
+        )
+
+
 def _cleanup_ollama_old_unused(
     scanner, days: int, json_output: bool, dry_run: bool
 ) -> None:
@@ -1038,7 +1193,7 @@ def _run_interactive_cleanup(plan: dict, list_only: bool, scanner) -> None:
     help=(
         "Wyczyść konkretną usługę "
         "(docker, docker-all, docker-old, docker-networks, "
-        "docker-stale-services, ollama-old, npm, ...)"
+        "docker-stale-services, orphaned-projects, ollama-old, npm, ...)"
     ),
 )
 @click.option(
@@ -1084,6 +1239,24 @@ def _run_interactive_cleanup(plan: dict, list_only: bool, scanner) -> None:
     ),
 )
 @click.option(
+    "--orphaned-projects",
+    "orphaned_projects",
+    is_flag=True,
+    default=False,
+    help=(
+        "Wybierz kontenery Compose, których katalog projektu nie istnieje od "
+        f"co najmniej {DEFAULT_ORPHANED_PROJECT_DAYS} dni, oraz stare drzewa "
+        "agentów IDE/serwerów developerskich; zachowuje dane i chroni bieżące IDE/Codex"
+    ),
+)
+@click.option(
+    "--process-hours",
+    default=DEFAULT_STALE_PROCESS_HOURS,
+    type=float,
+    show_default=True,
+    help="Minimalny wiek jawnie wybieranych agentów IDE i serwerów developerskich",
+)
+@click.option(
     "--ollama-old",
     "ollama_old",
     is_flag=True,
@@ -1103,6 +1276,8 @@ def _run_interactive_cleanup(plan: dict, list_only: bool, scanner) -> None:
         f"(domyślnie {DEFAULT_DOCKER_NETWORK_AGE_DAYS}, czyli wszystkie nieużywane), "
         "--docker-stale-services "
         f"(domyślnie {DEFAULT_DOCKER_STALE_SERVICE_DAYS}) "
+        "lub --orphaned-projects "
+        f"(domyślnie {DEFAULT_ORPHANED_PROJECT_DAYS}) "
         "lub --ollama-old "
         f"(domyślnie {DEFAULT_OLLAMA_OLD_UNUSED_DAYS})"
     ),
@@ -1137,6 +1312,8 @@ def cleanup_services(
     docker_all,
     docker_networks,
     docker_stale_services,
+    orphaned_projects,
+    process_hours,
     ollama_old,
     days,
     dry_run,
@@ -1169,6 +1346,10 @@ def cleanup_services(
       # podgląd usług z repozytoriów nieaktywnych od 3+ dni
       fixos cleanup --docker-stale-services --days 7
       # wybór usług, potwierdzenie restart=no i opcjonalnego zatrzymania
+      fixos cleanup --orphaned-projects --days 3 --dry-run
+      # brakujące katalogi Compose i stare lokalne drzewa procesów
+      fixos cleanup --orphaned-projects --days 3 --process-hours 12
+      # dokładny wybór; zatrzymuje obciążenia, zachowuje kontenery i wolumeny
       fixos cleanup --ollama-old --days 90 --dry-run
       # modele Ollama niezmieniane od 90+ dni
       fixos cleanup -c ollama-old
@@ -1186,6 +1367,7 @@ def cleanup_services(
     want_docker_stale_services = docker_stale_services or (
         cleanup == "docker-stale-services"
     )
+    want_orphaned_projects = orphaned_projects or cleanup == "orphaned-projects"
     want_ollama_old = ollama_old or (cleanup == "ollama-old")
     if want_docker_old and want_docker_all:
         click.echo(
@@ -1216,10 +1398,32 @@ def cleanup_services(
             )
         )
         return
+    if want_orphaned_projects and (
+        want_docker_old
+        or want_docker_all
+        or want_docker_networks
+        or want_docker_stale_services
+        or want_ollama_old
+    ):
+        click.echo(
+            click.style(
+                "Czyszczenie osieroconych projektów uruchom jako osobną akcję.",
+                fg="red",
+            )
+        )
+        return
     if docker_stale_services and cleanup and cleanup != "docker-stale-services":
         click.echo(
             click.style(
                 "--docker-stale-services nie można łączyć z innym -c/--cleanup.",
+                fg="red",
+            )
+        )
+        return
+    if orphaned_projects and cleanup and cleanup != "orphaned-projects":
+        click.echo(
+            click.style(
+                "--orphaned-projects nie można łączyć z innym -c/--cleanup.",
                 fg="red",
             )
         )
@@ -1254,6 +1458,16 @@ def cleanup_services(
         )
         _cleanup_docker_stale_services(
             effective_days,
+            json_output,
+            dry_run,
+            list_only,
+        )
+        return
+    if want_orphaned_projects:
+        effective_days = days if days is not None else DEFAULT_ORPHANED_PROJECT_DAYS
+        _cleanup_orphaned_projects(
+            effective_days,
+            process_hours,
             json_output,
             dry_run,
             list_only,

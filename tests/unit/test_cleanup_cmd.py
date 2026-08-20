@@ -395,6 +395,8 @@ def test_welcome_menu_lists_docker_old_option():
     assert "pulę adresową" in result.output
     assert "fixos cleanup --docker-stale-services" in result.output
     assert "wyłącz autostart" in result.output
+    assert "fixos cleanup --orphaned-projects" in result.output
+    assert "katalog już nie istnieje" in result.output
     assert "fixos cleanup --ollama-old" in result.output
     assert "modele Ollama" in result.output
 
@@ -725,3 +727,98 @@ def test_docker_stale_services_rejects_combined_cleanup_modes(monkeypatch):
 
     assert result.exit_code == 0
     assert "uruchom osobno" in result.output
+
+
+def _orphan_scan() -> dict:
+    return {
+        "docker_candidates": [
+            {
+                "id": "a" * 64,
+                "short_id": "a" * 12,
+                "name": "dbos-api",
+                "age_days": 5.0,
+                "restart_policy": "unless-stopped",
+                "status": "running",
+                "working_dir": "/gone/dbos",
+            }
+        ],
+        "process_candidates": [
+            {
+                "root_pid": 810433,
+                "create_time": 1234.5,
+                "reason": "stale-pycharm-agent-tree",
+                "age_hours": 48.0,
+                "process_count": 20,
+                "memory_mb": 512.0,
+                "listen_ports": [8781],
+                "established_connections": 0,
+            }
+        ],
+    }
+
+
+def test_orphaned_projects_dry_run_is_read_only_and_uses_safe_defaults(monkeypatch):
+    captured = {}
+
+    class Cleaner:
+        def scan(self, **kwargs):
+            captured.update(kwargs)
+            return _orphan_scan()
+
+        def cleanup(self, **kwargs):
+            raise AssertionError("dry-run must not call cleanup")
+
+    monkeypatch.setattr(cleanup_cmd, "OrphanedWorkloadCleaner", Cleaner)
+
+    result = CliRunner().invoke(
+        cleanup_cmd.cleanup_services,
+        ["--orphaned-projects", "--dry-run"],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert captured == {"min_age_days": 3, "min_process_hours": 12.0}
+    assert "dbos-api" in result.output
+    assert "PID 810433" in result.output
+    assert "brak zmian w Dockerze i procesach" in result.output
+
+
+def test_orphaned_projects_applies_only_exact_selected_identities(monkeypatch):
+    captured = {}
+
+    class Cleaner:
+        def scan(self, **kwargs):
+            return _orphan_scan()
+
+        def cleanup(self, **kwargs):
+            captured.update(kwargs)
+            return {
+                "success": True,
+                "docker_changed": [
+                    {"name": "dbos-api", "restart_policy": "no", "status": "exited"}
+                ],
+                "processes_changed": [
+                    {"root_pid": 810433, "target_pids": [810433, 810434]}
+                ],
+                "failed": [],
+            }
+
+    monkeypatch.setattr(cleanup_cmd, "OrphanedWorkloadCleaner", Cleaner)
+
+    result = CliRunner().invoke(
+        cleanup_cmd.cleanup_services,
+        ["-c", "orphaned-projects", "--days", "3", "--process-hours", "24"],
+        input="all\ny\ny\nn\n",
+    )
+
+    assert result.exit_code == 0, result.output
+    assert captured == {
+        "docker_ids": ["a" * 64],
+        "process_identities": [(810433, 1234.5)],
+        "min_age_days": 3,
+        "min_process_hours": 24.0,
+        "apply": True,
+        "force_processes": False,
+    }
+    assert "restart=no" in result.output
+    assert "zakończono 2 procesów" in result.output
+    assert "dane zachowano" in result.output
