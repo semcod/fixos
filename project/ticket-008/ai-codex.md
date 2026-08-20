@@ -45,6 +45,11 @@ error that should be diagnosed separately and must not itself justify GC.
   correctly refused to recommend GC and made no change.
 - Full validation passes 523 tests with 5 skipped and 16 deselected. Scoped
   Ruff, compileall and governance validation are clean.
+- Published PR #16 at exact head `98fd63d...`. Validator run 32361691933
+  approved it as review 4981932094 after two stable policy reads, merged it as
+  `d3c76d9...` and deleted the remote implementation branch.
+- Began this governance-only closure from the integrated merge commit and
+  marked the ticket `DONE / DONE` without changing executable code.
 
 ## Blockers
 

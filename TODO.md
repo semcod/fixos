@@ -8,9 +8,11 @@ Ostatni przegląd: 2026-07-23.
 
 ## Aktywne
 
-- [ ] Dostarczyć [ticket-008](project/ticket-008/README.md): udostępnić
+- [x] Dostarczyć [ticket-008](project/ticket-008/README.md): udostępnić
   `fixos jetbrains doctor` z diagnostyką JVM, EDT i logów oraz opcjonalnym,
-  ściśle uzasadnionym GC bez zamykania okien IDE.
+  ściśle uzasadnionym GC bez zamykania okien IDE. Stan: `DONE / DONE`; PR #16
+  został zatwierdzony przez Validator App dla HEAD `98fd63d...` i scalony jako
+  `d3c76d9...`.
 
 - [x] Dostarczyć [ticket-006](project/ticket-006/README.md): opisać użycie,
   kryteria, potwierdzenia i rezultat funkcji
