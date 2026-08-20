@@ -23,3 +23,16 @@
   fixos/cli/quick_cmd.py`: passed.
 - `git diff --check`: passed.
 - `./project/governance-check.sh`: GOV-PASS, 0 errors, 0 warnings.
+
+2026-08-20 protected publication
+- PR #8 exact head: `03925dcbd4b3790d2206ef08304e4e7d5f4042e9`.
+- All ten hosted implementation checks passed: Python 3.10/3.11/3.12,
+  governance remote lifecycle, Fedora, Ubuntu, Debian, Arch, Alpine and
+  test-summary.
+- Validator run `32355576116` produced repository-scoped App review
+  `4981345256` for `ticket-005` after two stable reads of the exact head.
+- The protected validator merged PR #8 as
+  `715f9611ab02c0808c7c5b74ed92d8eafb84086a` and deleted the remote
+  implementation branch.
+- Post-merge runs `32355746239` and `32355746264` passed the Python and complete
+  Docker matrices, including summary, on integrated `main`.

@@ -1,5 +1,13 @@
 # Ticket Changelog (ticket-005)
 
+## [0.1.1] - 2026-08-20
+
+- Passed exact-head CI and repository-scoped Validator App approval, then
+  merged PR #8 through the protected autonomous merge path.
+- Verified post-merge Python and five-distribution Docker checks and automatic
+  deletion of the remote implementation branch.
+- Closed ticket 005 from integrated `main` in a governance-only change.
+
 ## [0.1.0] - 2026-08-20
 
 - Initial governance scaffold created.
