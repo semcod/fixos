@@ -7,3 +7,6 @@
 2026-08-20 full validation: 523 passed, 5 skipped, 16 deselected
 2026-08-20 compileall: passed
 2026-08-20 final pre-publication governance: 0 errors, 0 warnings
+2026-08-20 publication: PR #16 exact head 98fd63de52103eff114b139da2780017b13a4198
+2026-08-20 validator: run 32361691933, review 4981932094, two stable reads
+2026-08-20 merge: d3c76d9; remote implementation branch deleted

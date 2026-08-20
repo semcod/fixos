@@ -11,3 +11,8 @@
 - Added AI quota-loop evidence that remains independent of GC justification.
 - Added deterministic regression coverage and verified the live PyCharm JVM
   without changing it.
+
+## [0.1.1] - 2026-08-20
+
+- Recorded protected exact-head approval and merge of PR #16.
+- Closed the integrated ticket without changing executable code.
