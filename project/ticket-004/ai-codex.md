@@ -53,6 +53,10 @@ these exact resources through FixOS in a trusted environment.
   PyCharm PID 143907 and both current Codex processes remained alive.
 - Verified that Docker retained 191 containers, 673 volumes, 319 images and 32
   networks. Only the running-container count changed from 102 to 72.
+- Published PR #9 at exact head `e3a56d8...`. Validator run 32356600596
+  approved it as review 4981457043 after two stable policy reads and merged it
+  as `6af598a...`; the remote implementation branch was deleted.
+- Began this governance-only closure from the integrated merge commit.
 
 ## Blockers
 
