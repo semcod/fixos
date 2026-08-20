@@ -1,0 +1,79 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-006",
+  "summary": "Document orphaned workload cleanup",
+  "workstream": "integration",
+  "classification": {
+    "kind": "SERVICE",
+    "priority": "P2",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-006/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "docs/getting-started.md"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md",
+    "fixos/**",
+    "tests/**",
+    "README.md",
+    "CHANGELOG.md",
+    "VERSION",
+    "pyproject.toml",
+    "uv.lock"
+  ],
+  "stacks": ["documentation"],
+  "dependsOn": ["ticket-004"],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "db5c9ddcc6e081d0ce4d167cfa251fa3b7f50f35",
+    "targetBranch": "main",
+    "outcome": "Operators can safely preview and use orphaned-workload cleanup from the documented FixOS menu flow",
+    "nonGoals": [
+      "No source-code or test changes",
+      "No automatic cleanup at FixOS startup",
+      "No deletion of Docker objects, project files or application data"
+    ],
+    "complexity": "XS",
+    "estimatedMinutes": 10,
+    "budgets": {
+      "maxImplementationFiles": 1,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Extend the existing getting-started cleanup section with the integrated command contract",
+      "components": [
+        {
+          "name": "getting-started-documentation",
+          "paths": ["docs/getting-started.md"]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the documentation-only commit"
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-05",
+        "commands": [
+          "python -m pytest -q",
+          "./project/governance-check.sh --actor agent"
+        ],
+        "evidence": "project/ticket-006/ai-codex-logs.txt"
+      }
+    ]
+  }
+}
