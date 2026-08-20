@@ -23,6 +23,7 @@ from fixos.diagnostics.orphaned_workloads import (
 )
 from fixos.diagnostics.service_scanner import ServiceDataScanner
 from fixos.constants import DEFAULT_CLEANUP_THRESHOLD_MB
+from fixos.orphan_pins import OrphanProjectPinError, OrphanProjectPins
 
 # Re-export public symbols used by fixos.cli (backward-compat)
 from fixos.cli._cleanup_flatpak import _cleanup_flatpak_detailed  # noqa: F401
@@ -717,9 +718,7 @@ def _display_stale_docker_candidates(candidates: list[dict], days: int) -> None:
             f"{candidate['inactivity_days']:.1f} dni, "
             f"stan={candidate['status']}, restart={candidate['restart_policy']}"
         )
-        click.echo(
-            f"      repo: {candidate['repository']}; docker exec: {helpers}"
-        )
+        click.echo(f"      repo: {candidate['repository']}; docker exec: {helpers}")
 
 
 def _cleanup_docker_stale_services(
@@ -749,16 +748,12 @@ def _cleanup_docker_stale_services(
 
     candidates = scan["candidates"]
     _display_stale_docker_candidates(candidates, days)
-    click.echo(
-        f"  Helpery docker exec w systemie: {scan['docker_exec_helper_count']}"
-    )
+    click.echo(f"  Helpery docker exec w systemie: {scan['docker_exec_helper_count']}")
     if not candidates:
         return
     if dry_run or list_only:
         mode = "DRY-RUN" if dry_run else "LISTA"
-        click.echo(
-            click.style(f"[TRYB {mode}] - brak zmian w Dockerze", fg="cyan")
-        )
+        click.echo(click.style(f"[TRYB {mode}] - brak zmian w Dockerze", fg="cyan"))
         return
 
     raw_selection = click.prompt(
@@ -800,9 +795,7 @@ def _cleanup_docker_stale_services(
     for changed in result["changed"]:
         state = changed.get("status") or "nieznany"
         click.echo(
-            click.style(
-                f"  ✓ {changed['name']}: restart=no, stan={state}", fg="green"
-            )
+            click.style(f"  ✓ {changed['name']}: restart=no, stan={state}", fg="green")
         )
     for failed in result["failed"]:
         click.echo(
@@ -840,9 +833,71 @@ def _display_orphaned_candidates(scan: dict) -> list[tuple[str, dict]]:
             f"      porty={ports}, aktywne połączenia="
             f"{candidate['established_connections']}"
         )
+    pinned = scan.get("pinned_docker", [])
+    if pinned:
+        click.echo(click.style("  Chronione trwałym przypięciem:", fg="green"))
+        for candidate in pinned:
+            click.echo(
+                f"    • Docker {candidate['name']} ({candidate['short_id']}) — "
+                f"{candidate['working_dir']}"
+            )
     if not combined:
-        click.echo("  Brak obciążeń spełniających bezpieczne kryteria.")
+        click.echo("  Brak obciążeń kwalifikujących się do czyszczenia.")
     return combined
+
+
+def _manage_orphan_pins(
+    *,
+    pin_path: str | None,
+    unpin_path: str | None,
+    list_pins: bool,
+    json_output: bool,
+) -> None:
+    """Manage persistent protection without touching Docker or processes."""
+    import json
+
+    store = OrphanProjectPins()
+    try:
+        action = "list"
+        changed = False
+        if pin_path is not None:
+            action = "pin"
+            _, changed = store.pin(pin_path)
+        elif unpin_path is not None:
+            action = "unpin"
+            changed = store.unpin(unpin_path)
+        records = store.list()
+    except (OrphanProjectPinError, ValueError) as exc:
+        if json_output:
+            click.echo(json.dumps({"success": False, "error": str(exc)}))
+        else:
+            click.echo(click.style(f"Błąd: {exc}", fg="red"))
+        return
+    result = {
+        "success": True,
+        "action": action,
+        "changed": changed,
+        "config_path": str(store.path),
+        "pins": records,
+    }
+    if json_output:
+        click.echo(json.dumps(result, indent=2))
+        return
+    if action == "pin":
+        message = (
+            "Dodano trwałe przypięcie." if changed else "Ścieżka była już przypięta."
+        )
+        click.echo(click.style(message, fg="green"))
+    elif action == "unpin":
+        message = "Usunięto przypięcie." if changed else "Ścieżka nie była przypięta."
+        click.echo(click.style(message, fg="green" if changed else "yellow"))
+    click.echo(f"Plik konfiguracji: {store.path}")
+    if records:
+        click.echo("Chronione katalogi projektów Compose:")
+        for record in records:
+            click.echo(f"  • {record['path']} (od {record['created_at']})")
+    else:
+        click.echo("Brak trwałych przypięć.")
 
 
 def _cleanup_orphaned_projects(
@@ -940,8 +995,7 @@ def _cleanup_orphaned_projects(
     for changed in result["docker_changed"]:
         click.echo(
             click.style(
-                f"  ✓ Docker {changed['name']}: restart=no, "
-                f"stan={changed['status']}",
+                f"  ✓ Docker {changed['name']}: restart=no, stan={changed['status']}",
                 fg="green",
             )
         )
@@ -1250,6 +1304,30 @@ def _run_interactive_cleanup(plan: dict, list_only: bool, scanner) -> None:
     ),
 )
 @click.option(
+    "--pin-orphan-project",
+    "pin_orphan_project",
+    metavar="ABSOLUTE_PATH",
+    default=None,
+    help=(
+        "Trwale chroń dokładny katalog projektu Compose przed czyszczeniem "
+        "osieroconych obciążeń; nie zmienia Dockera ani procesów"
+    ),
+)
+@click.option(
+    "--unpin-orphan-project",
+    "unpin_orphan_project",
+    metavar="ABSOLUTE_PATH",
+    default=None,
+    help="Usuń trwałą ochronę dokładnego katalogu projektu Compose",
+)
+@click.option(
+    "--list-orphan-pins",
+    "list_orphan_pins",
+    is_flag=True,
+    default=False,
+    help="Pokaż katalogi Compose chronione przed czyszczeniem osieroconych obciążeń",
+)
+@click.option(
     "--process-hours",
     default=DEFAULT_STALE_PROCESS_HOURS,
     type=float,
@@ -1313,6 +1391,9 @@ def cleanup_services(
     docker_networks,
     docker_stale_services,
     orphaned_projects,
+    pin_orphan_project,
+    unpin_orphan_project,
+    list_orphan_pins,
     process_hours,
     ollama_old,
     days,
@@ -1350,11 +1431,61 @@ def cleanup_services(
       # brakujące katalogi Compose i stare lokalne drzewa procesów
       fixos cleanup --orphaned-projects --days 3 --process-hours 12
       # dokładny wybór; zatrzymuje obciążenia, zachowuje kontenery i wolumeny
+      fixos cleanup --pin-orphan-project /absolute/missing/project
+      # trwała ochrona wszystkich kontenerów z dokładnie tym katalogiem Compose
+      fixos cleanup --list-orphan-pins
+      # lista ochrony; --json udostępnia wynik maszynowo
+      fixos cleanup --unpin-orphan-project /absolute/missing/project
+      # usuwa ochronę, ale nie zmienia Dockera ani procesów
       fixos cleanup --ollama-old --days 90 --dry-run
       # modele Ollama niezmieniane od 90+ dni
       fixos cleanup -c ollama-old
       fixos cleanup --full              # pełna analiza systemu
     """
+    pin_actions = sum(
+        value is not None and value is not False
+        for value in (pin_orphan_project, unpin_orphan_project, list_orphan_pins)
+    )
+    if pin_actions > 1:
+        click.echo(
+            click.style(
+                "Wybierz tylko jedną operację: pin, unpin albo listę przypięć.",
+                fg="red",
+            )
+        )
+        return
+    if pin_actions:
+        conflicting = any(
+            (
+                full_analysis,
+                bool(services),
+                bool(cleanup),
+                docker_old,
+                docker_all,
+                docker_networks,
+                docker_stale_services,
+                orphaned_projects,
+                ollama_old,
+                days is not None,
+                dry_run,
+            )
+        )
+        if conflicting:
+            click.echo(
+                click.style(
+                    "Zarządzanie przypięciami uruchom jako osobną akcję bez --dry-run.",
+                    fg="red",
+                )
+            )
+            return
+        _manage_orphan_pins(
+            pin_path=pin_orphan_project,
+            unpin_path=unpin_orphan_project,
+            list_pins=list_orphan_pins,
+            json_output=json_output,
+        )
+        return
+
     if full_analysis:
         _cleanup_full_system(json_output, dry_run)
         return
@@ -1386,10 +1517,7 @@ def cleanup_services(
         )
         return
     if want_docker_stale_services and (
-        want_docker_old
-        or want_docker_all
-        or want_docker_networks
-        or want_ollama_old
+        want_docker_old or want_docker_all or want_docker_networks or want_ollama_old
     ):
         click.echo(
             click.style(
@@ -1453,9 +1581,7 @@ def cleanup_services(
         _cleanup_docker_networks(scanner, effective_days, json_output, dry_run)
         return
     if want_docker_stale_services:
-        effective_days = (
-            days if days is not None else DEFAULT_DOCKER_STALE_SERVICE_DAYS
-        )
+        effective_days = days if days is not None else DEFAULT_DOCKER_STALE_SERVICE_DAYS
         _cleanup_docker_stale_services(
             effective_days,
             json_output,

@@ -1,0 +1,23 @@
+2026-08-20 focused validation
+pytest -q tests/unit/test_orphan_pins.py tests/unit/test_orphaned_workloads.py tests/unit/test_cleanup_cmd.py
+38 passed, 2 warnings
+
+ruff check (changed files): passed
+ruff format --check (changed files): passed
+python -m compileall -q fixos: passed
+
+2026-08-20 live reversible configuration
+fixos cleanup --pin-orphan-project ~/github/if-uri/relcom/relcom_project_business_os --json
+success=true changed=true config=~/.config/fixos/orphan-project-pins.json mode=0600
+
+fixos cleanup --orphaned-projects --days 3 --process-hours 12 --dry-run --json
+docker_total=191 docker_candidates=0 pinned_docker=14
+process_candidates=3 protected_processes=11
+All 14 relcom records: status=exited restart=unless-stopped candidate=false pinned=true
+
+2026-08-20 full validation
+pytest -q
+530 passed, 5 skipped, 16 deselected, 3 warnings
+
+./project/governance-check.sh
+GOV-PASS: passed (0 errors, 0 warnings)

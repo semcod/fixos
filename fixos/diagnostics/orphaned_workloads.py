@@ -23,6 +23,7 @@ import psutil
 
 from fixos.constants import DEFAULT_COMMAND_TIMEOUT
 from fixos.diagnostics.process_chains import ProcessRecord, collect_processes
+from fixos.orphan_pins import OrphanProjectPins, normalize_project_path
 
 
 COMPOSE_WORKING_DIR_LABEL = "com.docker.compose.project.working_dir"
@@ -61,6 +62,7 @@ class OrphanedWorkloadCleaner:
         clock: Callable[[], float] = time.time,
         sleeper: Callable[[float], None] = time.sleep,
         self_pid: int | None = None,
+        pinned_paths_provider: Callable[[], Collection[str]] | None = None,
     ) -> None:
         self._runner = runner or subprocess.run
         self._process_provider = process_provider or collect_processes
@@ -76,6 +78,7 @@ class OrphanedWorkloadCleaner:
         self._clock = clock
         self._sleeper = sleeper
         self._self_pid = os.getpid() if self_pid is None else self_pid
+        self._pinned_paths_provider = pinned_paths_provider or OrphanProjectPins().paths
 
     @staticmethod
     def _connections() -> Iterable[Any]:
@@ -199,8 +202,11 @@ class OrphanedWorkloadCleaner:
             raise RuntimeError("docker inspect returned a non-list payload")
         return [item for item in payload if isinstance(item, dict)]
 
-    def _scan_docker(self, min_age_days: int) -> list[dict[str, Any]]:
+    def _scan_docker(
+        self, min_age_days: int, pinned_paths: Collection[str]
+    ) -> list[dict[str, Any]]:
         now = self._now().astimezone(timezone.utc)
+        normalized_pins = {normalize_project_path(path) for path in pinned_paths}
         records: list[dict[str, Any]] = []
         for container in self._list_containers():
             container_id = str(container.get("Id") or "")
@@ -216,13 +222,14 @@ class OrphanedWorkloadCleaner:
             status = str(state.get("Status") or "unknown")
             created = self._parse_time(container.get("Created"))
             age_days = (
-                max(0.0, (now - created).total_seconds() / 86400)
-                if created
-                else None
+                max(0.0, (now - created).total_seconds() / 86400) if created else None
             )
             absolute = bool(working_dir) and Path(working_dir).is_absolute()
             safe_path = absolute and Path(working_dir) != Path("/")
             missing = safe_path and not self._path_exists(working_dir)
+            pinned = (
+                safe_path and normalize_project_path(working_dir) in normalized_pins
+            )
             reasons: list[str] = []
             if policy not in STARTUP_RESTART_POLICIES:
                 reasons.append("restart-policy-not-startup-enabled")
@@ -236,11 +243,14 @@ class OrphanedWorkloadCleaner:
                 reasons.append("container-age-unavailable")
             elif age_days < min_age_days:
                 reasons.append("container-too-young")
+            if pinned:
+                reasons.append("compose-working-directory-pinned")
             candidate = (
                 policy in STARTUP_RESTART_POLICIES
                 and missing
                 and age_days is not None
                 and age_days >= min_age_days
+                and not pinned
             )
             if candidate:
                 reasons.append("compose-working-directory-missing")
@@ -250,13 +260,16 @@ class OrphanedWorkloadCleaner:
                     "id": container_id,
                     "short_id": container_id[:12],
                     "name": str(container.get("Name") or "").lstrip("/"),
-                    "compose_project": str(labels.get("com.docker.compose.project") or ""),
+                    "compose_project": str(
+                        labels.get("com.docker.compose.project") or ""
+                    ),
                     "working_dir": working_dir or None,
                     "created": created.isoformat() if created else None,
                     "age_days": round(age_days, 1) if age_days is not None else None,
                     "status": status,
                     "active": status not in TERMINAL_CONTAINER_STATES,
                     "restart_policy": policy,
+                    "pinned": pinned,
                     "candidate": candidate,
                     "reasons": reasons,
                 }
@@ -289,11 +302,17 @@ class OrphanedWorkloadCleaner:
         return " ".join(record.cmdline or (record.name,))
 
     @classmethod
-    def _is_ide_agent(cls, record: ProcessRecord, by_pid: dict[int, ProcessRecord]) -> bool:
+    def _is_ide_agent(
+        cls, record: ProcessRecord, by_pid: dict[int, ProcessRecord]
+    ) -> bool:
         command = cls._command(record).casefold()
         parent = by_pid.get(record.ppid)
         parent_command = cls._command(parent).casefold() if parent else ""
-        return "cursor-agent" in command and " acp" in command and "pycharm" in parent_command
+        return (
+            "cursor-agent" in command
+            and " acp" in command
+            and "pycharm" in parent_command
+        )
 
     @staticmethod
     def _is_dev_server(record: ProcessRecord) -> bool:
@@ -302,7 +321,10 @@ class OrphanedWorkloadCleaner:
         if executable == "php" and "-S" in command:
             return True
         if executable == "node":
-            return any("server" in Path(arg).name.casefold() and arg.endswith(".mjs") for arg in command[1:])
+            return any(
+                "server" in Path(arg).name.casefold() and arg.endswith(".mjs")
+                for arg in command[1:]
+            )
         return False
 
     def _protected_pids(self, by_pid: dict[int, ProcessRecord]) -> set[int]:
@@ -310,7 +332,8 @@ class OrphanedWorkloadCleaner:
         protected.update(
             record.pid
             for record in by_pid.values()
-            if record.username.casefold() in {"root", "system", "local service", "network service"}
+            if record.username.casefold()
+            in {"root", "system", "local service", "network service"}
         )
         pid = self._self_pid
         while pid in by_pid:
@@ -473,7 +496,8 @@ class OrphanedWorkloadCleaner:
             raise ValueError("min_age_days must be >= 1")
         if min_process_hours < 1:
             raise ValueError("min_process_hours must be >= 1")
-        docker = self._scan_docker(min_age_days)
+        pinned_paths = tuple(self._pinned_paths_provider())
+        docker = self._scan_docker(min_age_days, pinned_paths)
         processes = self._scan_processes(min_process_hours)
         return {
             "service": "orphaned-projects",
@@ -483,6 +507,7 @@ class OrphanedWorkloadCleaner:
             "docker": docker,
             "processes": processes,
             "docker_candidates": [item for item in docker if item["candidate"]],
+            "pinned_docker": [item for item in docker if item["pinned"]],
             "process_candidates": [item for item in processes if item["candidate"]],
             "protected_processes": [item for item in processes if item["protected"]],
         }
@@ -490,7 +515,10 @@ class OrphanedWorkloadCleaner:
     def _verify_container(self, container_id: str) -> dict[str, Any]:
         inspected = self._run(["docker", "inspect", container_id])
         if inspected.returncode != 0:
-            return {"verified": False, "error": self._error(inspected, "docker inspect failed")}
+            return {
+                "verified": False,
+                "error": self._error(inspected, "docker inspect failed"),
+            }
         try:
             item = json.loads(inspected.stdout)[0]
             policy = str(item["HostConfig"]["RestartPolicy"]["Name"] or "no").lower()
@@ -499,7 +527,9 @@ class OrphanedWorkloadCleaner:
             return {"verified": False, "error": "invalid verification payload"}
         return {"verified": True, "restart_policy": policy, "status": status}
 
-    def _apply_docker(self, candidate: dict[str, Any], stop_timeout: int) -> dict[str, Any]:
+    def _apply_docker(
+        self, candidate: dict[str, Any], stop_timeout: int
+    ) -> dict[str, Any]:
         container_id = candidate["id"]
         updated = self._run(["docker", "update", "--restart=no", container_id])
         if updated.returncode != 0:
@@ -515,9 +545,20 @@ class OrphanedWorkloadCleaner:
                     "error": self._error(stopped, "docker stop failed"),
                 }
         verification = self._verify_container(container_id)
-        state_ok = not candidate["active"] or verification.get("status") in {"dead", "exited"}
-        if not verification.get("verified") or verification.get("restart_policy") != "no" or not state_ok:
-            return {**candidate, **verification, "error": "post-action verification failed"}
+        state_ok = not candidate["active"] or verification.get("status") in {
+            "dead",
+            "exited",
+        }
+        if (
+            not verification.get("verified")
+            or verification.get("restart_policy") != "no"
+            or not state_ok
+        ):
+            return {
+                **candidate,
+                **verification,
+                "error": "post-action verification failed",
+            }
         return {**candidate, **verification}
 
     @staticmethod
@@ -580,10 +621,16 @@ class OrphanedWorkloadCleaner:
             except (OSError, psutil.Error) as exc:
                 errors.append(f"pid {pid}: {exc}")
         deadline = self._clock() + max(0.0, grace_seconds)
-        survivors = [pid for pid in members if self._alive_provider(pid, by_pid[pid].create_time)]
+        survivors = [
+            pid for pid in members if self._alive_provider(pid, by_pid[pid].create_time)
+        ]
         while survivors and self._clock() < deadline:
             self._sleeper(min(0.1, max(0.0, deadline - self._clock())))
-            survivors = [pid for pid in members if self._alive_provider(pid, by_pid[pid].create_time)]
+            survivors = [
+                pid
+                for pid in members
+                if self._alive_provider(pid, by_pid[pid].create_time)
+            ]
         escalated: list[int] = []
         if survivors and force:
             for pid in survivors:
@@ -597,7 +644,11 @@ class OrphanedWorkloadCleaner:
                     escalated.append(pid)
                 except (OSError, psutil.Error) as exc:
                     errors.append(f"pid {pid}: escalation failed: {exc}")
-            survivors = [pid for pid in members if self._alive_provider(pid, by_pid[pid].create_time)]
+            survivors = [
+                pid
+                for pid in members
+                if self._alive_provider(pid, by_pid[pid].create_time)
+            ]
         return {
             **candidate,
             "target_pids": members,
@@ -642,16 +693,28 @@ class OrphanedWorkloadCleaner:
             candidate = docker_candidates.get(container_id)
             if candidate is None:
                 result["failed"].append(
-                    {"kind": "docker", "id": container_id, "error": "not an exact candidate in the fresh scan"}
+                    {
+                        "kind": "docker",
+                        "id": container_id,
+                        "error": "not an exact candidate in the fresh scan",
+                    }
                 )
             elif apply:
                 changed = self._apply_docker(candidate, stop_timeout_seconds)
-                (result["failed"] if changed.get("error") else result["docker_changed"]).append(changed)
+                (
+                    result["failed"]
+                    if changed.get("error")
+                    else result["docker_changed"]
+                ).append(changed)
         for identity in sorted(set(process_identities)):
             candidate = process_candidates.get((int(identity[0]), float(identity[1])))
             if candidate is None:
                 result["failed"].append(
-                    {"kind": "process", "root_pid": identity[0], "error": "not an exact candidate in the fresh scan"}
+                    {
+                        "kind": "process",
+                        "root_pid": identity[0],
+                        "error": "not an exact candidate in the fresh scan",
+                    }
                 )
             elif apply:
                 changed = self._apply_process(
@@ -659,6 +722,10 @@ class OrphanedWorkloadCleaner:
                     grace_seconds=grace_seconds,
                     force=force_processes,
                 )
-                (result["processes_changed"] if changed.get("success") else result["failed"]).append(changed)
+                (
+                    result["processes_changed"]
+                    if changed.get("success")
+                    else result["failed"]
+                ).append(changed)
         result["success"] = not result["failed"]
         return result
