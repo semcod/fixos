@@ -1,0 +1,57 @@
+2026-08-20 live incident action
+- Verified exact approved process tree: 3116596 -> 3116908 -> 3116909 -> 3117052.
+- Sent graceful termination to those four PIDs only; no forced termination was
+  needed. Main PyCharm PID 143907 remained alive.
+- Immediate result: selected PIDs absent, but PyCharm averaged 525.8% CPU over
+  five seconds and continued logging `write-action is pending`; recovery was
+  therefore not claimed.
+
+2026-08-20 implementation validation
+- `.venv/bin/python -m pytest -q tests/unit/test_process_chains.py`
+  Result: 13 passed.
+- `.venv/bin/python -m compileall -q fixos/diagnostics/process_chains.py`
+  Result: passed.
+- `.venv/bin/python -m pytest -q`
+  Result: 473 passed, 5 skipped, 16 deselected.
+- `./project/governance-check.sh`
+  Result: GOV-PASS, 0 errors, 0 warnings.
+- The pre-existing `.venv/bin/pytest` launcher points at an uppercase checkout
+  path that does not exist; validation used the same environment through
+  `python -m pytest` without changing dependencies or the environment.
+
+2026-08-20 final live observation
+- Selected PIDs remained absent and no replacement GLM chain appeared.
+- PyCharm PID 143907 remained alive and averaged 150.2% CPU over five seconds.
+- The IDE log added two lines in three seconds and no new
+  `write-action is pending` entry.
+- `/proc/locks` contained no blocked waiter entry. No user process was in
+  uninterruptible sleep; one unrelated root USB kernel worker was in state D.
+- A live library dry run initially listed 131 recent processes, reduced them to
+  four evidence-bearing findings, and marked zero unprotected findings as
+  actionable.
+
+2026-08-20 JetBrains recovery implementation
+- Added main-IDE discovery that excludes `stdioMcpServer`, `fsnotifier` and
+  other helpers; recent log correlation; heap reporting; EDT inspection; and
+  dry-run-first bounded JVM recovery with post-action verification.
+- Live read-only diagnosis of PyCharm PID 143907: 251.7% CPU, 20.35% process
+  memory, 13,375,848,448 RSS bytes, 882 threads and 67.9% committed-heap use.
+- The last 30 minutes of the current log contained 4,155 write-action waits,
+  33 EDT warnings (maximum 17,992 ms), 60 missing-working-directory errors and
+  35 Git stash refresh stack entries. Seven distinct missing paths were found.
+- `gc_recommended` was false at 67.9% heap use. Recovery remained a dry run;
+  `GC.run`, IDE signals, window operations and settings changes were not used.
+- `.venv/bin/python -m pytest -q tests/unit/test_process_chains.py
+  tests/unit/test_jetbrains_recovery.py`: 26 passed.
+- `.venv/bin/python -m compileall -q fixos/diagnostics/process_chains.py
+  fixos/diagnostics/jetbrains_recovery.py`: passed.
+- `.venv/bin/python -m pytest -q`: 486 passed, 5 skipped, 16 deselected.
+- `git diff --check`: passed.
+- `./project/governance-check.sh`: GOV-PASS, 0 errors, 0 warnings.
+
+2026-08-20 publication refresh
+- User authorization: `SESSION_EXECUTION_AUTHORIZATION` for autonomous work in
+  the trusted local environment.
+- Rebased onto integrated main `8ec98ff5fa9952e6b7085af4d42c7bc1907867bb`.
+- Refreshed `delivery.acceptedBaseSha` and retained both ticket 002 and ticket
+  003 governance entries during conflict resolution.

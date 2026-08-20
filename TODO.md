@@ -8,6 +8,12 @@ Ostatni przegląd: 2026-07-23.
 
 ## Aktywne
 
+- [ ] Dostarczyć [ticket-002](project/ticket-002/README.md): wykrywanie świeżych
+  łańcuchów procesów blokujących starsze aplikacje oraz bezpieczne, jawnie
+  wybrane zamykanie drzewa z weryfikacją po wykonaniu, wraz z odzyskiwaniem
+  responsywności współdzielonej JVM JetBrains bez zamykania okien. Stan:
+  `IN_PROGRESS / PUBLICATION`.
+
 - [x] Dostarczyć [ticket-003](project/ticket-003/README.md): konserwatywnie
   wykrywać stare kontenery Docker uruchamiane automatycznie, wiązać je z
   nieaktywnymi repozytoriami Git i wyłączać autostart wyłącznie po jawnym

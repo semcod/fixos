@@ -1,0 +1,131 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-002",
+  "summary": "Diagnose blocking chains and recover JetBrains responsiveness",
+  "workstream": "application",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P1",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-002/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/diagnostics/process_chains.py",
+    "tests/unit/test_process_chains.py",
+    "fixos/diagnostics/jetbrains_recovery.py",
+    "tests/unit/test_jetbrains_recovery.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md",
+    "fixos/cli/**",
+    "pyproject.toml",
+    "uv.lock",
+    "VERSION",
+    "CHANGELOG.md",
+    "README.md",
+    ".env",
+    "**/*.pem",
+    "**/*secret*"
+  ],
+  "stacks": ["python"],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "8ec98ff5fa9952e6b7085af4d42c7bc1907867bb",
+    "targetBranch": "main",
+    "outcome": "FixOS can find blocking process chains and recover an overloaded shared JetBrains JVM without closing its open IDE windows",
+    "nonGoals": [
+      "No automatic killing based only on process age",
+      "No process-group signalling or termination of an older parent application",
+      "No new CLI command or public package export",
+      "No cache, lock-file or application-data deletion",
+      "No IDE restart, window close, process signal or settings mutation",
+      "No assumption that GC.heap_info performs garbage collection",
+      "No new runtime dependency"
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 30,
+    "budgets": {
+      "maxImplementationFiles": 4,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Keep generic process trees separate from JetBrains JVM/log diagnostics, and require identity-checked dry-run-first recovery with deterministic tests",
+      "components": [
+        {
+          "name": "process-chain-diagnostics",
+          "paths": [
+            "fixos/diagnostics/process_chains.py",
+            "tests/unit/test_process_chains.py"
+          ]
+        },
+        {
+          "name": "jetbrains-jvm-recovery",
+          "paths": [
+            "fixos/diagnostics/jetbrains_recovery.py",
+            "tests/unit/test_jetbrains_recovery.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {"impact": "none", "states": [], "evidence": []},
+      "rollback": "Revert the two implementation files and ticket metadata"
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": ["pytest -q tests/unit/test_process_chains.py"],
+        "evidence": "project/ticket-002/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": ["pytest -q tests/unit/test_process_chains.py"],
+        "evidence": "project/ticket-002/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-03",
+        "commands": ["pytest -q tests/unit/test_process_chains.py"],
+        "evidence": "project/ticket-002/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-04",
+        "commands": ["live before/after process observation"],
+        "evidence": "project/ticket-002/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-05",
+        "commands": ["pytest -q tests/unit/test_process_chains.py"],
+        "evidence": "project/ticket-002/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-06",
+        "commands": ["pytest -q", "./project/governance-check.sh"],
+        "evidence": "project/ticket-002/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-07",
+        "commands": ["pytest -q tests/unit/test_jetbrains_recovery.py"],
+        "evidence": "project/ticket-002/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-08",
+        "commands": ["pytest -q tests/unit/test_jetbrains_recovery.py"],
+        "evidence": "project/ticket-002/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-09",
+        "commands": ["pytest -q tests/unit/test_jetbrains_recovery.py"],
+        "evidence": "project/ticket-002/ai-codex-logs.txt"
+      }
+    ]
+  }
+}
