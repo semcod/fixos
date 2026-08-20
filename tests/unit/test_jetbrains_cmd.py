@@ -3,6 +3,7 @@ from pathlib import Path
 from click.testing import CliRunner
 
 from fixos.cli import jetbrains_cmd
+from fixos.diagnostics.jetbrains_ai import JetBrainsAiControl
 from fixos.diagnostics.jetbrains_recovery import (
     EdtThreadState,
     JetBrainsDiagnosis,
@@ -137,3 +138,156 @@ def test_apply_gc_yes_returns_verified_result(monkeypatch):
     assert '"executed": true' in result.output
     assert '"verified_improvement": true' in result.output
     assert FakeRecovery.recover_calls == [(100, True)]
+
+
+class FakeAiControl:
+    disable_calls = []
+    stop_calls = []
+
+    def status(self, *, config_dir=None):
+        return {
+            "service": "jetbrains-ai-control",
+            "read_only": True,
+            "plugin_ids": ["com.intellij.ml.llm", "com.qoder"],
+            "helpers": [
+                {
+                    "pid": 200,
+                    "ppid": 100,
+                    "create_time": 2000.0,
+                    "command": ["/opt/Qoder", "start"],
+                    "rss_bytes": 1024,
+                }
+            ],
+            "configs": [
+                {
+                    "directory": "/tmp/JetBrains/PyCharm2026.2",
+                    "disabled_plugins_file": "/tmp/JetBrains/PyCharm2026.2/disabled_plugins.txt",
+                    "disabled": ["com.qoder"],
+                }
+            ],
+        }
+
+    def disable_plugins(self, config_dir, *, apply):
+        self.disable_calls.append((config_dir, apply))
+        return {
+            "added": ["com.intellij.ml.llm"],
+            "changed": apply,
+            "dry_run": not apply,
+        }
+
+    def stop_qoder_helpers(self, identities, *, apply):
+        self.stop_calls.append((identities, apply))
+        return {
+            "selected": [200],
+            "stopped": [200] if apply else [],
+            "failed": [],
+            "success": True,
+            "dry_run": not apply,
+        }
+
+
+def test_ai_status_is_read_only_json(monkeypatch):
+    monkeypatch.setattr(jetbrains_cmd, "JetBrainsAiControl", FakeAiControl)
+
+    result = CliRunner().invoke(jetbrains_cmd.jetbrains, ["ai", "--json"])
+
+    assert result.exit_code == 0, result.output
+    assert '"read_only": true' in result.output
+    assert '"pid": 200' in result.output
+    assert '"com.qoder"' in result.output
+
+
+def test_ai_actions_are_dry_run_without_apply(monkeypatch):
+    FakeAiControl.disable_calls = []
+    FakeAiControl.stop_calls = []
+    monkeypatch.setattr(jetbrains_cmd, "JetBrainsAiControl", FakeAiControl)
+
+    result = CliRunner().invoke(
+        jetbrains_cmd.jetbrains,
+        ["ai", "--disable-plugins", "--stop-qoder", "--json"],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert FakeAiControl.disable_calls == [(Path("/tmp/JetBrains/PyCharm2026.2"), False)]
+    assert FakeAiControl.stop_calls == [([(200, 2000.0)], False)]
+    assert '"dry_run": true' in result.output
+
+
+def test_ai_apply_confirmation_can_decline(monkeypatch):
+    FakeAiControl.disable_calls = []
+    monkeypatch.setattr(jetbrains_cmd, "JetBrainsAiControl", FakeAiControl)
+
+    result = CliRunner().invoke(
+        jetbrains_cmd.jetbrains,
+        ["ai", "--disable-plugins", "--apply"],
+        input="n\n",
+    )
+
+    assert result.exit_code == 0
+    assert "Pominięto zmiany" in result.output
+    assert FakeAiControl.disable_calls == []
+
+
+def test_ai_apply_yes_routes_exact_helper_identity(monkeypatch):
+    FakeAiControl.disable_calls = []
+    FakeAiControl.stop_calls = []
+    monkeypatch.setattr(jetbrains_cmd, "JetBrainsAiControl", FakeAiControl)
+
+    result = CliRunner().invoke(
+        jetbrains_cmd.jetbrains,
+        ["ai", "--disable-plugins", "--stop-qoder", "--apply", "--yes"],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert FakeAiControl.disable_calls == [(Path("/tmp/JetBrains/PyCharm2026.2"), True)]
+    assert FakeAiControl.stop_calls == [([(200, 2000.0)], True)]
+    assert "Główna JVM i okna IDE nie są zatrzymywane" in result.output
+
+
+def test_ai_service_preserves_plugins_and_stops_only_exact_qoder(tmp_path):
+    config_root = tmp_path / "JetBrains"
+    config_dir = config_root / "PyCharm2026.2"
+    config_dir.mkdir(parents=True)
+    disabled = config_dir / "disabled_plugins.txt"
+    disabled.write_text("unrelated.plugin\ncom.qoder\n", encoding="utf-8")
+    ide = _process()
+    helper = ProcessRecord(
+        pid=200,
+        ppid=ide.pid,
+        name="Qoder",
+        cmdline=("/opt/Qoder", "start"),
+        create_time=2000.0,
+        username="tester",
+    )
+    unrelated = ProcessRecord(
+        pid=300,
+        ppid=1,
+        name="Qoder",
+        cmdline=("/opt/Qoder", "start"),
+        create_time=3000.0,
+        username="tester",
+    )
+    alive = {200}
+    terminated = []
+    control = JetBrainsAiControl(
+        process_provider=lambda: [ide, helper, unrelated],
+        config_root=config_root,
+        identity_provider=lambda pid: {200: 2000.0, 300: 3000.0}.get(pid),
+        rss_provider=lambda pid: 4096,
+        terminator=lambda pid: (terminated.append(pid), alive.discard(pid)),
+        alive_provider=lambda pid, created: pid in alive,
+    )
+
+    status = control.status()
+    plugin_result = control.disable_plugins(config_dir, apply=True)
+    helper_result = control.stop_qoder_helpers([(200, 2000.0)], apply=True)
+
+    assert [item["pid"] for item in status["helpers"]] == [200]
+    assert plugin_result["added"] == ["com.intellij.ml.llm"]
+    assert disabled.read_text().splitlines() == [
+        "unrelated.plugin",
+        "com.qoder",
+        "com.intellij.ml.llm",
+    ]
+    assert terminated == [200]
+    assert helper_result["stopped"] == [200]

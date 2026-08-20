@@ -1,0 +1,21 @@
+2026-08-20 focused validation
+pytest -q tests/unit/test_jetbrains_recovery.py tests/unit/test_jetbrains_cmd.py
+25 passed, 2 warnings
+
+2026-08-20 live diagnosis and control
+fixos jetbrains doctor --pid 143907 --no-thread-dump --json
+diagnosis_count=1 pids=[143907] reasons=[ai-quota-refresh-loop, high-ide-cpu]
+
+fixos jetbrains ai --disable-plugins --stop-qoder --apply --yes --json
+disabled=[com.intellij.ml.llm, com.qoder]
+stopped exact respawn pids=[3221424, 3290938]
+main PyCharm pid=143907 remained alive; no JVM/window signal was sent
+The already-loaded Qoder plugin respawns until the next ordinary IDE restart.
+
+2026-08-20 full validation
+pytest -q
+535 passed, 5 skipped, 16 deselected, 3 warnings
+ruff check changed Python files: passed
+python -m compileall -q fixos: passed
+./project/governance-check.sh
+GOV-PASS: passed (0 errors, 0 warnings)

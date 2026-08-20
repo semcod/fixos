@@ -1,0 +1,109 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-010",
+  "summary": "Harden JetBrains AI helper control",
+  "workstream": "application",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P0",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-010/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/diagnostics/jetbrains_recovery.py",
+    "fixos/diagnostics/jetbrains_ai.py",
+    "fixos/cli/jetbrains_cmd.py",
+    "tests/unit/test_jetbrains_recovery.py",
+    "tests/unit/test_jetbrains_cmd.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md",
+    "docs/**",
+    "README.md",
+    "CHANGELOG.md",
+    "VERSION",
+    "pyproject.toml",
+    "uv.lock",
+    ".env",
+    "**/*.pem",
+    "**/*secret*"
+  ],
+  "stacks": ["python"],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "3f52751b4f7f745091ba6fa59aee0c371ffeffa8",
+    "targetBranch": "main",
+    "outcome": "FixOS diagnoses only real JetBrains JVMs and safely controls exact AI plugins and Qoder helpers without closing IDE windows",
+    "nonGoals": [
+      "No main JetBrains JVM or IDE window termination",
+      "No automatic IDE restart or live plugin unload",
+      "No plugin directory deletion",
+      "No SIGKILL escalation",
+      "No runtime dependency or public API path change"
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 30,
+    "budgets": {
+      "maxImplementationFiles": 5,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Keep executable identity in JetBrainsRecovery and isolate exact plugin/helper mutation in a dedicated service behind a thin Click adapter",
+      "components": [
+        {
+          "name": "jetbrains-process-safety",
+          "paths": [
+            "fixos/diagnostics/jetbrains_recovery.py",
+            "tests/unit/test_jetbrains_recovery.py"
+          ]
+        },
+        {
+          "name": "jetbrains-ai-control",
+          "paths": [
+            "fixos/diagnostics/jetbrains_ai.py",
+            "fixos/cli/jetbrains_cmd.py",
+            "tests/unit/test_jetbrains_cmd.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "multi-state",
+        "states": ["empty", "error", "success"],
+        "evidence": ["focused CLI tests", "live read-only status"]
+      },
+      "rollback": "Revert exact launcher matching, AI control service, CLI adapter and focused tests; existing disabled-plugin lines remain valid JetBrains configuration"
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-05",
+        "commands": [
+          "pytest -q tests/unit/test_jetbrains_recovery.py tests/unit/test_jetbrains_cmd.py",
+          "fixos jetbrains ai --json",
+          "fixos jetbrains doctor --pid 143907 --json"
+        ],
+        "evidence": "project/ticket-010/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-06",
+        "commands": [
+          "ruff check on changed Python files",
+          "python -m compileall -q fixos",
+          "pytest -q",
+          "./project/governance-check.sh"
+        ],
+        "evidence": "project/ticket-010/ai-codex-logs.txt"
+      }
+    ]
+  }
+}

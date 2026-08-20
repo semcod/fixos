@@ -78,6 +78,18 @@ def test_main_ide_detection_excludes_mcp_and_native_helpers():
         )
         is False
     )
+    assert (
+        is_main_jetbrains_process(
+            _process(command=("/bin/bash", "--rcfile", "/opt/pycharm/bash.rc"))
+        )
+        is False
+    )
+    assert (
+        is_main_jetbrains_process(
+            _process(command=("/bin/bash", "-lc", "fixos jetbrains doctor pycharm"))
+        )
+        is False
+    )
 
 
 def test_log_analysis_correlates_write_waits_edt_disposal_and_stale_directory():

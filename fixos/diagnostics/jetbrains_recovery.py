@@ -148,11 +148,24 @@ class JetBrainsRecoveryResult:
 def is_main_jetbrains_process(process: ProcessRecord) -> bool:
     """Return true only for a main IDE process, never a helper/server."""
 
-    tokens = (process.name, *process.cmdline)
-    normalized = " ".join(tokens).casefold()
-    if any(helper in normalized for helper in JETBRAINS_HELPERS):
-        return False
-    return any(product in normalized for product in JETBRAINS_PRODUCTS)
+    return jetbrains_product_marker(process) is not None
+
+
+def jetbrains_product_marker(process: ProcessRecord) -> str | None:
+    """Identify a product only from its launcher, never arbitrary arguments."""
+
+    command = process.cmdline or (process.name,)
+    launcher = Path(command[0]).name.casefold().removesuffix(".exe")
+    process_name = Path(process.name).name.casefold().removesuffix(".exe")
+    if launcher in JETBRAINS_HELPERS or process_name in JETBRAINS_HELPERS:
+        return None
+    if any(str(argument).casefold() == "stdiomcpserver" for argument in command[1:]):
+        return None
+    for product in JETBRAINS_PRODUCTS:
+        accepted = {product, f"{product}64", f"{product}.sh"}
+        if launcher in accepted or process_name in accepted:
+            return product
+    return None
 
 
 def analyze_idea_log(
@@ -332,11 +345,8 @@ class JetBrainsRecovery:
 
     @staticmethod
     def _product_prefix(process: ProcessRecord) -> str | None:
-        normalized = " ".join((process.name, *process.cmdline)).casefold()
-        for marker, prefix in JETBRAINS_PRODUCTS.items():
-            if marker in normalized:
-                return prefix
-        return None
+        marker = jetbrains_product_marker(process)
+        return JETBRAINS_PRODUCTS.get(marker) if marker else None
 
     def _discover_log(self, process: ProcessRecord) -> Path | None:
         prefix = self._product_prefix(process)

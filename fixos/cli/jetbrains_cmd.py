@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any
 
 import click
@@ -13,6 +14,7 @@ from fixos.diagnostics.jetbrains_recovery import (
     JetBrainsRecoveryResult,
     JetBrainsRecoverySafetyError,
 )
+from fixos.diagnostics.jetbrains_ai import JetBrainsAiControl, JetBrainsAiSafetyError
 
 
 def _diagnosis_payload(diagnosis: JetBrainsDiagnosis) -> dict[str, Any]:
@@ -234,3 +236,123 @@ def doctor(
     if applied:
         status = "potwierdzona poprawa" if applied.verified_improvement else "brak potwierdzonej poprawy"
         click.echo(f"GC.run wykonano: {status}.")
+
+
+def _render_ai_status(payload: dict[str, Any]) -> None:
+    click.echo(click.style("JetBrains AI — stan", fg="yellow", bold=True))
+    helpers = payload["helpers"]
+    if helpers:
+        for helper in helpers:
+            click.echo(
+                f"  Qoder PID {helper['pid']} (rodzic {helper['ppid']}), "
+                f"RSS={helper['rss_bytes'] / 1024**2:.1f} MB"
+            )
+    else:
+        click.echo("  Brak aktywnych helperów Qoder.")
+    configs = payload["configs"]
+    if not configs:
+        click.echo("  Nie znaleziono konfiguracji aktywnego produktu JetBrains.")
+    for config in configs:
+        disabled = ", ".join(config["disabled"]) or "brak"
+        click.echo(f"  {config['directory']}: wyłączone AI: {disabled}")
+
+
+@jetbrains.command(name="ai")
+@click.option(
+    "--config-dir",
+    type=click.Path(path_type=Path, file_okay=False, exists=True),
+    help="Dokładny katalog konfiguracji produktu JetBrains; domyślnie aktywny produkt",
+)
+@click.option(
+    "--disable-plugins",
+    is_flag=True,
+    help="Dodaj com.qoder i com.intellij.ml.llm do disabled_plugins.txt",
+)
+@click.option(
+    "--stop-qoder",
+    is_flag=True,
+    help="Zakończ TERM wyłącznie helpery Qoder należące do głównego IDE",
+)
+@click.option(
+    "--apply",
+    is_flag=True,
+    help="Wykonaj wybrane zmiany; bez tej opcji pokazuje tylko plan",
+)
+@click.option("--yes", is_flag=True, help="Pomiń potwierdzenie z --apply")
+@click.option("--json", "json_output", is_flag=True, help="Zwróć wynik JSON")
+def ai_control(
+    config_dir: Path | None,
+    disable_plugins: bool,
+    stop_qoder: bool,
+    apply: bool,
+    yes: bool,
+    json_output: bool,
+) -> None:
+    """Diagnozuj i ogranicz dodatki AI bez zamykania okien IDE."""
+    if apply and not (disable_plugins or stop_qoder):
+        raise click.UsageError("--apply wymaga --disable-plugins lub --stop-qoder")
+    control = JetBrainsAiControl()
+    try:
+        before = control.status(config_dir=config_dir)
+    except JetBrainsAiSafetyError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    if not (disable_plugins or stop_qoder):
+        if json_output:
+            click.echo(json.dumps(before, indent=2))
+        else:
+            _render_ai_status(before)
+        return
+    if apply and not yes and not click.confirm(
+        "Wyłączyć wskazane wtyczki i/lub zakończyć dokładne helpery Qoder?",
+        default=False,
+    ):
+        click.echo("Pominięto zmiany JetBrains AI.")
+        return
+
+    result: dict[str, Any] = {
+        "service": "jetbrains-ai-control",
+        "dry_run": not apply,
+        "plugin_changes": [],
+        "helper_change": None,
+    }
+    try:
+        if disable_plugins:
+            if not before["configs"]:
+                raise JetBrainsAiSafetyError(
+                    "no exact JetBrains config directory was discovered"
+                )
+            result["plugin_changes"] = [
+                control.disable_plugins(
+                    Path(config["directory"]),
+                    apply=apply,
+                )
+                for config in before["configs"]
+            ]
+        if stop_qoder:
+            result["helper_change"] = control.stop_qoder_helpers(
+                [
+                    (helper["pid"], helper["create_time"])
+                    for helper in before["helpers"]
+                ],
+                apply=apply,
+            )
+        result["after"] = control.status(config_dir=config_dir)
+    except (JetBrainsAiSafetyError, ValueError) as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    if json_output:
+        click.echo(json.dumps(result, indent=2))
+        return
+    mode = "WYKONANO" if apply else "PLAN"
+    click.echo(click.style(f"JetBrains AI [{mode}]", fg="green" if apply else "cyan"))
+    for change in result["plugin_changes"]:
+        added = ", ".join(change["added"]) or "brak nowych wpisów"
+        click.echo(f"  Wtyczki: {added}; restart IDE wymagany do pełnego efektu.")
+    if result["helper_change"] is not None:
+        helper = result["helper_change"]
+        click.echo(
+            f"  Qoder: wybrane={helper['selected']}, zatrzymane={helper['stopped']}, "
+            f"błędy={len(helper['failed'])}"
+        )
+    click.echo("  Główna JVM i okna IDE nie są zatrzymywane.")
