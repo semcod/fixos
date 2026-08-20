@@ -2,8 +2,8 @@
 
 - **ID**: ticket-002
 - **Owner**: unresolved:human
-- **Status**: IN_PROGRESS
-- **Workflow state**: PUBLICATION
+- **Status**: DONE
+- **Workflow state**: DONE
 - **Created**: 2026-08-20
 
 ## Goal and scope
@@ -61,6 +61,19 @@ all open IDE windows.
 - The focused JetBrains/process tests passed 26/26. The full suite passed with
   486 tests, 5 skips and 16 intentional deselections.
 - The final governance gate passed with 0 errors and 0 warnings.
+
+## Publication
+
+- [PR #6](https://github.com/semcod/fixos/pull/6) passed the full target CI on
+  exact head `70609fbbc006fedb0851d991f4639c90c9a849e8`.
+- Repository-scoped Validator App review `4981125970` approved that exact head
+  for `ticket-002` after deterministic validation and two stable policy reads.
+- The protected validator merged PR #6 as
+  `10c550c5aa3cbbdd849d9b582a1c7ac9d7fa9de2`; the remote implementation
+  branch was deleted automatically.
+- The temporary clean validator worktree and the released ticket worktree were
+  removed through Git after confirming that both were clean and the head was
+  reachable from integrated `main`.
 
 ## Participants
 

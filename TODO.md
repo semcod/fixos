@@ -8,11 +8,12 @@ Ostatni przegląd: 2026-07-23.
 
 ## Aktywne
 
-- [ ] Dostarczyć [ticket-002](project/ticket-002/README.md): wykrywanie świeżych
+- [x] Dostarczyć [ticket-002](project/ticket-002/README.md): wykrywanie świeżych
   łańcuchów procesów blokujących starsze aplikacje oraz bezpieczne, jawnie
   wybrane zamykanie drzewa z weryfikacją po wykonaniu, wraz z odzyskiwaniem
   responsywności współdzielonej JVM JetBrains bez zamykania okien. Stan:
-  `IN_PROGRESS / PUBLICATION`.
+  `DONE / DONE`; PR #6 został zatwierdzony przez Validator App i scalony jako
+  `10c550c...`.
 
 - [x] Dostarczyć [ticket-003](project/ticket-003/README.md): konserwatywnie
   wykrywać stare kontenery Docker uruchamiane automatycznie, wiązać je z
