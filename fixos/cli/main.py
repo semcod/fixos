@@ -88,6 +88,11 @@ def _print_welcome() -> None:
             "Usuń nieużywane sieci i sprawdź pulę adresową",
         ),
         (
+            "fixos cleanup --docker-stale-services",
+            "",
+            "Wybierz stare usługi, wyłącz autostart i opcjonalnie zatrzymaj",
+        ),
+        (
             "fixos cleanup --ollama-old",
             "",
             "Usuń modele Ollama niezmieniane od 90+ dni",

@@ -11,6 +11,11 @@ Sub-modules (split from the original monolith):
 
 import click
 
+from fixos.cli._cleanup_utils import _parse_numeric_range_set
+from fixos.diagnostics.docker_startup_optimizer import (
+    DEFAULT_DOCKER_STALE_SERVICE_DAYS,
+    DockerStartupOptimizer,
+)
 from fixos.diagnostics.service_scanner import ServiceDataScanner
 from fixos.constants import DEFAULT_CLEANUP_THRESHOLD_MB
 
@@ -689,6 +694,123 @@ def _cleanup_docker_networks(
     _display_docker_network_result(result, dry_run=dry_run)
 
 
+def _display_stale_docker_candidates(candidates: list[dict], days: int) -> None:
+    """Render repository evidence used to protect or select Docker services."""
+    click.echo(
+        click.style(
+            f"Docker — usługi z repozytoriów nieaktywnych od {days}+ dni",
+            fg="yellow",
+        )
+    )
+    if not candidates:
+        click.echo("  Brak usług spełniających wszystkie bezpieczne kryteria.")
+        return
+    for index, candidate in enumerate(candidates, 1):
+        helpers = len(candidate.get("docker_exec_helpers") or [])
+        click.echo(
+            f"  [{index}] {candidate['name']} ({candidate['short_id']}) — "
+            f"{candidate['inactivity_days']:.1f} dni, "
+            f"stan={candidate['status']}, restart={candidate['restart_policy']}"
+        )
+        click.echo(
+            f"      repo: {candidate['repository']}; docker exec: {helpers}"
+        )
+
+
+def _cleanup_docker_stale_services(
+    days: int,
+    json_output: bool,
+    dry_run: bool,
+    list_only: bool,
+) -> None:
+    """Interactively disable autostart and optionally stop exact candidates."""
+    optimizer = DockerStartupOptimizer()
+    try:
+        scan = optimizer.scan(min_inactive_days=days)
+    except (RuntimeError, ValueError) as exc:
+        if json_output:
+            import json
+
+            click.echo(json.dumps({"success": False, "error": str(exc)}))
+        else:
+            click.echo(click.style(f"Błąd: {exc}", fg="red"))
+        return
+
+    if json_output:
+        import json
+
+        click.echo(json.dumps(scan, indent=2, default=str))
+        return
+
+    candidates = scan["candidates"]
+    _display_stale_docker_candidates(candidates, days)
+    click.echo(
+        f"  Helpery docker exec w systemie: {scan['docker_exec_helper_count']}"
+    )
+    if not candidates:
+        return
+    if dry_run or list_only:
+        mode = "DRY-RUN" if dry_run else "LISTA"
+        click.echo(
+            click.style(f"[TRYB {mode}] - brak zmian w Dockerze", fg="cyan")
+        )
+        return
+
+    raw_selection = click.prompt(
+        "Wybierz numery usług (np. 1,3-5 lub all; 0 pomija)",
+        default="0",
+        show_default=True,
+    ).strip()
+    if raw_selection.lower() == "all":
+        selected_numbers = set(range(1, len(candidates) + 1))
+    else:
+        selected_numbers = _parse_numeric_range_set(raw_selection)
+        selected_numbers = {
+            number for number in selected_numbers if 1 <= number <= len(candidates)
+        }
+    if not selected_numbers:
+        click.echo(click.style("Pominięto usługi Docker.", fg="yellow"))
+        return
+
+    selected = [candidates[number - 1] for number in sorted(selected_numbers)]
+    click.echo("Wybrane usługi:")
+    for candidate in selected:
+        click.echo(f"  • {candidate['name']} ({candidate['short_id']})")
+    if not click.confirm(
+        "Wyłączyć ich autostart (ustawić restart=no)?",
+        default=False,
+    ):
+        click.echo(click.style("Pominięto zmiany Dockera.", fg="yellow"))
+        return
+    stop_running = click.confirm(
+        "Zatrzymać teraz wybrane aktywne usługi?",
+        default=False,
+    )
+    result = optimizer.optimize(
+        [candidate["id"] for candidate in selected],
+        min_inactive_days=days,
+        apply=True,
+        stop_running=stop_running,
+    )
+    for changed in result["changed"]:
+        state = changed.get("status") or "nieznany"
+        click.echo(
+            click.style(
+                f"  ✓ {changed['name']}: restart=no, stan={state}", fg="green"
+            )
+        )
+    for failed in result["failed"]:
+        click.echo(
+            click.style(
+                f"  Błąd {failed.get('name') or failed['id'][:12]}: "
+                f"{failed.get('error') or 'nieznany błąd'}",
+                fg="red",
+            )
+        )
+    if result["success"]:
+        click.echo(click.style("Optymalizacja usług Docker zakończona.", fg="green"))
+
+
 def _cleanup_ollama_old_unused(
     scanner, days: int, json_output: bool, dry_run: bool
 ) -> None:
@@ -915,7 +1037,8 @@ def _run_interactive_cleanup(plan: dict, list_only: bool, scanner) -> None:
     default=None,
     help=(
         "Wyczyść konkretną usługę "
-        "(docker, docker-all, docker-old, docker-networks, ollama-old, npm, ...)"
+        "(docker, docker-all, docker-old, docker-networks, "
+        "docker-stale-services, ollama-old, npm, ...)"
     ),
 )
 @click.option(
@@ -950,6 +1073,17 @@ def _run_interactive_cleanup(plan: dict, list_only: bool, scanner) -> None:
     ),
 )
 @click.option(
+    "--docker-stale-services",
+    "docker_stale_services",
+    is_flag=True,
+    default=False,
+    help=(
+        "Wybierz usługi z czystych repozytoriów Git nieaktywnych od --days dni; "
+        f"domyślnie {DEFAULT_DOCKER_STALE_SERVICE_DAYS} dni; "
+        "wyłączenie autostartu i zatrzymanie wymagają potwierdzeń"
+    ),
+)
+@click.option(
     "--ollama-old",
     "ollama_old",
     is_flag=True,
@@ -966,7 +1100,9 @@ def _run_interactive_cleanup(plan: dict, list_only: bool, scanner) -> None:
     help=(
         "Wiek w dniach dla --docker-old "
         f"(domyślnie {DEFAULT_DOCKER_OLD_UNUSED_DAYS}), --docker-networks "
-        f"(domyślnie {DEFAULT_DOCKER_NETWORK_AGE_DAYS}, czyli wszystkie nieużywane) "
+        f"(domyślnie {DEFAULT_DOCKER_NETWORK_AGE_DAYS}, czyli wszystkie nieużywane), "
+        "--docker-stale-services "
+        f"(domyślnie {DEFAULT_DOCKER_STALE_SERVICE_DAYS}) "
         "lub --ollama-old "
         f"(domyślnie {DEFAULT_OLLAMA_OLD_UNUSED_DAYS})"
     ),
@@ -1000,6 +1136,7 @@ def cleanup_services(
     docker_old,
     docker_all,
     docker_networks,
+    docker_stale_services,
     ollama_old,
     days,
     dry_run,
@@ -1028,6 +1165,10 @@ def cleanup_services(
       # stare obrazy/cache + osierocone sieci
       fixos cleanup --docker-networks --dry-run
       # sieci bez endpointów; wykonanie kończy test puli adresowej
+      fixos cleanup --docker-stale-services --dry-run
+      # podgląd usług z repozytoriów nieaktywnych od 3+ dni
+      fixos cleanup --docker-stale-services --days 7
+      # wybór usług, potwierdzenie restart=no i opcjonalnego zatrzymania
       fixos cleanup --ollama-old --days 90 --dry-run
       # modele Ollama niezmieniane od 90+ dni
       fixos cleanup -c ollama-old
@@ -1042,6 +1183,9 @@ def cleanup_services(
     want_docker_old = docker_old or (cleanup == "docker-old")
     want_docker_all = docker_all or cleanup in {"docker-all", "docker-unused"}
     want_docker_networks = docker_networks or (cleanup == "docker-networks")
+    want_docker_stale_services = docker_stale_services or (
+        cleanup == "docker-stale-services"
+    )
     want_ollama_old = ollama_old or (cleanup == "ollama-old")
     if want_docker_old and want_docker_all:
         click.echo(
@@ -1055,6 +1199,27 @@ def cleanup_services(
         click.echo(
             click.style(
                 "Czyszczenie Ollama i Dockera uruchom jako osobne akcje.",
+                fg="red",
+            )
+        )
+        return
+    if want_docker_stale_services and (
+        want_docker_old
+        or want_docker_all
+        or want_docker_networks
+        or want_ollama_old
+    ):
+        click.echo(
+            click.style(
+                "Optymalizację usług uruchom osobno od czyszczenia danych Dockera/Ollama.",
+                fg="red",
+            )
+        )
+        return
+    if docker_stale_services and cleanup and cleanup != "docker-stale-services":
+        click.echo(
+            click.style(
+                "--docker-stale-services nie można łączyć z innym -c/--cleanup.",
                 fg="red",
             )
         )
@@ -1082,6 +1247,17 @@ def cleanup_services(
     if want_docker_networks:
         effective_days = days if days is not None else DEFAULT_DOCKER_NETWORK_AGE_DAYS
         _cleanup_docker_networks(scanner, effective_days, json_output, dry_run)
+        return
+    if want_docker_stale_services:
+        effective_days = (
+            days if days is not None else DEFAULT_DOCKER_STALE_SERVICE_DAYS
+        )
+        _cleanup_docker_stale_services(
+            effective_days,
+            json_output,
+            dry_run,
+            list_only,
+        )
         return
     if want_ollama_old:
         effective_days = days if days is not None else DEFAULT_OLLAMA_OLD_UNUSED_DAYS

@@ -1,0 +1,128 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-003",
+  "summary": "Optimize stale Docker startup workloads",
+  "workstream": "application",
+  "classification": {
+    "kind": "FEATURE",
+    "priority": "P2",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-003/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/diagnostics/docker_startup_optimizer.py",
+    "tests/unit/test_docker_startup_optimizer.py",
+    "fixos/cli/cleanup_cmd.py",
+    "fixos/cli/main.py",
+    "tests/unit/test_cleanup_cmd.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md",
+    "pyproject.toml",
+    "uv.lock",
+    "VERSION",
+    "CHANGELOG.md",
+    "README.md",
+    ".env",
+    "**/*.pem",
+    "**/*secret*"
+  ],
+  "stacks": ["python"],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "e10170d0924584e679ff3065adc0a69fe2ae87d9",
+    "targetBranch": "main",
+    "outcome": "FixOS can identify stale repository-backed Docker autostart workloads and expose an interactive 3-day-default cleanup flow without deleting Docker data",
+    "nonGoals": [
+      "No container, image, volume or network deletion",
+      "No automatic action based only on process or container age",
+      "No mutation without exact container selection and apply opt-in",
+      "No stopping of a running container without a separate stop opt-in",
+      "No direct signalling of PyCharm or docker exec helper processes",
+      "No automatic cleanup merely from opening the FixOS welcome screen",
+      "No public Python package export",
+      "No new runtime dependency"
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 30,
+    "budgets": {
+      "maxImplementationFiles": 5,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Keep Docker evidence and mutation in the diagnostics component, while the existing cleanup CLI only renders candidates, collects exact selections and confirmations, and delegates execution",
+      "components": [
+        {
+          "name": "docker-startup-optimizer",
+          "paths": [
+            "fixos/diagnostics/docker_startup_optimizer.py",
+            "tests/unit/test_docker_startup_optimizer.py"
+          ]
+        },
+        {
+          "name": "cleanup-cli",
+          "paths": [
+            "fixos/cli/cleanup_cmd.py",
+            "fixos/cli/main.py",
+            "tests/unit/test_cleanup_cmd.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {"impact": "none", "states": [], "evidence": []},
+      "rollback": "Revert the implementation and ticket metadata; no Docker mutation is made by the library unless apply is explicitly enabled"
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": ["pytest -q tests/unit/test_docker_startup_optimizer.py"],
+        "evidence": "project/ticket-003/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": ["pytest -q tests/unit/test_docker_startup_optimizer.py"],
+        "evidence": "project/ticket-003/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-03",
+        "commands": ["pytest -q tests/unit/test_docker_startup_optimizer.py"],
+        "evidence": "project/ticket-003/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-04",
+        "commands": ["pytest -q tests/unit/test_docker_startup_optimizer.py"],
+        "evidence": "project/ticket-003/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-05",
+        "commands": ["pytest -q tests/unit/test_docker_startup_optimizer.py"],
+        "evidence": "project/ticket-003/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-06",
+        "commands": ["live read-only Docker scan", "pytest -q", "./project/governance-check.sh"],
+        "evidence": "project/ticket-003/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-07",
+        "commands": ["pytest -q tests/unit/test_cleanup_cmd.py"],
+        "evidence": "project/ticket-003/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-08",
+        "commands": ["pytest -q tests/unit/test_cleanup_cmd.py"],
+        "evidence": "project/ticket-003/ai-codex-logs.txt"
+      }
+    ]
+  }
+}
