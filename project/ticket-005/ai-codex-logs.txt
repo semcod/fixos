@@ -1,0 +1,25 @@
+2026-08-20 authorization and live diagnosis
+- User authorization: `SESSION_EXECUTION_AUTHORIZATION` for the bounded quick
+  diagnostic correction and read-only/dry-run Docker stale-service review.
+- Live `fixos quick --no-save`: total CPU 34%, RAM 50%; the unconditional list
+  showed PyCharm PID 143907 first at CPU 223.4% and RAM 19.9%, followed by htop,
+  gnome-shell, uvicorn and Qoder.
+- Live `fixos cleanup --docker-stale-services --days 3 --dry-run --json`:
+  reviewed 191 containers (102 active, 127 startup-enabled) and detected 92
+  IDE-owned `docker exec` helpers. Candidate count: 0; planned actions: 0.
+- Protection evidence: 19 repository-active containers (latest inactivity 1.8
+  days), 33 repository-dirty, 18 repository-ambiguous, 96 repository-not-found,
+  75 git-activity-unavailable and 64 already without a startup restart policy.
+- No container was stopped, removed or assigned a new restart policy. No IDE
+  process was signalled and no IDE window was closed.
+
+2026-08-20 implementation validation
+- `python -m pytest -q tests/unit/test_quick_snapshot.py
+  tests/unit/test_quick_cmd.py`: 11 passed.
+- `python -m pytest -q`: 502 passed, 5 skipped, 16 deselected.
+- `ruff check` for all four changed implementation/test files: passed.
+- `black --check` for all four changed implementation/test files: passed.
+- `python -m compileall -q fixos/diagnostics/quick_snapshot.py
+  fixos/cli/quick_cmd.py`: passed.
+- `git diff --check`: passed.
+- `./project/governance-check.sh`: GOV-PASS, 0 errors, 0 warnings.

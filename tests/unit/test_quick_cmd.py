@@ -20,6 +20,14 @@ def _snapshot():
             "cpu": {"percent": 10},
             "memory": {"percent": 20},
             "disk": {"percent": 30, "free_bytes": 1024**3},
+            "top_processes": [
+                {
+                    "pid": 202,
+                    "name": "pycharm",
+                    "cpu_percent": 325.5,
+                    "memory_percent": 21.2,
+                }
+            ],
         },
         "safe_reclaim": {
             "estimated_max_bytes": 1024**3,
@@ -83,5 +91,19 @@ def test_quick_offers_deep_scan_only_after_fast_result(monkeypatch):
 
     assert result.exit_code == 0
     assert "Wynik w 120 ms" in result.output
+    assert "Najbardziej obciążające procesy teraz" in result.output
+    assert "pycharm (PID 202): CPU 325.5% · RAM 21.2%" in result.output
     assert "Uruchomić teraz analizę głęboką?" in result.output
     assert deep_called == []
+
+
+def test_processes_are_shown_without_cpu_or_memory_alerts(monkeypatch):
+    monkeypatch.setattr(
+        "fixos.diagnostics.quick_snapshot.collect_quick_snapshot",
+        lambda **kwargs: _snapshot(),
+    )
+
+    result = CliRunner().invoke(quick_cmd.quick, ["--no-save"])
+
+    assert result.exit_code == 0
+    assert "Najbardziej obciążające procesy teraz" in result.output

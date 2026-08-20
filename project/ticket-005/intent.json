@@ -1,0 +1,101 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-005",
+  "summary": "Always show sampled top process load and verify stale Docker services safely",
+  "workstream": "application",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P1",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-005/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/diagnostics/quick_snapshot.py",
+    "fixos/cli/quick_cmd.py",
+    "tests/unit/test_quick_snapshot.py",
+    "tests/unit/test_quick_cmd.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md",
+    "pyproject.toml",
+    "uv.lock",
+    "VERSION",
+    "CHANGELOG.md",
+    ".env",
+    "**/*.pem",
+    "**/*secret*"
+  ],
+  "stacks": ["python"],
+  "dependsOn": ["ticket-002", "ticket-003"],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "556dbb57e1ae46750302e5fe735f1ee8ec6e2cb5",
+    "targetBranch": "main",
+    "outcome": "Human-readable quick diagnostics always show a bounded, sampled list of the processes exerting the greatest CPU or memory pressure, while the existing Docker review remains dry-run-first and conservative",
+    "nonGoals": [
+      "No automatic container stop, removal or restart-policy mutation",
+      "No guessing when a container cannot be mapped uniquely to a repository",
+      "No new CLI command, option or public package export",
+      "No IDE signal, restart or window close",
+      "No new runtime dependency"
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 25,
+    "budgets": {
+      "maxImplementationFiles": 4,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Prime process counters, sample system and process CPU over one bounded interval, rank normalized CPU and memory pressure together, and render the existing snapshot data regardless of alert thresholds",
+      "components": [
+        {
+          "name": "quick-resource-diagnostics",
+          "paths": [
+            "fixos/diagnostics/quick_snapshot.py",
+            "fixos/cli/quick_cmd.py",
+            "tests/unit/test_quick_snapshot.py",
+            "tests/unit/test_quick_cmd.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "single-state",
+        "states": ["success"],
+        "evidence": ["tests/unit/test_quick_cmd.py"]
+      },
+      "rollback": "Revert the four changed implementation/test files and ticket metadata"
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": ["pytest -q tests/unit/test_quick_snapshot.py"],
+        "evidence": "project/ticket-005/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": ["pytest -q tests/unit/test_quick_cmd.py", "fixos quick --no-save"],
+        "evidence": "project/ticket-005/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-03",
+        "commands": ["fixos cleanup --docker-stale-services --days 3 --dry-run --json"],
+        "evidence": "project/ticket-005/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-04",
+        "commands": ["pytest -q", "./project/governance-check.sh"],
+        "evidence": "project/ticket-005/ai-codex-logs.txt"
+      }
+    ]
+  }
+}
