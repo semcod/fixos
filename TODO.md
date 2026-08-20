@@ -14,10 +14,11 @@ Ostatni przegląd: 2026-07-23.
   dni. Stan: `DONE / DONE`; PR #8 został zatwierdzony przez Validator App i
   scalony jako `715f961...`, a testy po merge przeszły.
 
-- [ ] Dostarczyć [ticket-004](project/ticket-004/README.md): wykrywać i jawnie
+- [x] Dostarczyć [ticket-004](project/ticket-004/README.md): wykrywać i jawnie
   czyścić kontenery Compose z brakującym katalogiem projektu oraz stare drzewa
   agentów IDE i serwerów developerskich, z ochroną bieżącego IDE/Codex i bez
-  usuwania danych. Stan: `IN_PROGRESS / PUBLICATION`.
+  usuwania danych. Stan: `DONE / DONE`; PR #9 został zatwierdzony przez
+  Validator App i scalony jako `6af598a...`.
 
 - [x] Dostarczyć [ticket-002](project/ticket-002/README.md): wykrywanie świeżych
   łańcuchów procesów blokujących starsze aplikacje oraz bezpieczne, jawnie

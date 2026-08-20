@@ -1,5 +1,12 @@
 # Ticket Changelog (ticket-004)
 
+## [0.1.1] - 2026-08-20
+
+- Passed exact-head CI and repository-scoped Validator App approval, then
+  merged PR #9 through the protected autonomous merge path.
+- Verified automatic implementation-branch deletion and closed the ticket from
+  integrated `main` in this governance-only change.
+
 ## [0.1.0] - 2026-08-20
 
 - Initial governance scaffold created.
