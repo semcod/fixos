@@ -48,6 +48,11 @@ argument for the word `pycharm`.
 - Focused validation passes 25 tests. Full validation passes 535 tests with 5
   skipped and 16 deselected; scoped Ruff, compileall and governance are clean.
 - Advanced the validated implementation to PUBLICATION for exact-head review.
+- Published PR #20 at exact head `d500e3f...`. Validator run 32365098029
+  approved it as review 4982270230 after two stable policy reads, merged it as
+  `f38c473...` and deleted the remote implementation branch.
+- Began this governance-only closure from the integrated merge commit and
+  marked the ticket `DONE / DONE` without changing executable code.
 
 ## Blockers
 
