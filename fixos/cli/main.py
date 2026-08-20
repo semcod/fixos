@@ -93,6 +93,11 @@ def _print_welcome() -> None:
             "Wybierz stare usługi, wyłącz autostart i opcjonalnie zatrzymaj",
         ),
         (
+            "fixos cleanup --orphaned-projects",
+            "",
+            "Wybierz obciążenia projektów, których katalog już nie istnieje",
+        ),
+        (
             "fixos cleanup --ollama-old",
             "",
             "Usuń modele Ollama niezmieniane od 90+ dni",

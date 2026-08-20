@@ -1,0 +1,20 @@
+2026-08-20 scope: SESSION_EXECUTION_AUTHORIZATION for exact missing-project Docker and stale-process cleanup through FixOS; no object/data deletion
+2026-08-20 focused: pytest -q tests/unit/test_orphaned_workloads.py tests/unit/test_cleanup_cmd.py -> 29 passed
+2026-08-20 static: compileall passed; scoped Ruff passed; main.py retains 17 pre-existing E402 command-registration findings
+2026-08-20 live-read-only: 44 Docker candidates and 9 process candidates; exact authorized selection was Docker positions 1-29,44 and process positions 47-48,52-53
+2026-08-20 live-exclusions: 14 relcom-project-business-os containers and five unrelated development servers were not selected
+2026-08-20 live-process-evidence: PyCharm ACP roots 810433 and 3051859 had 21 and 28 members; three localhost connections belonged to nested stdioMcpServer instances
+2026-08-20 authorized-live-apply: fixos cleanup --orphaned-projects --days 3 --process-hours 12; exact selection; Docker=yes; process graceful=yes; process force=no
+2026-08-20 live-result: 30 Docker changed, 4 process roots changed, 0 failed; process roots represented 51 total processes
+2026-08-20 docker-verification: 30/30 exact targets exited with restart=no; containers 191->191, volumes 673->673, unique images 319->319, networks 32->32, running containers 102->72
+2026-08-20 process-verification: PIDs 810433,3051859,3720397,2143313 absent; listeners 8781,8782,8099,8105,8783,8793 absent
+2026-08-20 protected-verification: PyCharm PID 143907 alive; current Codex PIDs 3467003 and 3589495 alive
+2026-08-20 post-live-scan: authorized Docker candidates 0; authorized process candidates 0; unrelated candidates retained for future explicit review
+2026-08-20 final-static: compileall and scoped Ruff passed; main.py passed with its established E402 registration layout ignored
+2026-08-20 final-full: pytest -q -> 508 passed, 5 skipped, 16 deselected
+2026-08-20 final-governance: passed -> 0 errors, 0 warnings
+2026-08-20 publication: ticket transitioned to IN_PROGRESS / PUBLICATION after all acceptance criteria passed
+2026-08-20 validator-first-run: run 32355855573 correctly blocked frozen head ad675121 because main advanced and PR became conflicting; no review or merge occurred
+2026-08-20 rebase: accepted base refreshed to 715f961; retained both ticket-004 and independently merged ticket-005 TODO/index entries
+2026-08-20 dependency-closure: ticket-005 closure PR #10 merged as ea46e06 after trusted Validator approval; ticket-004 rebased cleanly and accepted base refreshed
+2026-08-20 final-after-rebase: pytest -q -> 510 passed, 5 skipped, 16 deselected; governance -> 0 errors, 0 warnings

@@ -1,0 +1,105 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-004",
+  "summary": "Clean orphaned project workloads",
+  "workstream": "application",
+  "classification": {
+    "kind": "FEATURE",
+    "priority": "P1",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-004/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/diagnostics/orphaned_workloads.py",
+    "fixos/cli/cleanup_cmd.py",
+    "fixos/cli/main.py",
+    "tests/unit/test_orphaned_workloads.py",
+    "tests/unit/test_cleanup_cmd.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md",
+    "docs/**",
+    "README.md",
+    "CHANGELOG.md",
+    "VERSION",
+    "pyproject.toml",
+    "uv.lock",
+    ".env",
+    "**/*.pem",
+    "**/*secret*"
+  ],
+  "stacks": ["python"],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "ea46e06f4eeb17cf40dc65b82079ffa97a1cb839",
+    "targetBranch": "main",
+    "outcome": "FixOS can explicitly clean missing-project Docker workloads and stale development process trees without removing project or Docker data",
+    "nonGoals": [
+      "No automatic cleanup without exact interactive selection",
+      "No container, image, network, volume or project-file deletion",
+      "No termination of the main IDE, current FixOS ancestry, current Codex processes or privileged services",
+      "No inference that every non-Git or dirty project is unused",
+      "No runtime dependency",
+      "User documentation under docs is delivered by a separate integration-workstream ticket"
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 30,
+    "budgets": {
+      "maxImplementationFiles": 5,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Keep orphan evidence and exact mutations in one diagnostic service, with the existing cleanup command responsible only for display, selection and confirmation",
+      "components": [
+        {
+          "name": "orphaned-workload-diagnostics",
+          "paths": [
+            "fixos/diagnostics/orphaned_workloads.py",
+            "tests/unit/test_orphaned_workloads.py"
+          ]
+        },
+        {
+          "name": "cleanup-cli",
+          "paths": [
+            "fixos/cli/cleanup_cmd.py",
+            "fixos/cli/main.py",
+            "tests/unit/test_cleanup_cmd.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "multi-state",
+        "states": ["empty", "error", "success"],
+        "evidence": ["focused CLI tests", "live dry run", "authorized live apply"]
+      },
+      "rollback": "Revert the diagnostic, CLI and focused test changes; Docker objects and project data remain available because cleanup never deletes them"
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-07",
+        "commands": [
+          "pytest -q tests/unit/test_orphaned_workloads.py tests/unit/test_cleanup_cmd.py",
+          "fixos cleanup --orphaned-projects --days 3 --dry-run",
+          "authorized exact-selection live run and post-action scan"
+        ],
+        "evidence": "project/ticket-004/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-09",
+        "commands": ["pytest -q", "./project/governance-check.sh"],
+        "evidence": "project/ticket-004/ai-codex-logs.txt"
+      }
+    ]
+  }
+}
