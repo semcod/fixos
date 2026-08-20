@@ -21,3 +21,8 @@ pytest -q
 
 ./project/governance-check.sh
 GOV-PASS: passed (0 errors, 0 warnings)
+
+2026-08-20 protected publication
+PR #18 head=6643838e5eaabf5ffbccf7889e367411eb087933
+validator_run=32363508773 review=4982121426 result=approved
+merge_commit=942fa1dc3aad60e1e2f71d014a5a9c3b242fe618

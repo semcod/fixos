@@ -46,6 +46,11 @@ and asked that this protection be manageable and visible from FixOS.
 - Full validation passes 530 tests with 5 skipped and 16 deselected; governance
   passes with zero errors and warnings.
 - Advanced the validated implementation to PUBLICATION for exact-head review.
+- Published PR #18 at exact head `6643838...`. Validator run 32363508773
+  approved it as review 4982121426 after two stable policy reads, merged it as
+  `942fa1d...` and deleted the remote implementation branch.
+- Began this governance-only closure from the integrated merge commit and
+  marked the ticket `DONE / DONE` without changing executable code.
 
 ## Blockers
 
