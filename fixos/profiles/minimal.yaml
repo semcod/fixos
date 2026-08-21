@@ -1,5 +1,0 @@
-name: minimal
-description: "Szybka diagnostyka — tylko metryki systemowe"
-modules:
-  - system
-thresholds: {}

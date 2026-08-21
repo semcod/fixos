@@ -1,9 +1,0 @@
-name: office
-icon: "📄"
-description: "Praca biurowa — podstawowe narzędzia i przeglądarka"
-includes:
-  - core_utils
-  - repos
-extra_packages:
-  - firefox
-  - flameshot

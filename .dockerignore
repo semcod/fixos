@@ -1,9 +1,0 @@
-node_modules/
-test-results/
-.git/
-.idea/
-*.db
-progress.db
-.env
-electron/node_modules/
-dist-electron/
