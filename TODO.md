@@ -8,6 +8,11 @@ Ostatni przegląd: 2026-07-23.
 
 ## Aktywne
 
+- [ ] Dostarczyć [ticket-013](project/ticket-013/README.md): zachować przyjęty
+  wybór optymalizacji HITL po wolnej odpowiedzi modelu, licząc timeout osobno
+  dla każdej tury LLM i pokazując aktualny pozostały czas. Stan:
+  `IN_PROGRESS / PUBLICATION`.
+
 - [x] Dostarczyć [ticket-012](project/ticket-012/README.md): dodać numerowane
   wybieranie pojedynczych problemów także dla odpowiedzi zawierających samą
   diagnozę oraz po każdym sukcesie odświeżać listę pozostałych optymalizacji.

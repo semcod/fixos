@@ -2808,5 +2808,39 @@ tickets:
   files:
   - tests/unit/test_orphan_pins.py
   dedupe_key: test-optimization:tests.unit.test_orphan_pins:test_cleanup_help_and_welcome_expose_persistent_orphan_pin_management
+- signal: slow_test_warning
+  title: 'Address slow test: tests.unit.test_resources_quick.test_quick_resources_does_not_recursively_scan_root_or_home'
+  description: 'Test `tests.unit.test_resources_quick.test_quick_resources_does_not_recursively_scan_root_or_home`
+    took 1.15s to run.
+
+
+    Optimize its setup, mock slow external dependencies, or refactor its logic to
+    reduce overall test suite execution time.'
+  priority: medium
+  labels:
+  - llm-ready
+  - test-optimization
+  - slow-test
+  files:
+  - tests/unit/test_resources_quick.py
+  dedupe_key: test-optimization:tests.unit.test_resources_quick:test_quick_resources_does_not_recursively_scan_root_or_home
+- signal: slow_test_warning
+  title: Address high test suite startup overhead
+  description: 'The test suite startup and collection overhead is high: 4.53s.
+
+
+    This overhead is spent on imports, collection, and test environment initialization.
+
+    Analyze fixtures with broad scopes, reduce heavy imports on test collection, and
+    optimize pytest-xdist startup settings to decrease the delay before tests start
+    running.'
+  priority: high
+  labels:
+  - llm-ready
+  - test-optimization
+  - startup-overhead
+  files:
+  - pyproject.toml
+  dedupe_key: test-optimization:general:startup-overhead
 applied: []
 skipped: []

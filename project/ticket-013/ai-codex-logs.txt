@@ -1,0 +1,27 @@
+2026-09-01 DIAGNOSIS
+- Reproduced from control flow and the supplied transcript.
+- `_process_turn()` captures `remaining()` before `llm.chat()` and prints that
+  stale value after the response.
+- Numeric choice `7` queues the focused prompt correctly, but the next loop
+  checks the session-wide deadline and raises `SessionTimeout` before chat.
+- SESSION_EXECUTION_AUTHORIZATION: the user explicitly requested continuation
+  and reported this failure for correction.
+
+2026-09-01 | python -m pytest -q tests/unit/test_core.py
+PASS | 57 passed in 2.61s
+
+2026-09-01 | ruff check fixos/agent/hitl_session.py fixos/agent/session_io.py tests/unit/test_core.py
+PASS | All checks passed
+
+2026-09-01 | python -m compileall -q fixos
+PASS | no output
+
+2026-09-01 | python -m pytest -q
+PASS | 554 passed, 5 skipped, 16 deselected in 35.27s
+
+2026-09-01 | ./project/governance-check.sh
+PASS | GOV-PASS: passed (0 errors, 0 warnings)
+
+2026-09-01 | human publication authorization
+AUTHORIZED | User previously requested: wypchnij z goal -a; the current bug
+report explicitly continues that published HITL work.
