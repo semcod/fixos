@@ -60,11 +60,18 @@ linkability.
   facade over the shared policy used by the rest of FixOS.
 - Added contract and regression coverage across unit, LLM-boundary and audio
   E2E tests. Full Python, Ruff, complexity, PyQual and governance checks pass.
+- The first hosted multi-system run exposed an environment-dependent boundary
+  defect: when a container reported the root account's home, literal home
+  replacement also matched that account name inside a conventional `/home`
+  path. Literal non-`/home` homes now require both a valid left boundary and an
+  end/path-separator right boundary, preserving conventional primary-user paths
+  and longer names with the same prefix. A regression test simulates the
+  container identity explicitly.
 - Confirmed an infrastructure gap outside this ticket: Compose requires a
   worktree-local `.env`, while a direct Fedora base build did not finish its
   quiet development dependency install within the bounded observation window.
   No Docker E2E result is claimed and no provider credential was used.
-- Moved the verified implementation to `IN_PROGRESS / PUBLICATION`; trusted
+- Moved the corrected implementation to `IN_PROGRESS / PUBLICATION`; trusted
   review and merge remain outside the local implementation step.
 
 ## Blockers

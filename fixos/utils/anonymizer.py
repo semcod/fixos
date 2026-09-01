@@ -187,6 +187,23 @@ def _replace_home_paths(
     return HOME_RE.sub(replace, data)
 
 
+def _replace_literal_home(
+    data: str,
+    home: str,
+    context: AnonymizationContext,
+    report: AnonymizationReport,
+) -> str:
+    """Replace a non-/home home root without matching it inside another path."""
+    pattern = re.compile(
+        rf"(?<![A-Za-z0-9_.-]){re.escape(home)}(?=$|[/\\])"
+    )
+    data, count = pattern.subn("[HOME]", data)
+    if count:
+        context.bind("HOME", home, "[HOME]")
+        report.add("Ścieżka domowa", count)
+    return data
+
+
 def _replace_user_words(
     data: str,
     context: AnonymizationContext,
@@ -285,11 +302,12 @@ def anonymize(
     # Non-/home platforms retain the legacy [HOME] token. Linux home paths are
     # handled structurally below to preserve every non-sensitive suffix.
     if sensitive.get("home") and not sensitive["home"].startswith("/home/"):
-        count = data_str.count(sensitive["home"])
-        if count:
-            context.bind("HOME", sensitive["home"], "[HOME]")
-            data_str = data_str.replace(sensitive["home"], "[HOME]")
-            report.add("Ścieżka domowa", count)
+        data_str = _replace_literal_home(
+            data_str,
+            sensitive["home"],
+            context,
+            report,
+        )
 
     data_str = _replace_home_paths(data_str, context, report)
     data_str = _replace_user_words(data_str, context, report)

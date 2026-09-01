@@ -8,6 +8,7 @@ from __future__ import annotations
 import getpass
 import socket
 
+import fixos.utils.anonymizer as anonymizer_module
 
 from fixos.utils.anonymizer import (
     AnonymizationContext,
@@ -28,6 +29,26 @@ class TestHomePaths:
         anon, report = anonymize(data)
         assert username not in anon
         assert "/home/[USER]" in anon
+
+    def test_root_home_is_not_replaced_inside_home_root_path(self, monkeypatch):
+        """Kontenerowe HOME=/root nie może uszkodzić ścieżki /home/root/... ."""
+        monkeypatch.setattr(
+            anonymizer_module,
+            "_get_sensitive",
+            lambda: {
+                "hostname": "container-host",
+                "username": "root",
+                "home": "/root",
+            },
+        )
+
+        anon, _ = anonymize(
+            "/home/root/.pyenv/bin/python /root/.config/fixos /rooted/data"
+        )
+
+        assert anon == (
+            "/home/[USER]/.pyenv/bin/python [HOME]/.config/fixos /rooted/data"
+        )
 
     def test_deep_nested_home_path(self):
         """Głęboko zagnieżdżona ścieżka /home/user/a/b/c/d musi być zamaskowana."""

@@ -40,3 +40,21 @@ DOCKER E2E EVIDENCE — 2026-09-01
   claimed.
 - Docker/Compose configuration requires a distinct infrastructure workstream;
   it was not changed under this application ticket.
+
+PUBLICATION REGRESSION / CORRECTION — 2026-09-01
+- `goal -a` validated 575 passed, 5 skipped and 16 deselected tests, then
+  published PR #35 at exact head `0741ec3de1de2e6443a097a13424bbba1b229969`.
+- Hosted Python 3.10/3.11/3.12, governance, Alpine and Arch checks passed.
+  `onedev/local-verify` was automatically queued. Ubuntu, Debian and Fedora
+  Docker tests all reproduced the same first unit-test failure before trusted
+  Validator review: the root account's home was replaced inside a conventional
+  `/home` primary-user path, yielding the malformed `/home[HOME]/...` form.
+- Corrected literal non-`/home` home matching to require a valid left boundary
+  and an end/path-separator right boundary. Added an explicit regression for
+  the root account identity, its home, its conventional `/home` path and a
+  longer unrelated name with the same prefix.
+- Focused corrected regression: PASS — 97 passed, 1 skipped.
+- Root-like environment regression for `tests/unit/test_anonymizer.py`: PASS —
+  34 passed.
+- Corrected full regression: PASS — 576 passed, 5 skipped, 16 deselected.
+- Corrected Ruff and `git diff --check`: PASS.

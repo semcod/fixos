@@ -21,3 +21,6 @@
   reject unknown, semantic or context-free numbered aliases.
 - Route the legacy LLM-shell anonymizer through the shared implementation and
   cover it with a regression test.
+- Match a non-`/home` platform home only at full path boundaries, so container
+  root-account homes cannot corrupt conventional `/home` paths or longer names
+  that merely share the same prefix.
