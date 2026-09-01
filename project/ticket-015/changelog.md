@@ -12,3 +12,8 @@
 - Reject false legacy commands extracted from diagnostic prose.
 - Prefer official OpenRouter GLM 5.3 configuration with a bounded migration of
   the obsolete FixOS example value.
+- Publish exact head `f561b09c...` through PR #31 after all hosted and OneDev
+  checks passed.
+- Record protected Validator approval `5079926802`, merge `6028dd19...` and
+  deletion of the remote ticket branch.
+- Close the integrated ticket as `DONE / DONE` on the resulting default branch.

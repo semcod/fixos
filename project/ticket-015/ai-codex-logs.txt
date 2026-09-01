@@ -23,3 +23,29 @@ PRE-PUBLICATION VALIDATION — 2026-09-01
 - `./project/governance-check.sh`: GOV-PASS — 0 errors, 0 warnings.
 - No system cleanup, package removal, service mutation or provider API request
   was executed during validation.
+
+PUBLICATION / TRUSTED REVIEW
+- `goal -a` published PR #31 at exact head
+  `f561b09c648dd17b347c3e308547609f517c8173` against accepted base
+  `c227667fb3e20397f510ddfa9ccb329902aa20ac`.
+- PASS: Python 3.10/3.11/3.12, Fedora, Ubuntu, Debian, Arch, Alpine,
+  `test-summary`, governance remote lifecycle and `onedev/local-verify` all
+  completed successfully for the unchanged candidate.
+- The expected scheduled Validator run did not start during the observed
+  15-minute window. The protected `direct-pr` workflow was therefore invoked
+  with repository `semcod/fixos`, PR #31, ticket-015, correlation ID
+  `fixos-pr-31-ticket-015` and the exact expected head.
+- Validator run `33525582458`: PASS at 2026-09-01T15:26:44Z.
+- Trusted review `5079926802`: APPROVED at 2026-09-01T15:26:25Z by
+  `ifuri-validator-agent[bot]`, bound to the exact head and ticket.
+- PR #31 merged at 2026-09-01T15:26:35Z as
+  `6028dd19793f41f2e83c7c9ca42a9b2cf5be38e0`.
+- Remote branch `goal/ticket-015` was absent after fetch/prune, as required.
+
+GOVERNANCE-ONLY CLOSURE
+- Base: integrated `origin/main` at
+  `6028dd19793f41f2e83c7c9ca42a9b2cf5be38e0`.
+- `python -m pytest -q`: PASS — 561 passed, 5 skipped, 16 deselected.
+- changed-Python Ruff gate: PASS — no Python files changed.
+- `git diff --check`: PASS.
+- `./project/governance-check.sh`: GOV-PASS — 0 errors, 0 warnings.
