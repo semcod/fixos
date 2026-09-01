@@ -1,0 +1,104 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-012",
+  "summary": "Iteracyjny wybór remediacji HITL",
+  "workstream": "application",
+  "classification": {
+    "kind": "FEATURE",
+    "priority": "P2",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-012/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/agent/session_core.py",
+    "fixos/agent/session_io.py",
+    "fixos/agent/session_handlers.py",
+    "fixos/agent/hitl_session.py",
+    "tests/unit/test_core.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md",
+    "docs/**",
+    "README.md",
+    "CHANGELOG.md",
+    "VERSION",
+    "pyproject.toml",
+    "uv.lock",
+    ".env",
+    "**/*.pem",
+    "**/*secret*"
+  ],
+  "stacks": ["python"],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "8e4b7d1903097a2e6f8bc1ddcc0c6518c320ba50",
+    "targetBranch": "main",
+    "outcome": "The HITL session lets a human resolve diagnosed optimizations one at a time from an always-refreshed numbered queue",
+    "nonGoals": [
+      "No automatic execution or authority inferred from diagnosis text",
+      "No changes to autonomous mode, diagnostic probes or public CLI options",
+      "No runtime dependency, public API path or integration-owned manifest change",
+      "No persistence of the optimization queue outside one HITL session"
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 30,
+    "budgets": {
+      "maxImplementationFiles": 5,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Represent diagnosis-only headings as non-executable pending choices, then keep pending/completed state in the HITL session while the existing handlers remain the only command execution boundary",
+      "components": [
+        {
+          "name": "hitl-optimization-queue",
+          "paths": [
+            "fixos/agent/session_core.py",
+            "fixos/agent/hitl_session.py",
+            "tests/unit/test_core.py"
+          ]
+        },
+        {
+          "name": "hitl-selection-ui",
+          "paths": [
+            "fixos/agent/session_io.py",
+            "fixos/agent/session_handlers.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "multi-state",
+        "states": ["empty", "error", "success"],
+        "evidence": ["tests/unit/test_core.py"]
+      },
+      "rollback": "Revert the five scoped implementation/test files; no persistent state or external data is changed"
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": ["python -m pytest -q tests/unit/test_core.py"],
+        "evidence": "project/ticket-012/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-06",
+        "commands": [
+          "ruff check fixos/agent/session_core.py fixos/agent/session_io.py fixos/agent/session_handlers.py fixos/agent/hitl_session.py tests/unit/test_core.py",
+          "python -m compileall -q fixos",
+          "python -m pytest -q",
+          "./project/governance-check.sh"
+        ],
+        "evidence": "project/ticket-012/ai-codex-logs.txt"
+      }
+    ]
+  }
+}

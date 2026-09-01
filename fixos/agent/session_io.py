@@ -19,7 +19,11 @@ from ..utils.terminal import (
     print_stderr_box,
 )
 from ..platform_utils import cancel_signal_timeout, setup_signal_timeout
-from .session_core import RemediationAction, select_recommended_actions
+from .session_core import (
+    DiagnosticChoice,
+    RemediationAction,
+    select_recommended_actions,
+)
 
 if TYPE_CHECKING:
     from .session_core import CmdResult
@@ -79,8 +83,10 @@ def fmt_time(s: int) -> str:
     return f"{s // 3600:02d}:{(s % 3600) // 60:02d}:{s % 60:02d}"
 
 
-def print_action_menu(fixes: list, remaining: int, total_tokens: int) -> None:
-    """Print the interactive numbered action menu."""
+def print_action_menu(
+    fixes: list, remaining: int, total_tokens: int, completed_count: int = 0
+) -> None:
+    """Print the refreshed interactive menu of remaining choices."""
     console.print()
     console.print(
         Rule(
@@ -91,7 +97,19 @@ def print_action_menu(fixes: list, remaining: int, total_tokens: int) -> None:
     if fixes:
         current_finding = None
         for i, action in enumerate(fixes, 1):
-            if isinstance(action, RemediationAction):
+            if isinstance(action, DiagnosticChoice):
+                label = Text("  ")
+                label.append(f"[{i}]", style="bold yellow")
+                label.append("  ")
+                if action.severity != "UNSPECIFIED":
+                    label.append(f"{action.severity}  ", style="bold red")
+                label.append(f"Problem {action.source_number}: {action.title}")
+                console.print(label)
+                console.print(
+                    "     [dim cyan]Wybierz ten skrót, aby przygotować "
+                    "plan naprawy tylko dla tego problemu.[/dim cyan]"
+                )
+            elif isinstance(action, RemediationAction):
                 if action.finding_ref != current_finding:
                     current_finding = action.finding_ref
                     finding = Text()
@@ -155,13 +173,20 @@ def print_action_menu(fixes: list, remaining: int, total_tokens: int) -> None:
                 "  [bold yellow][A][/bold yellow]  Wykonaj zalecany zestaw dla "
                 f"każdego problemu ({recommended_count} zestawów)"
             )
-        else:
+        elif not any(isinstance(action, DiagnosticChoice) for action in fixes):
             console.print(
                 f"  [bold yellow][A][/bold yellow]  Wykonaj wszystkie ({len(fixes)} komend)"
             )
         console.print("  [bold yellow][S][/bold yellow]  Pomiń wszystkie")
+        console.print(
+            f"  [dim]Pozostałe opcje: {len(fixes)}. Wybierz jeden skrót; "
+            "po sukcesie lista zostanie odświeżona.[/dim]"
+        )
     else:
-        console.print("  [dim](brak zaproponowanych komend)[/dim]")
+        if completed_count:
+            console.print("  [green](wszystkie optymalizacje zostały zakończone)[/green]")
+        else:
+            console.print("  [dim](brak wykrytych optymalizacji do wyboru)[/dim]")
     console.print()
     console.print(
         "  [bold yellow][D][/bold yellow]           Opisz własny problem / co chcesz zmienić"
@@ -303,10 +328,18 @@ def print_no_commands() -> None:
     console.print("  [dim]Brak komend do wykonania.[/dim]")
 
 
+def print_select_one() -> None:
+    """Explain that diagnosis-only choices must be focused individually."""
+    console.print(
+        "  [yellow]Wybierz numer jednej optymalizacji; najpierw zostanie "
+        "przygotowany jej plan naprawy.[/yellow]"
+    )
+
+
 def print_invalid_option(user_in: str, max_option: int) -> None:
     """Print invalid option message."""
     console.print(
-        f"  [yellow]Brak opcji [{user_in}]. Dostępne: 1–{max_option}[/yellow]"
+        f"  [yellow]Brak skrótu [{user_in}]. Dostępne skróty: 1–{max_option}[/yellow]"
     )
 
 

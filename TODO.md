@@ -8,6 +8,11 @@ Ostatni przegląd: 2026-07-23.
 
 ## Aktywne
 
+- [ ] Dostarczyć [ticket-012](project/ticket-012/README.md): dodać numerowane
+  wybieranie pojedynczych problemów także dla odpowiedzi zawierających samą
+  diagnozę oraz po każdym sukcesie odświeżać listę pozostałych optymalizacji.
+  Stan: `IN_PROGRESS / PUBLICATION`.
+
 - [x] Dostarczyć [ticket-011](project/ticket-011/README.md): zastąpić płaską
   listę poleceń HITL standaryzowanymi findingami, wariantami remediacji,
   zestawami komend i weryfikacją zgodną z rozdzieleniem odpowiedzialności
