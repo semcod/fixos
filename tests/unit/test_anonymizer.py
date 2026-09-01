@@ -50,6 +50,25 @@ class TestHomePaths:
             "/home/[USER]/.pyenv/bin/python [HOME]/.config/fixos /rooted/data"
         )
 
+    def test_nested_home_after_serialized_tab_is_anonymized(self, monkeypatch):
+        """`str(dict)` zapisuje tab jako `\\t`; ścieżka nadal nie może wyciec."""
+        home = "/workspace/job/.ci-home"
+        monkeypatch.setattr(
+            anonymizer_module,
+            "_get_sensitive",
+            lambda: {
+                "hostname": "container-host",
+                "username": "runner",
+                "home": home,
+            },
+        )
+        diagnostic = str({"cache": f"86M\t{home}/.cache/thumbnails/"})
+
+        anon, _ = anonymize(diagnostic)
+
+        assert home not in anon
+        assert "[HOME]/.cache/thumbnails/" in anon
+
     def test_deep_nested_home_path(self):
         """Głęboko zagnieżdżona ścieżka /home/user/a/b/c/d musi być zamaskowana."""
         data = "/home/jankowalski/projects/myapp/src/utils/helper.py"

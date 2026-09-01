@@ -67,6 +67,12 @@ linkability.
   end/path-separator right boundary, preserving conventional primary-user paths
   and longer names with the same prefix. A regression test simulates the
   container identity explicitly.
+- OneDev then exercised a nested, isolated home in a serialized diagnostics
+  dictionary. Python's dictionary representation escaped the preceding tab as
+  the two characters `\\t`, so an otherwise valid path looked alphanumeric at
+  its left edge. The literal-home matcher now recognizes serialized tab,
+  newline and carriage-return delimiters while retaining the same right-boundary
+  and embedded-path protections.
 - Confirmed an infrastructure gap outside this ticket: Compose requires a
   worktree-local `.env`, while a direct Fedora base build did not finish its
   quiet development dependency install within the bounded observation window.

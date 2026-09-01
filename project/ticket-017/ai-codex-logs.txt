@@ -58,3 +58,26 @@ PUBLICATION REGRESSION / CORRECTION — 2026-09-01
   34 passed.
 - Corrected full regression: PASS — 576 passed, 5 skipped, 16 deselected.
 - Corrected Ruff and `git diff --check`: PASS.
+
+ONEDEV ISOLATED-HOME REGRESSION / CORRECTION — 2026-09-01
+- Republished exact head `0c7daa589ce20d34d1b5996ca08e96b5825c04e4` through
+  `goal -a`; its local Goal suite passed 576 tests with 5 skipped and 16
+  deselected.
+- All hosted checks passed for that head: Python 3.10/3.11/3.12, governance,
+  Ubuntu, Debian, Fedora, Arch, Alpine and Docker `test-summary`.
+- Automatic `onedev/local-verify` reproduced two privacy failures before
+  Validator review. Its isolated nested home followed a tab inside a diagnostic
+  dictionary; `str(dict)` escaped that delimiter as the textual `\\t`, so the
+  literal-home left-boundary rule did not recognize the path.
+- The left-boundary rule now recognizes serialized tab, newline and
+  carriage-return delimiters without accepting embedded path fragments. Added
+  a focused `str(dict)` regression for a nested isolated home.
+- Focused unit regression: PASS — 35 passed.
+- Exact nested-home E2E regression: PASS — 2 passed, 46 deselected.
+- Full nested-home environment regression: PASS — 577 passed, 5 skipped,
+  16 deselected.
+- A separate exploratory run that also renamed the user to the generic word
+  `root` triggered an existing E2E assertion because that word legitimately
+  occurs in the static system prompt. It is not the OneDev failure and does not
+  represent a raw home-path leak; root-account path boundaries remain covered
+  by the explicit unit regression.

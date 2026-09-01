@@ -24,3 +24,5 @@
 - Match a non-`/home` platform home only at full path boundaries, so container
   root-account homes cannot corrupt conventional `/home` paths or longer names
   that merely share the same prefix.
+- Recognize serialized whitespace delimiters before an isolated home path, so
+  dictionary-form diagnostics cannot retain a nested executor home.

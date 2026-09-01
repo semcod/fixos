@@ -194,8 +194,9 @@ def _replace_literal_home(
     report: AnonymizationReport,
 ) -> str:
     """Replace a non-/home home root without matching it inside another path."""
+    left_boundary = r"(?:(?<=\\[tnr])|(?<![A-Za-z0-9_.-]))"
     pattern = re.compile(
-        rf"(?<![A-Za-z0-9_.-]){re.escape(home)}(?=$|[/\\])"
+        rf"{left_boundary}{re.escape(home)}(?=$|[/\\])"
     )
     data, count = pattern.subn("[HOME]", data)
     if count:
