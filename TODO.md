@@ -11,7 +11,8 @@ Ostatni przegląd: 2026-07-23.
 - [ ] Dostarczyć [ticket-016](project/ticket-016/README.md): zwiększyć limit
   pełnej tury HITL do 50 000, ustawić niski reasoning GLM 5.3, przełączać model
   po pustej odpowiedzi i rozpoznawać ograniczone literówki intencji cleanup bez
-  wykonywania komend. Stan: `IN_PROGRESS / EDIT`.
+  wykonywania komend. Stan: `IN_PROGRESS / PUBLICATION`; walidacja lokalna i
+  bramki PyQual zakończone powodzeniem.
 
 - [x] Dostarczyć [ticket-015](project/ticket-015/README.md): przed każdym
   wyborem remediacji pokazywać dokładne cele/ścieżki, skutek, komendy i

@@ -110,7 +110,7 @@
       {
         "criterion": "AC-06",
         "commands": [
-          "python -m ruff check --no-cache fixos/agent/hitl_session.py fixos/agent/session_handlers.py fixos/providers/llm.py tests/unit/test_core.py tests/unit/test_llm_provider.py",
+          "ruff check --no-cache fixos/agent/hitl_session.py fixos/agent/session_handlers.py fixos/providers/llm.py tests/unit/test_core.py tests/unit/test_llm_provider.py",
           "python -m pytest -q",
           "git diff --check",
           "./project/governance-check.sh",

@@ -133,6 +133,76 @@ class TestChatFallsBackOnInvalidModel:
         assert c.active_model == "openrouter/qwen/qwen3.7-plus"
 
 
+class TestChatResponseResilience:
+    def test_glm53_uses_low_reasoning_options(self, monkeypatch):
+        monkeypatch.setattr("fixos.providers.llm._HAS_OPENAI", True)
+        fake_client = mock.Mock()
+        monkeypatch.setattr("fixos.providers.llm.openai.OpenAI", lambda **k: fake_client)
+        c = LLMClient(_FakeConfig(model="z-ai/glm-5.3", model_fallbacks=[]))
+        response = mock.Mock()
+        response.usage = None
+        response.choices = [
+            mock.Mock(message=mock.Mock(content="analysis"), finish_reason="stop")
+        ]
+        fake_client.chat.completions.create.return_value = response
+
+        assert c.chat([{"role": "user", "content": "hi"}], max_tokens=50_000) == (
+            "analysis"
+        )
+
+        assert fake_client.chat.completions.create.call_args.kwargs == {
+            "model": "z-ai/glm-5.3",
+            "messages": [{"role": "user", "content": "hi"}],
+            "max_tokens": 50_000,
+            "temperature": 0.3,
+            "stream": False,
+            "extra_body": {
+                "reasoning": {
+                    "effort": "low",
+                    "exclude": True,
+                }
+            },
+        }
+
+    def test_empty_completion_switches_to_configured_fallback(self, client):
+        c, fake_client = client
+        empty_response = mock.Mock()
+        empty_response.usage = None
+        empty_response.choices = [
+            mock.Mock(message=mock.Mock(content=""), finish_reason="length")
+        ]
+        good_response = mock.Mock()
+        good_response.usage = None
+        good_response.choices = [
+            mock.Mock(message=mock.Mock(content="cleanup plan"), finish_reason="stop")
+        ]
+        fake_client.chat.completions.create.side_effect = [
+            empty_response,
+            good_response,
+        ]
+
+        result = c.chat([{"role": "user", "content": "cleanup"}])
+
+        assert result == "cleanup plan"
+        assert c.active_model == "minimax/minimax-m3"
+        assert fake_client.chat.completions.create.call_count == 2
+
+    def test_empty_completion_without_fallback_raises_visible_error(self, monkeypatch):
+        monkeypatch.setattr("fixos.providers.llm._HAS_OPENAI", True)
+        fake_client = mock.Mock()
+        monkeypatch.setattr("fixos.providers.llm.openai.OpenAI", lambda **k: fake_client)
+        c = LLMClient(_FakeConfig(model="z-ai/glm-5.3", model_fallbacks=[]))
+        response = mock.Mock()
+        response.usage = None
+        response.choices = [
+            mock.Mock(message=mock.Mock(content=None), finish_reason="length")
+        ]
+        fake_client.chat.completions.create.return_value = response
+
+        with pytest.raises(LLMError, match="użytecznej odpowiedzi"):
+            c.chat([{"role": "user", "content": "hi"}])
+
+
 class TestLooksLikeInvalidModel:
     def test_matches_known_phrasings(self):
         assert LLMClient._looks_like_invalid_model(Exception("not a valid model ID"))

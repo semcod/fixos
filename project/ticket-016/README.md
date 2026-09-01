@@ -3,7 +3,7 @@
 - **ID**: ticket-016
 - **Owner**: unresolved:human
 - **Status**: IN_PROGRESS
-- **Workflow state**: EDIT
+- **Workflow state**: PUBLICATION
 - **Created**: 2026-09-01
 
 ## Goal and scope
@@ -23,16 +23,16 @@ the normal selection and confirmation flow.
 
 - [x] AC-01: The request to raise the limit to 50,000 is recorded as
   `SESSION_EXECUTION_AUTHORIZATION`; work remains inside the declared intent.
-- [ ] AC-02: Every full interactive HITL turn requests at most 50,000 output
+- [x] AC-02: Every full interactive HITL turn requests at most 50,000 output
   tokens, while short provider operations retain their existing limits.
-- [ ] AC-03: OpenRouter requests for `z-ai/glm-5.3` explicitly use low
+- [x] AC-03: OpenRouter requests for `z-ai/glm-5.3` explicitly use low
   reasoning effort and exclude reasoning details from the returned content.
-- [ ] AC-04: An empty non-streaming completion switches to the next configured
+- [x] AC-04: An empty non-streaming completion switches to the next configured
   fallback model; exhaustion raises a visible `LLMError` instead of returning
   an empty string.
-- [ ] AC-05: A bounded cleanup typo such as `clanup` becomes an explicit
+- [x] AC-05: A bounded cleanup typo such as `clanup` becomes an explicit
   cleanup-planning prompt without executing commands or widening authority.
-- [ ] AC-06: Focused tests, the full Python suite, Ruff, diff validation and
+- [x] AC-06: Focused tests, the full Python suite, Ruff, diff validation and
   the managed governance gate pass before publication through `goal -a`.
 
 ## Participants

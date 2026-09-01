@@ -37,6 +37,7 @@ class HITLSession:
     """Interactive Human-in-the-Loop diagnostic and repair session."""
 
     MAX_WEB_SEARCHES = 3
+    MAX_LLM_OUTPUT_TOKENS = 50_000
 
     def __init__(
         self,
@@ -265,7 +266,11 @@ class HITLSession:
 
         io.print_thinking()
         try:
-            reply = self.llm.chat(self.messages, max_tokens=4000, temperature=0.2)
+            reply = self.llm.chat(
+                self.messages,
+                max_tokens=self.MAX_LLM_OUTPUT_TOKENS,
+                temperature=0.2,
+            )
             self.messages.append({"role": "assistant", "content": reply})
         except LLMError as e:
             io.clear_thinking()
@@ -318,7 +323,9 @@ class HITLSession:
             # Free text → send to LLM
             self.messages.append({"role": "user", "content": user_in})
             self._reset_diagnosis_queue()
-        elif user_in.lower() in ("d", "s", "skip", "pomiń", "pomin"):
+        elif user_in.lower() in ("d", "s", "skip", "pomiń", "pomin") or (
+            handlers.is_cleanup_intent(user_in)
+        ):
             self._reset_diagnosis_queue()
 
         return should_continue

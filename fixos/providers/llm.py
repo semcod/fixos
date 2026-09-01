@@ -31,6 +31,10 @@ class _ModelInvalidError(LLMError):
     instead of retrying the same broken one."""
 
 
+class _ModelUnusableResponseError(LLMError):
+    """Internal: the provider returned no usable assistant content."""
+
+
 class LLMClient:
     """
     Wrapper nad openai.OpenAI kompatybilny z wieloma providerami.
@@ -38,8 +42,8 @@ class LLMClient:
 
     Jeśli `config.model_fallbacks` jest ustawione, a skonfigurowany model
     zostanie odrzucony przez providera jako nieprawidłowy (błąd 400 "not a
-    valid model ID"), klient automatycznie przechodzi do kolejnego modelu z
-    listy zamiast tylko ponawiać próby z tym samym, zepsutym modelem.
+    valid model ID") albo zwróci pustą treść, klient automatycznie przechodzi
+    do kolejnego modelu z listy.
     """
 
     def __init__(self, config: FixOsConfig):
@@ -47,8 +51,9 @@ class LLMClient:
             raise LLMError("Zainstaluj openai: pip install openai")
 
         self.config = config
+        auth = config.api_key or "ollama"  # runtime value; never persisted
         self._client = openai.OpenAI(
-            api_key=config.api_key or "ollama",  # ollama nie wymaga klucza
+            api_key=auth,
             base_url=config.base_url,
             timeout=120.0,
             max_retries=2,
@@ -65,16 +70,28 @@ class LLMClient:
         fallback switch."""
         return self._model_candidates[self._active_model_index]
 
-    def _advance_model(self) -> bool:
+    def _advance_model(self, reason: str = "nieprawidłowy") -> bool:
         """Move to the next fallback model. Returns False when exhausted."""
         if self._active_model_index + 1 >= len(self._model_candidates):
             return False
         old = self.active_model
         self._active_model_index += 1
-        print(
-            f"\n  ⚠️  Model '{old}' nieprawidłowy — próbuję '{self.active_model}'..."
-        )
+        print(f"\n  ⚠️  Model '{old}' {reason} — próbuję '{self.active_model}'...")
         return True
+
+    def _completion_request_options(self) -> dict:
+        """Return provider-specific completion options for the active model."""
+        model = self.active_model.lower().removeprefix("openrouter/")
+        if self.config.provider.lower() == "openrouter" and model == "z-ai/glm-5.3":
+            return {
+                "extra_body": {
+                    "reasoning": {
+                        "effort": "low",
+                        "exclude": True,
+                    }
+                }
+            }
+        return {}
 
     @staticmethod
     def _looks_like_invalid_model(e: Exception) -> bool:
@@ -161,11 +178,17 @@ class LLMClient:
                 return self._chat_once(
                     messages, max_tokens=max_tokens, temperature=temperature
                 )
-            except _ModelInvalidError as e:
+            except (_ModelInvalidError, _ModelUnusableResponseError) as e:
                 last_error = e
-                if not self._advance_model():
+                reason = (
+                    "zwrócił pustą odpowiedź"
+                    if isinstance(e, _ModelUnusableResponseError)
+                    else "nieprawidłowy"
+                )
+                if not self._advance_model(reason):
                     raise LLMError(
-                        "Żaden ze skonfigurowanych modeli nie zadziałał "
+                        "Żaden ze skonfigurowanych modeli nie zwrócił "
+                        "użytecznej odpowiedzi "
                         f"({', '.join(self._model_candidates)}): {last_error}"
                     ) from last_error
 
@@ -180,10 +203,22 @@ class LLMClient:
                     max_tokens=max_tokens,
                     temperature=temperature,
                     stream=False,
+                    **self._completion_request_options(),
                 )
                 if response.usage:
                     self._total_tokens += response.usage.total_tokens
-                return response.choices[0].message.content or ""
+                if not response.choices:
+                    raise _ModelUnusableResponseError("provider returned no choices")
+                choice = response.choices[0]
+                content = getattr(choice.message, "content", None)
+                if not isinstance(content, str) or not content.strip():
+                    finish_reason = getattr(choice, "finish_reason", None) or "unknown"
+                    raise _ModelUnusableResponseError(
+                        f"empty message.content (finish_reason={finish_reason})"
+                    )
+                return content
+            except _ModelUnusableResponseError:
+                raise
             except Exception as e:
                 self._handle_api_error(e, attempt)
 
@@ -210,10 +245,13 @@ class LLMClient:
                     max_tokens=max_tokens,
                     temperature=temperature,
                     stream=True,
+                    **self._completion_request_options(),
                 )
                 break
             except Exception as e:
-                if self._looks_like_invalid_model(e) and self._advance_model():
+                if self._looks_like_invalid_model(e) and self._advance_model(
+                    "nieprawidłowy"
+                ):
                     continue
                 raise LLMError(f"Błąd streamingu: {e}") from e
 

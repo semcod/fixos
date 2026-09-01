@@ -6,6 +6,7 @@ Each handler processes a specific user command type.
 import hashlib
 import json
 import re
+from difflib import get_close_matches
 from typing import TYPE_CHECKING, Tuple
 
 from ..constants import (
@@ -96,6 +97,31 @@ def handle_describe_problem(messages: list, ask_fn) -> bool:
                 ),
             }
         )
+    return True
+
+
+def is_cleanup_intent(user_in: str) -> bool:
+    """Recognize a bounded single-word spelling variant of ``cleanup``."""
+    normalized = user_in.strip().lower()
+    if not re.fullmatch(r"[a-z]{5,10}", normalized):
+        return False
+    return bool(get_close_matches(normalized, ("cleanup",), n=1, cutoff=0.82))
+
+
+def handle_cleanup_intent(messages: list) -> bool:
+    """Ask for a cleanup plan without authorizing or executing any command."""
+    messages.append(
+        {
+            "role": "user",
+            "content": (
+                "User intent was normalized to cleanup planning only. Review the "
+                "available diagnostic evidence for reclaimable space and stale "
+                "resources. Return the required structured remediation plan with "
+                "exact affected targets, effects, ordered commands and read-only "
+                "verification. Do not execute anything and do not infer approval."
+            ),
+        }
+    )
     return True
 
 
@@ -537,6 +563,10 @@ def parse_user_input(
     # [search <q>] Web search
     if lo.startswith("search "):
         return handle_search(user_in, messages, serpapi_key), True
+
+    # Bounded cleanup intent (including a single-word typo such as "clanup")
+    if is_cleanup_intent(user_in):
+        return handle_cleanup_intent(messages), True
 
     # Not handled - treat as free text
     return True, False
