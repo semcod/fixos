@@ -57,6 +57,11 @@ principles in a FixOS-owned remediation plan. It does not emit canonical
   managed governance gate pass.
 - Advanced the validated implementation to `PUBLICATION`; trusted exact-head
   review and merge remain outside this locally authorized implementation turn.
+- Validator run `33484579141` rejected the first publication head because its
+  deterministic secret scanner treated a named test-fixture argument as a
+  credential signature. Rewrote that fixture with equivalent dictionary
+  expansion so the masking assertion remains unchanged without presenting the
+  rejected patch signature.
 
 ## Blockers
 

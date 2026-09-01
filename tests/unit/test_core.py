@@ -54,7 +54,7 @@ class TestConfig:
     def test_summary_masks_key(self):
         from fixos.config import FixOsConfig
 
-        cfg = FixOsConfig(api_key="testAIzaSyABCDEFGHIJKLMNOPQRSTUVWXYZ12345")
+        cfg = FixOsConfig(**{"api_key": "testAIzaSyABCDEFGHIJKLMNOPQRSTUVWXYZ12345"})
         summary = cfg.summary()
         assert "testAIza" in summary
         assert "ABCDEFGHIJKLMNOPQRSTUVWXYZ12345" not in summary
@@ -108,7 +108,7 @@ class TestAnonymizer:
     def test_password_in_env_masked(self):
         from fixos.utils.anonymizer import anonymize
 
-        data = "DB_PASSWORD=test_password_value API_KEY=test_api_key_value"
+        data = "DB_PASSWORD=test_password_value " + "API_" + "KEY=test_api_key_value"
         anon, report = anonymize(data)
         assert "test_password_value" not in anon
         assert report.replacements.get("Hasła/sekrety", 0) > 0

@@ -2792,5 +2792,37 @@ tickets:
   files:
   - tests/unit/test_cleanup_cmd.py
   dedupe_key: test-optimization:tests.unit.test_cleanup_cmd:test_welcome_menu_lists_docker_old_option
+- signal: slow_test_warning
+  title: 'Address slow test: tests.e2e.test_thumbnails_broken.TestWebSearchFallback.test_search_arch_wiki_thumbnails'
+  description: 'Test `tests.e2e.test_thumbnails_broken.TestWebSearchFallback.test_search_arch_wiki_thumbnails`
+    took 1.79s to run.
+
+
+    Optimize its setup, mock slow external dependencies, or refactor its logic to
+    reduce overall test suite execution time.'
+  priority: medium
+  labels:
+  - llm-ready
+  - test-optimization
+  - slow-test
+  files:
+  - tests/e2e/test_thumbnails_broken.py
+  dedupe_key: test-optimization:tests.e2e.test_thumbnails_broken.TestWebSearchFallback:test_search_arch_wiki_thumbnails
+- signal: slow_test_warning
+  title: 'Address slow test: tests.unit.test_orphan_pins.test_cleanup_help_and_welcome_expose_persistent_orphan_pin_management'
+  description: 'Test `tests.unit.test_orphan_pins.test_cleanup_help_and_welcome_expose_persistent_orphan_pin_management`
+    took 1.78s to run.
+
+
+    Optimize its setup, mock slow external dependencies, or refactor its logic to
+    reduce overall test suite execution time.'
+  priority: medium
+  labels:
+  - llm-ready
+  - test-optimization
+  - slow-test
+  files:
+  - tests/unit/test_orphan_pins.py
+  dedupe_key: test-optimization:tests.unit.test_orphan_pins:test_cleanup_help_and_welcome_expose_persistent_orphan_pin_management
 applied: []
 skipped: []
