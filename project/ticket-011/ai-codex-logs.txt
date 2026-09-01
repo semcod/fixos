@@ -26,3 +26,27 @@
   result=changes-requested; deterministic scanner matched a named test-fixture
   argument; no secret material was present
   remediation=equivalent dictionary expansion in tests/unit/test_core.py
+
+2026-09-01 corrected Goal publication
+  final_head=ebce3b2d384501739974a653d4d7e5f4afae98f5
+  goal -a full validation=544 passed, 5 skipped, 16 deselected
+  hosted checks=Python 3.10/3.11/3.12, Alpine, Arch, Debian, Fedora, Ubuntu,
+  test-summary and governance remote lifecycle passed
+  validator_run=33485803546 result=blocked; GitHub TLS handshake timeout; no
+  code decision or merge
+  validator_run=33486574936 result=approved review=5075742085
+  merge_commit=19c0ef670684e8c86a85176f9e0cc55ec5980c4f
+  remote_branch=goal/ticket-011 deleted after merge
+
+2026-09-01 post-merge validation
+  CI run=33487098638 success
+  multi-system run=33487098623 success
+  metadata-sync run=33487098626 success
+  pages run=33487097596 success
+
+2026-09-01 terminal workspace audit
+  merge reachability confirmed before removing local implementation branch
+  goal governance workspace-check --target-root . --workspace-root . --format text
+  GOV-WORKSPACE-PASS: passed (0 errors, 0 warnings)
+  broader organization-parent audit reported unrelated Koru, MCP, Planfile and
+  Goal worktrees; unknown and dirty external state was preserved unchanged

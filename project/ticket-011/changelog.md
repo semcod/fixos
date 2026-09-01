@@ -10,3 +10,8 @@
   correlated bounded results aligned with `wellmanifest/logs` semantics.
 - Preserved legacy LLM command responses and the existing explicit confirmation
   and dangerous-command checks.
+
+## [0.1.1] - 2026-09-01
+
+- Recorded protected exact-head approval and merge of PR #23.
+- Closed the integrated ticket without changing executable code.
