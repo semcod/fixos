@@ -38,7 +38,8 @@ class TestAudioAnonymization:
         anon, report = anonymize(data)
         assert "192.168.1.100" not in anon
         assert "10.0.0.1" not in anon
-        assert "XXX" in anon
+        assert "[IP-PRIVATE-1]" in anon
+        assert "[IP-PRIVATE-2]" in anon
         assert report.replacements.get("Adresy IPv4", 0) == 2
 
     def test_anonymize_mac(self):
@@ -60,7 +61,8 @@ class TestAudioAnonymization:
         data = "config at /home/jankowalski/.config and /home/admin/keys"
         anon, report = anonymize(data)
         assert "jankowalski" not in anon
-        assert "/home/[USER]" in anon
+        assert "/home/[USER-2]/.config" in anon
+        assert "/home/[USER-3]/keys" in anon
 
     def test_anonymize_uuid(self):
         """UUID hardware identifiers powinny być maskowane."""

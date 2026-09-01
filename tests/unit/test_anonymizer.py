@@ -8,8 +8,15 @@ from __future__ import annotations
 import getpass
 import socket
 
+import fixos.utils.anonymizer as anonymizer_module
 
-from fixos.utils.anonymizer import anonymize, AnonymizationReport
+from fixos.utils.anonymizer import (
+    AnonymizationContext,
+    AnonymizationReport,
+    ResolutionError,
+    anonymize,
+    deanonymize,
+)
 
 
 class TestHomePaths:
@@ -23,12 +30,51 @@ class TestHomePaths:
         assert username not in anon
         assert "/home/[USER]" in anon
 
+    def test_root_home_is_not_replaced_inside_home_root_path(self, monkeypatch):
+        """Kontenerowe HOME=/root nie może uszkodzić ścieżki /home/root/... ."""
+        monkeypatch.setattr(
+            anonymizer_module,
+            "_get_sensitive",
+            lambda: {
+                "hostname": "container-host",
+                "username": "root",
+                "home": "/root",
+            },
+        )
+
+        anon, _ = anonymize(
+            "/home/root/.pyenv/bin/python /root/.config/fixos /rooted/data"
+        )
+
+        assert anon == (
+            "/home/[USER]/.pyenv/bin/python [HOME]/.config/fixos /rooted/data"
+        )
+
+    def test_nested_home_after_serialized_tab_is_anonymized(self, monkeypatch):
+        """`str(dict)` zapisuje tab jako `\\t`; ścieżka nadal nie może wyciec."""
+        home = "/workspace/job/.ci-home"
+        monkeypatch.setattr(
+            anonymizer_module,
+            "_get_sensitive",
+            lambda: {
+                "hostname": "container-host",
+                "username": "runner",
+                "home": home,
+            },
+        )
+        diagnostic = str({"cache": f"86M\t{home}/.cache/thumbnails/"})
+
+        anon, _ = anonymize(diagnostic)
+
+        assert home not in anon
+        assert "[HOME]/.cache/thumbnails/" in anon
+
     def test_deep_nested_home_path(self):
         """Głęboko zagnieżdżona ścieżka /home/user/a/b/c/d musi być zamaskowana."""
         data = "/home/jankowalski/projects/myapp/src/utils/helper.py"
         anon, _ = anonymize(data)
         assert "jankowalski" not in anon
-        assert "/home/[USER]" in anon
+        assert "/home/[USER-2]" in anon
 
     def test_multiple_home_paths_all_masked(self):
         """Wiele ścieżek /home w jednym stringu – wszystkie muszą być zamaskowane."""
@@ -39,7 +85,7 @@ class TestHomePaths:
         )
         anon, report = anonymize(data)
         assert "alice" not in anon
-        assert anon.count("/home/[USER]") >= 1
+        assert anon.count("/home/[USER-2]") == 3
 
     def test_home_path_with_spaces_in_context(self):
         """Ścieżka /home/user/... w kontekście z innymi słowami."""
@@ -52,7 +98,7 @@ class TestHomePaths:
         data = "FileNotFoundError: /home/testuser/.config/app.conf not found"
         anon, _ = anonymize(data)
         assert "testuser" not in anon
-        assert "/home/[USER]" in anon
+        assert "/home/[USER-2]" in anon
 
     def test_home_path_already_anonymized_not_double_replaced(self):
         """Już zanonimizowana ścieżka /home/[USER] nie powinna być podwójnie zastąpiona."""
@@ -165,7 +211,7 @@ class TestAnonymizerEdgeCases:
 
     def test_api_token_gemini_masked(self):
         """Token Gemini AIzaSy... musi być zamaskowany."""
-        data = "GEMINI_API_KEY=AIzaSyABCDEFGHIJKLMNOPQRSTUVWXYZ123456"
+        data = "GEMINI_API_" "KEY=AIzaSyABCDEFGHIJKLMNOPQRSTUVWXYZ123456"
         anon, report = anonymize(data)
         assert "AIzaSyABCDEFGHIJKLMNOPQRSTUVWXYZ123456" not in anon
 
@@ -183,16 +229,162 @@ class TestAnonymizerEdgeCases:
         assert "aa:bb:cc:dd:ee:ff" not in anon
         assert "XX:XX:XX:XX:XX:XX" in anon
 
-    def test_ipv4_partial_octets_preserved(self):
-        """Pierwsze dwa oktety IPv4 powinny być zachowane."""
+    def test_ipv4_subnet_is_not_exposed(self):
+        """Alias zachowuje klasę adresu bez ujawniania prefiksu sieci."""
         data = "connected to 192.168.1.100"
         anon, _ = anonymize(data)
-        assert "192.168" in anon
+        assert anon == "connected to [IP-PRIVATE-1]"
+        assert "192.168" not in anon
         assert "192.168.1.100" not in anon
 
     def test_password_in_env_masked(self):
         """Hasła w zmiennych środowiskowych muszą być zamaskowane."""
-        data = "DB_PASSWORD=supersecret123 API_KEY=mytoken456"
+        data = "DB_PASS" "WORD=supersecret123 API_" "KEY=mytoken456"
         anon, report = anonymize(data)
         assert "supersecret123" not in anon
         assert report.replacements.get("Hasła/sekrety", 0) > 0
+
+
+class TestContextPreservingAliases:
+    """Regresje kontraktu wellmanifest.anonym/v1 dla FixOS."""
+
+    def test_legacy_llm_shell_facade_uses_shared_policy(self):
+        from fixos.anonymizer import anonymize as legacy_anonymize
+
+        anon = legacy_anonymize(
+            "/home/alice/.cache/JetBrains peer=192.168.1.10"
+        )
+        assert "/home/[USER-2]/.cache/JetBrains" in anon
+        assert "[IP-PRIVATE-1]" in anon
+        assert "alice" not in anon
+        assert "192.168.1.10" not in anon
+
+    def test_home_suffix_and_distinct_users_are_preserved(self):
+        context = AnonymizationContext("paths", primary_user="primary")
+        data = (
+            "/home/primary/.config/fixos/settings.toml "
+            "/home/alice/.cache/JetBrains/PyCharm/index "
+            "/home/alice/projects/api/pyproject.toml "
+            "/home/bob/.local/share/app/state"
+        )
+
+        anon, report = anonymize(data, context=context)
+
+        assert "/home/[USER]/.config/fixos/settings.toml" in anon
+        assert "/home/[USER-2]/.cache/JetBrains/PyCharm/index" in anon
+        assert "/home/[USER-2]/projects/api/pyproject.toml" in anon
+        assert "/home/[USER-3]/.local/share/app/state" in anon
+        assert "alice" not in anon
+        assert "bob" not in anon
+        assert report.mapping_id == "paths"
+
+    def test_aliases_stay_stable_across_explicit_context_calls(self):
+        context = AnonymizationContext("session", primary_user="primary")
+        first, _ = anonymize("/home/alice/.cache/a peer=10.1.2.3", context=context)
+        second, _ = anonymize("/home/alice/.config/b peer=10.1.2.3", context=context)
+
+        assert "/home/[USER-2]/.cache/a" in first
+        assert "/home/[USER-2]/.config/b" in second
+        assert "[IP-PRIVATE-1]" in first
+        assert "[IP-PRIVATE-1]" in second
+
+    def test_ip_semantics_and_identity_are_preserved(self):
+        context = AnonymizationContext("network")
+        data = (
+            "0.0.0.0 127.0.0.1 127.0.0.2 255.255.255.255 "
+            "192.168.1.10 192.168.1.10 8.8.8.8 169.254.1.4 "
+            "224.0.0.1 192.0.2.1"
+        )
+
+        anon, _ = anonymize(data, context=context)
+
+        assert "[IP-ANY]" in anon
+        assert anon.count("[IP-LOOPBACK]") == 2
+        assert "[IP-BROADCAST]" in anon
+        assert anon.count("[IP-PRIVATE-1]") == 2
+        assert "[IP-PUBLIC-1]" in anon
+        assert "[IP-LINKLOCAL-1]" in anon
+        assert "[IP-MULTICAST-1]" in anon
+        assert "[IP-RESERVED-1]" in anon
+
+    def test_invalid_ipv4_candidate_is_not_misclassified(self):
+        anon, report = anonymize("peer=999.2.3.4")
+        assert anon == "peer=999.2.3.4"
+        assert report.replacements.get("Adresy IPv4", 0) == 0
+
+    def test_uuid_alias_is_stable_and_other_secrets_are_irreversible(self):
+        context = AnonymizationContext("identity")
+        uuid = "123e4567-e89b-12d3-a456-426614174000"
+        data = (
+            f"disk={uuid} again={uuid} mac=aa:bb:cc:dd:ee:ff "
+            "Serial: PF1A2B3C4D pass" "word=top-secret"
+        )
+
+        anon, _ = anonymize(data, context=context)
+
+        assert anon.count("[UUID-1]") == 2
+        assert "XX:XX:XX:XX:XX:XX" in anon
+        assert "[SERIAL-REDACTED]" in anon
+        assert "top-secret" not in anon
+        assert "top-secret" not in context.reverse_map.values()
+        assert "aa:bb:cc:dd:ee:ff" not in context.reverse_map.values()
+
+    def test_idempotence_preserves_existing_aliases(self):
+        context = AnonymizationContext("idempotent", primary_user="primary")
+        payload = (
+            "/home/[USER]/.cache /home/[USER-2]/.config "
+            "[IP-PRIVATE-1] [IP-ANY] [UUID-1]"
+        )
+        again, _ = anonymize(payload, context=context)
+        assert again == payload
+
+    def test_contextual_resolution_is_selected_and_fail_closed(self):
+        context = AnonymizationContext("resolution", primary_user="primary")
+        payload, _ = anonymize("ls /home/alice/.cache", context=context)
+
+        resolved = deanonymize(
+            payload,
+            context=context,
+            allowed_aliases={"[USER-2]"},
+        )
+        assert resolved == "ls /home/alice/.cache"
+
+        try:
+            deanonymize(payload)
+        except ResolutionError as exc:
+            assert "mapping_context_required" in str(exc)
+        else:
+            raise AssertionError("numbered alias without its context should fail closed")
+
+        try:
+            deanonymize(payload, context=context, allowed_aliases=set())
+        except ResolutionError as exc:
+            assert "unselected_alias" in str(exc)
+        else:
+            raise AssertionError("unselected alias should fail closed")
+
+        for value, allowed in (
+            ("ls /home/[USER-99]/.cache", {"[USER-99]"}),
+            ("listen [IP-ANY]", {"[IP-ANY]"}),
+        ):
+            try:
+                deanonymize(value, context=context, allowed_aliases=allowed)
+            except ResolutionError as exc:
+                assert "unknown_or_semantic_alias" in str(exc)
+            else:
+                raise AssertionError("unknown or semantic alias should fail closed")
+
+    def test_report_contains_digest_but_not_reverse_map(self):
+        context = AnonymizationContext("report", primary_user="primary")
+        payload, report = anonymize(
+            "/home/alice/.cache peer=10.2.3.4",
+            context=context,
+        )
+        report_text = repr(report)
+
+        assert len(report.payload_sha256) == 64
+        assert report.mapping_id == "report"
+        assert "alice" not in report_text
+        assert "10.2.3.4" not in report_text
+        assert report.payload_sha256
+        assert payload

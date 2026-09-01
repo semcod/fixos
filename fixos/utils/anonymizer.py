@@ -4,12 +4,108 @@ Anonimizacja wrażliwych danych systemowych z podglądem dla użytkownika.
 
 from __future__ import annotations
 
-import re
-import socket
 import getpass
+import hashlib
+import ipaddress
 import os
+import re
+import secrets
+import socket
 from dataclasses import dataclass, field
+from typing import Iterable
+
 from .terminal import _C
+
+
+MAPPING_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
+ALIAS_RE = re.compile(
+    r"\[(?:HOME|HOSTNAME|USER(?:-[0-9]+)?|UUID-[0-9]+|"
+    r"IP-(?:ANY|LOOPBACK|BROADCAST|"
+    r"(?:PRIVATE|PUBLIC|LINKLOCAL|MULTICAST|RESERVED)-[0-9]+))\]"
+)
+HOME_RE = re.compile(
+    r"/home/(?P<user>(?!\[USER(?:-[0-9]+)?\](?:/|$))[^/\s\"'\\]+)"
+    r"(?P<suffix>(?:/[^\s\"'\\]*)?)"
+)
+IPV4_RE = re.compile(
+    r"(?<![A-Za-z0-9_.:])(?:[0-9]{1,3}\.){3}[0-9]{1,3}"
+    r"(?![A-Za-z0-9_.:])"
+)
+UUID_RE = re.compile(
+    r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
+    r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b"
+)
+MAC_RE = re.compile(r"\b(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}\b")
+SERIAL_RE = re.compile(
+    r"\b(?P<label>S/N|Serial|SN)(?P<separator>[\s:]+)"
+    r"(?P<value>[A-Z0-9]{6,20})\b",
+    re.IGNORECASE,
+)
+API_TOKEN_RE = re.compile(
+    r"(?<![A-Za-z0-9])(?:sk-|pk-|xai-|AIzaSy[A-Za-z0-9_-]+|Bearer\s+)"
+    r"[A-Za-z0-9\-_.]{15,}"
+)
+CREDENTIAL_RE = re.compile(
+    r"(?P<key>password|passwd|secret|token|api_key|apikey|auth)"
+    r"\s*[=:]\s*\S+",
+    re.IGNORECASE,
+)
+RFC1918 = tuple(
+    ipaddress.ip_network(network)
+    for network in ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16")
+)
+SEMANTIC_IPS = {
+    "0.0.0.0": "[IP-ANY]",
+    "255.255.255.255": "[IP-BROADCAST]",
+}
+
+
+class ResolutionError(ValueError):
+    """Raised when an anonymized alias cannot be resolved safely."""
+
+
+def _new_mapping_id() -> str:
+    return f"payload-{secrets.token_hex(8)}"
+
+
+@dataclass
+class AnonymizationContext:
+    """Memory-only alias state. Never include this object in LLM payloads."""
+
+    mapping_id: str = field(default_factory=_new_mapping_id)
+    primary_user: str | None = None
+    reverse_map: dict[str, str] = field(default_factory=dict, repr=False)
+    _aliases: dict[tuple[str, str], str] = field(default_factory=dict, repr=False)
+    _next_index: dict[str, int] = field(default_factory=dict, repr=False)
+
+    def __post_init__(self) -> None:
+        if not MAPPING_ID_RE.fullmatch(self.mapping_id):
+            raise ValueError("mapping_id does not match the anonymization contract")
+        if self.primary_user:
+            self.bind("USER", self.primary_user, "[USER]")
+
+    def bind(self, category: str, original: str, token: str) -> str:
+        existing = self.reverse_map.get(token)
+        if existing is not None and existing != original:
+            raise ValueError(f"alias collision for {token}")
+        self.reverse_map[token] = original
+        self._aliases[(category, original)] = token
+        return token
+
+    def numbered_alias(self, category: str, original: str, *, start: int = 1) -> str:
+        key = (category, original)
+        existing = self._aliases.get(key)
+        if existing is not None:
+            return existing
+        index = self._next_index.get(category, start)
+        token = f"[{category}-{index}]"
+        self._next_index[category] = index + 1
+        return self.bind(category, original, token)
+
+    def user_alias(self, username: str) -> str:
+        if self.primary_user is not None and username == self.primary_user:
+            return self.bind("USER", username, "[USER]")
+        return self.numbered_alias("USER", username, start=2)
 
 
 @dataclass
@@ -19,6 +115,8 @@ class AnonymizationReport:
     original_length: int = 0
     anonymized_length: int = 0
     replacements: dict[str, int] = field(default_factory=dict)
+    mapping_id: str = ""
+    payload_sha256: str = ""
 
     def add(self, category: str, count: int = 1):
         self.replacements[category] = self.replacements.get(category, 0) + count
@@ -49,54 +147,132 @@ def _get_sensitive() -> dict:
     return result
 
 
-# (pattern, replacement, flags, report_label) — applied in order after literal replacements
-_REGEX_REPLACEMENTS: list[tuple[str, str, int, str]] = [
-    (r"/home/(?!\[USER\])[^\s\"'\\]+", "/home/[USER]/...", 0, "Ścieżki /home"),
-    (r"\b(\d{1,3}\.\d{1,3})\.\d{1,3}\.\d{1,3}\b", r"\1.XXX.XXX", 0, "Adresy IPv4"),
-    (
-        r"\b([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}\b",
-        "XX:XX:XX:XX:XX:XX",
-        0,
-        "Adresy MAC",
-    ),
-    (
-        r"(?<![A-Za-z0-9])(?:sk-|xai-|AIzaSy[A-Za-z0-9_-]+|Bearer\s+)[A-Za-z0-9\-_.]{15,}",
-        "[API_TOKEN_REDACTED]",
-        0,
-        "Tokeny API",
-    ),
-    (
-        r"(?i)(password|passwd|secret|token|api_key|apikey|auth)\s*[=:]\s*\S+",
-        r"\1=[REDACTED]",
-        re.IGNORECASE,
-        "Hasła/sekrety",
-    ),
-    (
-        r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b",
-        "[UUID-REDACTED]",
-        0,
-        "UUID (serial/hardware)",
-    ),
-    (
-        r"\b(?:S/N|Serial|SN)[\s:]+[A-Z0-9]{6,20}\b",
-        "Serial: [SERIAL-REDACTED]",
-        re.IGNORECASE,
-        "Numery seryjne",
-    ),
-]
+def _redact_irreversible(data: str, report: AnonymizationReport) -> str:
+    data, count = API_TOKEN_RE.subn("[API_TOKEN_REDACTED]", data)
+    if count:
+        report.add("Tokeny API", count)
+
+    def replace_credential(match: re.Match[str]) -> str:
+        return f"{match.group('key')}=[REDACTED]"
+
+    data, count = CREDENTIAL_RE.subn(replace_credential, data)
+    if count:
+        report.add("Hasła/sekrety", count)
+    data, count = MAC_RE.subn("XX:XX:XX:XX:XX:XX", data)
+    if count:
+        report.add("Adresy MAC", count)
+
+    def replace_serial(match: re.Match[str]) -> str:
+        return (
+            f"{match.group('label')}{match.group('separator')}"
+            "[SERIAL-REDACTED]"
+        )
+
+    data, count = SERIAL_RE.subn(replace_serial, data)
+    if count:
+        report.add("Numery seryjne", count)
+    return data
 
 
-def _apply_regex_replacements(data_str: str, report: AnonymizationReport) -> str:
-    """Apply all regex-based anonymization patterns from _REGEX_REPLACEMENTS."""
-    for pattern, replacement, flags, label in _REGEX_REPLACEMENTS:
-        matches = len(re.findall(pattern, data_str, flags))
-        if matches:
-            data_str = re.sub(pattern, replacement, data_str, flags=flags)
-            report.add(label, matches)
-    return data_str
+def _replace_home_paths(
+    data: str,
+    context: AnonymizationContext,
+    report: AnonymizationReport,
+) -> str:
+    def replace(match: re.Match[str]) -> str:
+        report.add("Ścieżki /home")
+        alias = context.user_alias(match.group("user"))
+        return f"/home/{alias}{match.group('suffix')}"
+
+    return HOME_RE.sub(replace, data)
 
 
-def anonymize(data_str: str) -> tuple[str, AnonymizationReport]:
+def _replace_literal_home(
+    data: str,
+    home: str,
+    context: AnonymizationContext,
+    report: AnonymizationReport,
+) -> str:
+    """Replace a non-/home home root without matching it inside another path."""
+    left_boundary = r"(?:(?<=\\[tnr])|(?<![A-Za-z0-9_.-]))"
+    pattern = re.compile(
+        rf"{left_boundary}{re.escape(home)}(?=$|[/\\])"
+    )
+    data, count = pattern.subn("[HOME]", data)
+    if count:
+        context.bind("HOME", home, "[HOME]")
+        report.add("Ścieżka domowa", count)
+    return data
+
+
+def _replace_user_words(
+    data: str,
+    context: AnonymizationContext,
+    report: AnonymizationReport,
+) -> str:
+    users = [
+        (original, alias)
+        for (category, original), alias in context._aliases.items()
+        if category == "USER"
+    ]
+    for original, alias in sorted(users, key=lambda item: len(item[0]), reverse=True):
+        pattern = rf"(?<![A-Za-z0-9_.-]){re.escape(original)}(?![A-Za-z0-9_.-])"
+        data, count = re.subn(pattern, alias, data)
+        if count:
+            report.add("Username", count)
+    return data
+
+
+def _replace_uuid(
+    data: str,
+    context: AnonymizationContext,
+    report: AnonymizationReport,
+) -> str:
+    def replace(match: re.Match[str]) -> str:
+        report.add("UUID (serial/hardware)")
+        return context.numbered_alias("UUID", match.group(0))
+
+    return UUID_RE.sub(replace, data)
+
+
+def _ip_category(address: ipaddress.IPv4Address) -> str:
+    if address.is_link_local:
+        return "IP-LINKLOCAL"
+    if address.is_multicast:
+        return "IP-MULTICAST"
+    if any(address in network for network in RFC1918):
+        return "IP-PRIVATE"
+    if address.is_global:
+        return "IP-PUBLIC"
+    return "IP-RESERVED"
+
+
+def _replace_ipv4(
+    data: str,
+    context: AnonymizationContext,
+    report: AnonymizationReport,
+) -> str:
+    def replace(match: re.Match[str]) -> str:
+        original = match.group(0)
+        try:
+            address = ipaddress.IPv4Address(original)
+        except ipaddress.AddressValueError:
+            return original
+        report.add("Adresy IPv4")
+        semantic = SEMANTIC_IPS.get(original)
+        if semantic is not None:
+            return semantic
+        if address.is_loopback:
+            return "[IP-LOOPBACK]"
+        return context.numbered_alias(_ip_category(address), original)
+
+    return IPV4_RE.sub(replace, data)
+
+
+def anonymize(
+    data_str: str,
+    context: AnonymizationContext | None = None,
+) -> tuple[str, AnonymizationReport]:
     """
     Anonimizuje wrażliwe dane.
 
@@ -106,63 +282,92 @@ def anonymize(data_str: str) -> tuple[str, AnonymizationReport]:
     if not isinstance(data_str, str):
         data_str = str(data_str)
 
-    report = AnonymizationReport(original_length=len(data_str))
     sensitive = _get_sensitive()
+    context = context or AnonymizationContext(primary_user=sensitive.get("username"))
+    report = AnonymizationReport(
+        original_length=len(data_str),
+        mapping_id=context.mapping_id,
+    )
 
-    # 1. Hostname (literal)
+    # Secrets are removed before reversible aliases are allocated, so a secret
+    # can never enter the local reverse map by also looking like an identifier.
+    data_str = _redact_irreversible(data_str, report)
+
     if sensitive.get("hostname"):
         count = data_str.count(sensitive["hostname"])
         if count:
+            context.bind("HOSTNAME", sensitive["hostname"], "[HOSTNAME]")
             data_str = data_str.replace(sensitive["hostname"], "[HOSTNAME]")
             report.add("Hostname", count)
 
-    # 2. Katalog domowy — pełna ścieżka (PRZED zastąpieniem username)
-    if sensitive.get("home"):
-        count = data_str.count(sensitive["home"])
-        if count:
-            data_str = data_str.replace(sensitive["home"], "/home/[USER]")
-            report.add("Ścieżka domowa", count)
+    # Non-/home platforms retain the legacy [HOME] token. Linux home paths are
+    # handled structurally below to preserve every non-sensitive suffix.
+    if sensitive.get("home") and not sensitive["home"].startswith("/home/"):
+        data_str = _replace_literal_home(
+            data_str,
+            sensitive["home"],
+            context,
+            report,
+        )
 
-    # 3–10. Regex-based replacements (home paths, IPs, MACs, tokens, etc.)
-    data_str = _apply_regex_replacements(data_str, report)
-
-    # Username (konkretna nazwa) — po zastąpieniu ścieżek przez regex
-    if sensitive.get("username"):
-        pattern = rf"\b{re.escape(sensitive['username'])}\b"
-        matches = len(re.findall(pattern, data_str))
-        if matches:
-            data_str = re.sub(pattern, "[USER]", data_str)
-            report.add("Username", matches)
+    data_str = _replace_home_paths(data_str, context, report)
+    data_str = _replace_user_words(data_str, context, report)
+    data_str = _replace_uuid(data_str, context, report)
+    data_str = _replace_ipv4(data_str, context, report)
 
     report.anonymized_length = len(data_str)
+    report.payload_sha256 = hashlib.sha256(data_str.encode("utf-8")).hexdigest()
     return data_str, report
 
 
-def deanonymize(text: str) -> str:
-    """
-    Reverses anonymization placeholders back to real values for execution.
-    Handles [USER], [HOSTNAME], and [HOME].
-    """
-    if not isinstance(text, str):
-        return text
+def _resolve_contextual_aliases(
+    text: str,
+    context: AnonymizationContext,
+    allowed_aliases: Iterable[str] | None,
+) -> str:
+    if allowed_aliases is None:
+        raise ResolutionError("allowed_aliases_required")
+    observed = set(ALIAS_RE.findall(text))
+    unknown = sorted(observed - set(context.reverse_map))
+    if unknown:
+        raise ResolutionError(f"unknown_or_semantic_alias:{','.join(unknown)}")
+    unselected = sorted(observed - set(allowed_aliases))
+    if unselected:
+        raise ResolutionError(f"unselected_alias:{','.join(unselected)}")
+    for token in sorted(observed, key=len, reverse=True):
+        text = text.replace(token, context.reverse_map[token])
+    return text
+
+
+def _resolve_legacy_aliases(text: str) -> str:
+    legacy_tokens = {"[USER]", "[HOSTNAME]", "[HOME]"}
+    unresolved = sorted(set(ALIAS_RE.findall(text)) - legacy_tokens)
+    if unresolved:
+        raise ResolutionError("mapping_context_required:" + ",".join(unresolved))
 
     sensitive = _get_sensitive()
-
-    # 1. Hostname
-    if sensitive.get("hostname"):
-        text = text.replace("[HOSTNAME]", sensitive["hostname"])
-
-    # 2. Home directory
-    if sensitive.get("home"):
-        text = text.replace("[HOME]", sensitive["home"])
-        # Some LLMs might use /home/[USER] literally
-        # We replace [USER] next, which covers /home/[USER]
-
-    # 3. Username
-    if sensitive.get("username"):
-        text = text.replace("[USER]", sensitive["username"])
-
+    replacements = {
+        "[HOSTNAME]": sensitive.get("hostname"),
+        "[HOME]": sensitive.get("home"),
+        "[USER]": sensitive.get("username"),
+    }
+    for token, original in replacements.items():
+        if original:
+            text = text.replace(token, original)
     return text
+
+
+def deanonymize(
+    text: str,
+    context: AnonymizationContext | None = None,
+    allowed_aliases: Iterable[str] | None = None,
+) -> str:
+    """Resolve aliases locally while preserving the legacy primary tokens."""
+    if not isinstance(text, str):
+        return text
+    if context is not None:
+        return _resolve_contextual_aliases(text, context, allowed_aliases)
+    return _resolve_legacy_aliases(text)
 
 
 def display_anonymized_preview(
@@ -215,6 +420,7 @@ def display_anonymized_preview(
     print(
         f"  {_C.DIM}Rozmiar: {report.original_length:,} → {report.anonymized_length:,} znaków{_C.RESET}"
     )
+    print(f"  {_C.DIM}SHA-256 payloadu: {report.payload_sha256}{_C.RESET}")
     print(dash_line)
 
 
@@ -269,9 +475,7 @@ def _format_diagnostics_markdown(data_str: str) -> str:
 
     # Próbuj sparsować jako dict
     try:
-        # Usuń 'zanonimizowane' znaczniki jeśli są
-        clean = data_str.replace("[HOSTNAME]", "HOSTNAME").replace("[USER]", "USER")
-        data = ast.literal_eval(clean)
+        data = ast.literal_eval(data_str)
         if isinstance(data, dict):
             return _dict_to_markdown(data)
     except (SyntaxError, ValueError):
