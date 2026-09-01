@@ -1,0 +1,42 @@
+# ticket-014 execution evidence
+
+SESSION_EXECUTION_AUTHORIZATION
+- Source: the user explicitly requested autonomous continuation, publication
+  through `goal -a`, and automatic OneDev/Validator handling for FixOS.
+- Scope: governance-only end-to-end publication proof for ticket-014.
+
+PRE-PUBLICATION VALIDATION — 2026-09-01
+- Accepted base: `9951348fa5c6bc6839e4f09ceed25d92da5a91bd`.
+- `python -m pytest -q`: PASS — 554 passed, 5 skipped, 16 deselected.
+- changed-Python Ruff gate: PASS — no Python files in the candidate diff.
+- `git diff --check`: PASS.
+- `./project/governance-check.sh`: GOV-PASS — 0 errors, 0 warnings.
+- Candidate scope: `project/ticket-014/**`, `TODO.md`,
+  `project/TICKETS.md`; no executable, test, dependency or protected-policy
+  path changed.
+
+CONTROLLER PROFILE PRECONDITION
+- `subactor/onedev-agent` PR #115 added and deployed the manifest profile for
+  `semcod/fixos`; the controller and executor parse 59 PR profiles.
+- End-to-end preparation found that its original full-tree Ruff command would
+  reject 33 legacy FixOS findings unrelated to the candidate.
+- Corrective Onedev ticket-091/PR #116 scopes Ruff to changed Python files,
+  uses the exact base SHA, excludes deletions, disables cache writes and fails
+  closed if diff discovery fails.
+- Corrective controller validation: 366 tests passed; Ruff clean; valid exact
+  diff passed and an invalid base SHA failed closed.
+- Automatic Validator run `33504655241` approved PR #116 exact head
+  `2c3ec971e6891bfc5b136f195076b36bf10d4576` as trusted review
+  `5077669690`; it merged as `c1b2c8756a42336f7d3d0542a5302bf6f9b35263`
+  and deleted the branch.
+- The corrected OneDev profile was deployed to both PR controller processes;
+  both parse 59 PR profiles.
+- Validator Agent PR #249 added `onedev/local-verify` to the existing four
+  hosted FixOS gates and enabled registry-derived scheduled reconciliation.
+  Its full suite passed 497 tests. Protected run `33505622939` approved exact
+  head `d618023ea9dd9f80b7cb45071afcb4332eaef13b` as review `5077772304`,
+  merged it as `7d3fa049185c3975eedcd3a6f41a83204b6a636e`, and deleted the branch.
+
+PUBLICATION / TRUSTED REVIEW
+- Ready to publish the FixOS ticket head through `goal -a`. No manual
+  Validator dispatch will be used for the FixOS proof.

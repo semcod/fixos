@@ -1,0 +1,108 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-014",
+  "summary": "Prove manifest-driven FixOS PR automation",
+  "workstream": "governance",
+  "classification": {
+    "kind": "SERVICE",
+    "priority": "P2",
+    "origin": "health"
+  },
+  "allowedPaths": ["project/ticket-014/**", "TODO.md", "project/TICKETS.md"],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md",
+    "fixos/**",
+    "tests/**",
+    ".github/**",
+    ".governance/**",
+    "goal.yaml",
+    "pyproject.toml",
+    "VERSION",
+    "CHANGELOG.md",
+    "**/*.pem",
+    "**/*secret*"
+  ],
+  "stacks": ["python"],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "9951348fa5c6bc6839e4f09ceed25d92da5a91bd",
+    "targetBranch": "main",
+    "outcome": "A real governance-only FixOS PR is automatically verified by OneDev and bound to a trusted exact-head Validator review and merge",
+    "nonGoals": [
+      "No executable FixOS or test change",
+      "No dependency, public interface or release change",
+      "No weakening of hosted checks, review trust or merge authority",
+      "No manual Validator dispatch as proof of the automatic path"
+    ],
+    "complexity": "XS",
+    "estimatedMinutes": 10,
+    "budgets": {
+      "maxImplementationFiles": 1,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Use this governance-only ticket PR as the bounded end-to-end automation probe without changing runtime behavior",
+      "components": [
+        {
+          "name": "publication-proof-evidence",
+          "paths": [
+            "project/ticket-014/**",
+            "TODO.md",
+            "project/TICKETS.md"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert governance-only ticket evidence; no runtime or persistent application state changes"
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "git diff --check",
+          "python -m pytest -q",
+          "git diff --name-only -z --diff-filter=ACMR 9951348fa5c6bc6839e4f09ceed25d92da5a91bd...HEAD -- '*.py' | xargs -0 -r python -m ruff check --no-cache",
+          "./project/governance-check.sh"
+        ],
+        "evidence": "project/ticket-014/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-03",
+        "commands": [
+          "goal -a",
+          "gh pr checks"
+        ],
+        "evidence": "project/ticket-014/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-04",
+        "commands": [
+          "gh pr checks",
+          "docker logs ifuri-onedev-pr-coordinator-1"
+        ],
+        "evidence": "project/ticket-014/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-05",
+        "commands": [
+          "gh pr view",
+          "git ls-remote --heads origin"
+        ],
+        "evidence": "project/ticket-014/ai-codex-logs.txt"
+      }
+    ]
+  }
+}
