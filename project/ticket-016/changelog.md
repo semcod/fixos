@@ -17,3 +17,8 @@
   LLM error instead of an empty action menu.
 - Normalize bounded cleanup typos to planning-only prompts with the existing
   selection and confirmation gates intact.
+- Publish exact head `a14a23bf...` through PR #33 after all hosted and OneDev
+  checks passed.
+- Record protected Validator approval `5080349022`, merge `9d7ce892...` and
+  deletion of the remote ticket branch.
+- Close the integrated ticket as `DONE / DONE` on the resulting default branch.
