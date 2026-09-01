@@ -8,6 +8,11 @@ Ostatni przegląd: 2026-07-23.
 
 ## Aktywne
 
+- [ ] Dostarczyć [ticket-014](project/ticket-014/README.md): potwierdzić na
+  rzeczywistym PR FixOS, że wdrożony profil manifestu automatycznie wykonuje
+  lokalną walidację dokładnego HEAD, przekazuje go do Validator Agent i scala
+  dopiero po zaufanym review. Stan: `IN_PROGRESS / PUBLICATION`.
+
 - [x] Dostarczyć [ticket-013](project/ticket-013/README.md): zachować przyjęty
   wybór optymalizacji HITL po wolnej odpowiedzi modelu, licząc timeout osobno
   dla każdej tury LLM i pokazując aktualny pozostały czas. Stan:
