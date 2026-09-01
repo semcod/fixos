@@ -1,0 +1,16 @@
+SESSION_EXECUTION_AUTHORIZATION
+- Source: the user explicitly answered "tak, zwiększ limit do 50000" after
+  requesting continuation of the FixOS LLM-response repair.
+- Scope: the full HITL output ceiling, GLM 5.3 reasoning options, empty-result
+  fallback and bounded cleanup-intent typo normalization for ticket-016.
+
+DISCOVERY — 2026-09-01
+- Accepted base: ca7c315e1d2f4f40c8beab655ccdd71700256845.
+- `HITLSession._process_turn` hard-codes `max_tokens=4000` for every full turn.
+- `LLMClient._chat_once` returns `message.content or ""`, making an empty
+  provider result indistinguishable from a valid diagnosis.
+- The existing fallback chain handles only provider-rejected model IDs.
+- OpenRouter documents reasoning controls through a `reasoning` request object;
+  GLM 5.3 supports explicit low effort and otherwise defaults to max reasoning.
+- `parse_user_input` treats unknown single words such as `clanup` as opaque
+  free text and supplies no cleanup-planning normalization.
