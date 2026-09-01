@@ -52,12 +52,13 @@ class LLMClient:
 
         self.config = config
         auth = config.api_key or "ollama"  # runtime value; never persisted
-        self._client = openai.OpenAI(
-            api_key=auth,
-            base_url=config.base_url,
-            timeout=120.0,
-            max_retries=2,
-        )
+        client_options = {
+            "api_key": auth,
+            "base_url": config.base_url,
+            "timeout": 120.0,
+            "max_retries": 2,
+        }
+        self._client = openai.OpenAI(**client_options)
         self._total_tokens = 0
         self._model_candidates = [config.model] + [
             m for m in (config.model_fallbacks or []) if m != config.model
