@@ -50,9 +50,29 @@ separate reporting value.
 - The managed governance gate passes with zero errors and zero warnings.
 - Recorded the user's existing explicit `goal -a` publication authorization
   for this continued fix and advanced the ticket to `IN_PROGRESS / PUBLICATION`.
+- Goal published exact implementation HEAD `5cd7227...` and opened PR #27;
+  all hosted Python, multi-system and governance checks passed.
+- Confirmed a separate automation regression after the OneDev controller
+  restart: its active 58-profile configuration did not contain `semcod/fixos`,
+  so it did not automatically enqueue PR #27.
+- Used the protected one-off direct-PR helper to freeze the unchanged HEAD and
+  dispatch Validator Agent without substituting local approval. Validator run
+  `33500956505` approved exact HEAD `5cd7227...` as review `5077270100` and
+  merged PR #27 as `4cc84ab...`.
+- Fast-forwarded local `main`, verified implementation reachability, pruned the
+  deleted remote branch and removed the merged local implementation branch.
+  The FixOS repository has only its primary clean worktree.
+- Ran the adopted Goal workspace lifecycle audit. It found no FixOS duplicate,
+  but failed on 29 pre-existing worktrees and ticket collisions belonging to
+  other repositories in the wider workspace; several are dirty, so they were
+  preserved rather than modified or removed.
+- This governance-only closure records `DONE / DONE` from integrated `main`
+  without changing executable code.
 
 ## Blockers
 
-- None inside the recorded intent or validated implementation.
-- New authority remains required for destructive action, secret access, new
-  external coordination, material objective expansion and trusted merge.
+- None for ticket-013. The human authorized publication and the protected
+  Validator App supplied independent exact-head approval and trusted merge.
+- The missing automatic `semcod/fixos` OneDev profile remains a separate
+  controller/configuration regression; the protected one-off path completed
+  this PR but does not make future FixOS dispatch automatic.

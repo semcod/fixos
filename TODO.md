@@ -8,10 +8,11 @@ Ostatni przegląd: 2026-07-23.
 
 ## Aktywne
 
-- [ ] Dostarczyć [ticket-013](project/ticket-013/README.md): zachować przyjęty
+- [x] Dostarczyć [ticket-013](project/ticket-013/README.md): zachować przyjęty
   wybór optymalizacji HITL po wolnej odpowiedzi modelu, licząc timeout osobno
   dla każdej tury LLM i pokazując aktualny pozostały czas. Stan:
-  `IN_PROGRESS / PUBLICATION`.
+  `DONE / DONE`; PR #27 zatwierdzono dla dokładnego HEAD `5cd7227...` i scalono
+  jako `4cc84ab...`.
 
 - [x] Dostarczyć [ticket-012](project/ticket-012/README.md): dodać numerowane
   wybieranie pojedynczych problemów także dla odpowiedzi zawierających samą
