@@ -4,7 +4,7 @@ Interactive session where user approves each action.
 """
 
 import time
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List
 
 from ..providers.llm import LLMClient, LLMError
 from ..utils.anonymizer import anonymize, deanonymize, display_anonymized_preview
@@ -18,7 +18,15 @@ from ..platform_utils import (
 )
 from ..utils.timeout import SessionTimeout
 
-from .session_core import CmdResult, SYSTEM_PROMPT, extract_fixes, extract_search_topic
+from .session_core import (
+    CmdResult,
+    RemediationAction,
+    SYSTEM_PROMPT,
+    extract_remediation_actions,
+    extract_search_topic,
+    strip_remediation_plan,
+    transform_remediation_commands,
+)
 from . import session_io as io
 from . import session_handlers as handlers
 
@@ -43,7 +51,7 @@ class HITLSession:
         self.messages: List[Dict[str, str]] = []
         self.executed: List[CmdResult] = []
         self.web_search_count = 0
-        self.last_fixes: List[Tuple[str, str]] = []
+        self.last_fixes: List[RemediationAction] = []
         self.start_ts = time.time()
         self._setup_timeout()
 
@@ -159,7 +167,7 @@ class HITLSession:
 
         io.print_thinking()
         try:
-            reply = self.llm.chat(self.messages, max_tokens=2500, temperature=0.2)
+            reply = self.llm.chat(self.messages, max_tokens=4000, temperature=0.2)
             self.messages.append({"role": "assistant", "content": reply})
         except LLMError as e:
             io.clear_thinking()
@@ -169,9 +177,12 @@ class HITLSession:
             return True
         io.clear_thinking()
 
-        io.print_llm_reply(reply)
-        raw_fixes = extract_fixes(reply)
-        self.last_fixes = [(deanonymize(cmd), comment) for cmd, comment in raw_fixes]
+        io.print_llm_reply(strip_remediation_plan(reply))
+        raw_actions = extract_remediation_actions(reply)
+        self.last_fixes = [
+            transform_remediation_commands(action, deanonymize)
+            for action in raw_actions
+        ]
 
         if self._check_low_confidence(reply):
             return True

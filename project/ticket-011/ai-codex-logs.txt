@@ -1,0 +1,21 @@
+2026-09-01 source standard
+  git -C "$WELLMANIFEST_LOGS_ROOT" log -1 --oneline
+  48c284e Merge pull request #18 from wellmanifest/ticket/011-adopter-error-catalog
+
+2026-09-01 focused validation
+  ruff check fixos/agent/session_core.py fixos/agent/session_io.py fixos/agent/session_handlers.py fixos/agent/hitl_session.py tests/unit/test_core.py
+  PASS
+  python -m pytest -q tests/unit/test_core.py tests/e2e/test_anonymization_layers.py
+  94 passed
+
+2026-09-01 full validation
+  python -m compileall -q fixos
+  PASS
+  python -m pytest -q
+  544 passed, 5 skipped, 16 deselected
+  python "$WELLMANIFEST_LOGS_ROOT/standard/logs_check.py" validate --root "$WELLMANIFEST_LOGS_ROOT"
+  LOGS-PASS: 1 stream(s), 3 event(s), 1 error definition(s)
+  python "$WELLMANIFEST_LOGS_ROOT/standard/logs_check.py" self-test
+  logs conformance self-test: PASS (24 adversarial checks)
+  ./project/governance-check.sh
+  GOV-PASS: passed (0 errors, 0 warnings)

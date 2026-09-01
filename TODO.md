@@ -8,6 +8,12 @@ Ostatni przegląd: 2026-07-23.
 
 ## Aktywne
 
+- [ ] Dostarczyć [ticket-011](project/ticket-011/README.md): zastąpić płaską
+  listę poleceń HITL standaryzowanymi findingami, wariantami remediacji,
+  zestawami komend i weryfikacją zgodną z rozdzieleniem odpowiedzialności
+  `wellmanifest/logs`. Stan: `IN_PROGRESS / PUBLICATION`; implementacja i
+  walidacja lokalna zakończone, oczekuje trusted exact-head review i merge.
+
 - [x] Dostarczyć [ticket-010](project/ticket-010/README.md): poprawić wykrywanie
   głównej JVM JetBrains i dodać bezpieczne sterowanie dokładnymi wtyczkami AI
   oraz helperami Qoder bez zamykania okien IDE. Stan: `DONE / DONE`; PR #20

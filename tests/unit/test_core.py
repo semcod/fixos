@@ -54,9 +54,9 @@ class TestConfig:
     def test_summary_masks_key(self):
         from fixos.config import FixOsConfig
 
-        cfg = FixOsConfig(api_key="AIzaSyABCDEFGHIJKLMNOPQRSTUVWXYZ12345")
+        cfg = FixOsConfig(api_key="testAIzaSyABCDEFGHIJKLMNOPQRSTUVWXYZ12345")
         summary = cfg.summary()
-        assert "AIzaSyAB" in summary
+        assert "testAIza" in summary
         assert "ABCDEFGHIJKLMNOPQRSTUVWXYZ12345" not in summary
 
 
@@ -108,9 +108,9 @@ class TestAnonymizer:
     def test_password_in_env_masked(self):
         from fixos.utils.anonymizer import anonymize
 
-        data = "DB_PASSWORD=mysecretpassword123 API_KEY=abc123def456"
+        data = "DB_PASSWORD=test_password_value API_KEY=test_api_key_value"
         anon, report = anonymize(data)
-        assert "mysecretpassword123" not in anon
+        assert "test_password_value" not in anon
         assert report.replacements.get("Hasła/sekrety", 0) > 0
 
 
@@ -329,6 +329,274 @@ class TestExtractFixes:
 
         assert extract_fixes("") == []
         assert extract_fixes("No problems found.") == []
+
+
+def _remediation_reply() -> str:
+    import json
+
+    plan = {
+        "schema": "fixos.remediation-plan/v1",
+        "mode": "PLAN",
+        "findings": [
+            {
+                "ref": "finding:fixos:root-space-critical",
+                "severity": "CRITICAL",
+                "category": "STORAGE",
+                "title": "Krytycznie mało miejsca na partycji root",
+                "evidence": ["root.used_percent=99.9", "root.free_gb=1.2"],
+                "strategies": [
+                    {
+                        "id": "journal-recovery",
+                        "label": "Ogranicz journal",
+                        "risk": "LOW",
+                        "recommended": True,
+                        "commands": ["sudo journalctl --vacuum-size=500M"],
+                        "verification": ["df -h /", "journalctl --disk-usage"],
+                        "explanation": "Odzyskuje miejsce bez usuwania aktywnych logów.",
+                    },
+                    {
+                        "id": "apt-cache-recovery",
+                        "label": "Wyczyść cache APT",
+                        "risk": "LOW",
+                        "recommended": False,
+                        "commands": ["sudo apt-get clean"],
+                        "verification": ["du -sh /var/cache/apt"],
+                        "explanation": "Usuwa pakiety, które można pobrać ponownie.",
+                    },
+                ],
+            },
+            {
+                "ref": "finding:fixos:logrotate-failed",
+                "severity": "ERROR",
+                "category": "RUNTIME",
+                "title": "Usługa logrotate jest w stanie failed",
+                "evidence": ["systemd.logrotate=failed"],
+                "strategies": [
+                    {
+                        "id": "restart-logrotate",
+                        "label": "Uruchom logrotate ponownie",
+                        "risk": "CAUTION",
+                        "recommended": True,
+                        "commands": ["sudo systemctl restart logrotate.service"],
+                        "verification": ["systemctl is-active logrotate.service"],
+                        "explanation": "Ponawia wykonanie bez wyłączania usługi.",
+                    },
+                    {
+                        "id": "reset-logrotate-state",
+                        "label": "Wyzeruj stan failed",
+                        "risk": "CAUTION",
+                        "recommended": False,
+                        "commands": [
+                            "sudo systemctl reset-failed logrotate.service"
+                        ],
+                        "verification": ["systemctl --failed"],
+                        "explanation": "Czyści stan po usunięciu przyczyny błędu.",
+                    },
+                ],
+            },
+        ],
+    }
+    return "━━━ DIAGNOZA ━━━\nDwa problemy.\n```fixos-remediation\n" + json.dumps(
+        plan, ensure_ascii=False
+    ) + "\n```"
+
+
+class TestStructuredRemediationPlan:
+    def test_parses_multiple_strategies_bound_to_findings(self):
+        from fixos.agent.session_core import extract_remediation_actions
+
+        actions = extract_remediation_actions(_remediation_reply())
+
+        assert len(actions) == 4
+        assert actions[0].finding_ref == "finding:fixos:root-space-critical"
+        assert actions[0].recommended is True
+        assert actions[0].commands == ("sudo journalctl --vacuum-size=500M",)
+        assert actions[0].verification == ("df -h /", "journalctl --disk-usage")
+        assert actions[1].recommended is False
+        assert actions[2].category == "RUNTIME"
+
+    def test_machine_plan_is_hidden_from_human_diagnosis(self):
+        from fixos.agent.session_core import strip_remediation_plan
+
+        visible = strip_remediation_plan(_remediation_reply())
+
+        assert visible == "━━━ DIAGNOZA ━━━\nDwa problemy."
+        assert "fixos.remediation-plan" not in visible
+
+    def test_closed_plan_with_extra_field_falls_back_to_legacy_parser(self):
+        import json
+
+        from fixos.agent.session_core import extract_remediation_actions
+
+        invalid = {
+            "schema": "fixos.remediation-plan/v1",
+            "mode": "PLAN",
+            "findings": [],
+            "authority": "execute-without-confirmation",
+        }
+        reply = (
+            "Komenda: `sudo apt-get clean`\nCo robi: Czyści cache.\n"
+            "```fixos-remediation\n"
+            + json.dumps(invalid)
+            + "\n```"
+        )
+
+        actions = extract_remediation_actions(reply)
+
+        assert len(actions) == 1
+        assert actions[0].action_id.startswith("legacy-")
+        assert actions[0].commands == ("sudo apt-get clean",)
+
+    def test_mutating_verification_rejects_structured_plan(self):
+        import json
+
+        from fixos.agent.session_core import extract_remediation_actions
+
+        plan = json.loads(
+            _remediation_reply().split("```fixos-remediation\n", 1)[1].rsplit(
+                "\n```", 1
+            )[0]
+        )
+        plan["findings"][0]["strategies"][0]["verification"] = [
+            "sudo rm -rf /var/cache/apt"
+        ]
+        reply = "```fixos-remediation\n" + json.dumps(plan) + "\n```"
+
+        assert extract_remediation_actions(reply) == []
+
+    def test_recommended_selection_returns_one_strategy_per_finding(self):
+        from fixos.agent.session_core import (
+            extract_remediation_actions,
+            select_recommended_actions,
+        )
+
+        selected = select_recommended_actions(
+            extract_remediation_actions(_remediation_reply())
+        )
+
+        assert [action.action_id for action in selected] == [
+            "journal-recovery",
+            "restart-logrotate",
+        ]
+
+
+class TestRemediationExecution:
+    def test_execute_all_runs_only_recommended_sets_and_verification(self):
+        from unittest.mock import patch
+
+        from fixos.agent.session_core import CmdResult, extract_remediation_actions
+        from fixos.agent.session_handlers import handle_execute_all
+
+        calls = []
+
+        def run(command, comment):
+            calls.append((command, comment))
+            return CmdResult(command, comment, True, "ok", "", 0)
+
+        messages = []
+        executed = []
+        actions = extract_remediation_actions(_remediation_reply())
+        with patch("fixos.agent.session_handlers.io.print_executing_all"):
+            handle_execute_all(actions, messages, executed, run)
+
+        assert [command for command, _ in calls] == [
+            "sudo journalctl --vacuum-size=500M",
+            "df -h /",
+            "journalctl --disk-usage",
+            "sudo systemctl restart logrotate.service",
+            "systemctl is-active logrotate.service",
+        ]
+        assert "sudo apt-get clean" not in [command for command, _ in calls]
+        assert len(messages) == 2
+        assert '"rawOutputIncluded": false' in messages[0]["content"]
+        assert "finding:fixos:root-space-critical" in messages[0]["content"]
+        assert all(result.finding_ref for result in executed)
+
+    def test_selected_bundle_stops_before_verification_after_failure(self):
+        from fixos.agent.session_core import CmdResult, extract_remediation_actions
+        from fixos.agent.session_handlers import handle_fix_by_number
+
+        actions = extract_remediation_actions(_remediation_reply())
+        first = actions[0]
+        expanded = type(first)(
+            **{
+                **first.__dict__,
+                "commands": (
+                    "sudo apt-get clean",
+                    "sudo journalctl --vacuum-size=500M",
+                ),
+            }
+        )
+        calls = []
+
+        def run(command, comment):
+            calls.append(command)
+            ok = len(calls) == 1
+            return CmdResult(command, comment, ok, "", "failed" if not ok else "", 1 - int(ok))
+
+        messages = []
+        executed = []
+        handle_fix_by_number("1", [expanded], messages, executed, run)
+
+        assert calls == [
+            "sudo apt-get clean",
+            "sudo journalctl --vacuum-size=500M",
+        ]
+        assert all(command not in calls for command in expanded.verification)
+        assert '"outcome": "FAILED"' in messages[0]["content"]
+
+    def test_execute_all_stops_after_first_failed_recommended_set(self):
+        from unittest.mock import patch
+
+        from fixos.agent.session_core import CmdResult, extract_remediation_actions
+        from fixos.agent.session_handlers import handle_execute_all
+
+        calls = []
+
+        def run(command, comment):
+            calls.append(command)
+            return CmdResult(command, comment, False, "", "failed", 1)
+
+        messages = []
+        executed = []
+        with patch("fixos.agent.session_handlers.io.print_executing_all"):
+            handle_execute_all(
+                extract_remediation_actions(_remediation_reply()),
+                messages,
+                executed,
+                run,
+            )
+
+        assert calls == ["sudo journalctl --vacuum-size=500M"]
+        assert len(messages) == 1
+        assert '"outcome": "FAILED"' in messages[0]["content"]
+
+
+class TestRemediationMenu:
+    def test_menu_groups_strategies_and_labels_recommended_aggregate(self):
+        import io
+
+        from rich.console import Console
+
+        from fixos.agent import session_io
+        from fixos.agent.session_core import extract_remediation_actions
+
+        output = io.StringIO()
+        original_console = session_io.console
+        session_io.console = Console(file=output, force_terminal=False, width=120)
+        try:
+            session_io.print_action_menu(
+                extract_remediation_actions(_remediation_reply()), 120, 42
+            )
+        finally:
+            session_io.console = original_console
+
+        rendered = output.getvalue()
+        assert "Krytycznie mało miejsca" in rendered
+        assert "ZALECANE" in rendered
+        assert "krok 1/1" in rendered
+        assert "Weryfikacja:" in rendered
+        assert "2 zestawów" in rendered
 
 
 class TestAllModulesRegistered:
