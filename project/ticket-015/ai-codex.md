@@ -33,6 +33,17 @@ preserving user-selected valid custom models.
   from the request to execute this work.
 - Verified the current OpenRouter model slug from the provider's official
   model catalog instead of dynamically trusting an arbitrary model listing.
+- Advanced the closed remediation plan to v2 with mandatory bounded
+  `affected_targets`, including exact paths or typed system resources.
+- Split menu details into targets, effect, evidence, exact ordered commands and
+  read-only verification sections.
+- Anchored numbered legacy parsing to explicit `Fix:`, `Komenda:` or `Command:`
+  lines, eliminating false actions produced by bracketed PIDs and inline code.
+- Made `z-ai/glm-5.3` the OpenRouter default and first interactive option,
+  exposed `z-ai/glm-latest` as an optional catalog alias, normalized redundant
+  `openrouter/` prefixes and migrated the known broken FixOS example value.
+- Completed focused and full validation and moved the active ticket to
+  `IN_PROGRESS / PUBLICATION` for exact-head review and merge.
 
 ## Blockers
 

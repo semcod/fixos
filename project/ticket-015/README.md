@@ -3,7 +3,7 @@
 - **ID**: ticket-015
 - **Owner**: unresolved:human
 - **Status**: IN_PROGRESS
-- **Workflow state**: EDIT
+- **Workflow state**: PUBLICATION
 - **Created**: 2026-09-01
 
 ## Goal and scope
@@ -21,18 +21,18 @@ policy.
 
 ## Acceptance criteria
 
-- [ ] AC-01: The request is recorded as `SESSION_EXECUTION_AUTHORIZATION` and
+- [x] AC-01: The request is recorded as `SESSION_EXECUTION_AUTHORIZATION` and
   implementation remains within the declared application scope.
-- [ ] AC-02: Every structured remediation action contains bounded affected
+- [x] AC-02: Every structured remediation action contains bounded affected
   targets, and the menu labels them together with the effect, exact ordered
   mutation commands and read-only verification commands.
-- [ ] AC-03: A diagnosis containing bracketed process IDs or other inline code
+- [x] AC-03: A diagnosis containing bracketed process IDs or other inline code
   produces no executable legacy actions; only explicit anchored legacy action
   syntax remains accepted.
-- [ ] AC-04: OpenRouter defaults to official model ID `z-ai/glm-5.3`; the exact
+- [x] AC-04: OpenRouter defaults to official model ID `z-ai/glm-5.3`; the exact
   obsolete FixOS value `openrouter/qwen/qwen3.7-plus` migrates to that model,
   while explicit valid custom models remain unchanged.
-- [ ] AC-05: Focused unit tests, the Python stack checks and the managed
+- [x] AC-05: Focused unit tests, the Python stack checks and the managed
   governance gate pass before publication through `goal -a`.
 
 ## Participants

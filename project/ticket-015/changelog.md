@@ -6,7 +6,7 @@
 - No human participant identity or content was generated.
 # Ticket 015 changelog
 
-## Planned
+## Implemented
 
 - Add explicit affected targets and effects to the selectable remediation UI.
 - Reject false legacy commands extracted from diagnostic prose.

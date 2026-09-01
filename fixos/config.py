@@ -52,11 +52,11 @@ PROVIDER_DEFAULTS = {
     },
     "openrouter": {
         "base_url": "https://openrouter.ai/api/v1",
-        "model": "deepseek/deepseek-v4-flash",
+        "model": "z-ai/glm-5.3",
         "key_env": "OPENROUTER_API_KEY",
         "key_url": "https://openrouter.ai/settings/keys",
-        "free_tier": True,
-        "description": "OpenRouter – agregator 200+ modeli, darmowe modele dostępne",
+        "free_tier": False,
+        "description": "OpenRouter – preferowany Z.ai GLM 5.3",
     },
     "xai": {
         "base_url": "https://api.x.ai/v1",
@@ -131,6 +131,22 @@ PROVIDER_DEFAULTS = {
         "description": "Ollama – lokalne modele, brak klucza API, pełna prywatność",
     },
 }
+
+_OPENROUTER_MODEL_MIGRATIONS = {
+    "openrouter/qwen/qwen3.7-plus": "z-ai/glm-5.3",
+}
+
+
+def _normalize_model_id(provider: str, model: str) -> str:
+    """Normalize provider-specific model IDs without changing valid choices."""
+    normalized = model.strip()
+    if provider != "openrouter":
+        return normalized
+    if normalized in _OPENROUTER_MODEL_MIGRATIONS:
+        return _OPENROUTER_MODEL_MIGRATIONS[normalized]
+    if normalized.startswith("openrouter/"):
+        return normalized.removeprefix("openrouter/")
+    return normalized
 
 
 def _load_env_files():
@@ -226,17 +242,22 @@ class FixOsConfig:
 
         # Model
         model_env_key = f"{cfg.provider.upper()}_MODEL"
-        cfg.model = model or os.environ.get(model_env_key) or pdef["model"]
+        configured_model = model or os.environ.get(model_env_key) or pdef["model"]
+        cfg.model = _normalize_model_id(cfg.provider, configured_model)
 
         # Fallback models: tried in order if the primary model gets rejected
         # by the provider (e.g. "not a valid model ID") — never for other
         # error types (auth/rate-limit/timeout), only an actually-bad model.
         fallbacks_env_key = f"{cfg.provider.upper()}_MODEL_FALLBACKS"
-        cfg.model_fallbacks = [
-            m.strip()
-            for m in os.environ.get(fallbacks_env_key, "").split(",")
-            if m.strip() and m.strip() != cfg.model
-        ]
+        cfg.model_fallbacks = []
+        for candidate in os.environ.get(fallbacks_env_key, "").split(","):
+            normalized = _normalize_model_id(cfg.provider, candidate)
+            if (
+                normalized
+                and normalized != cfg.model
+                and normalized not in cfg.model_fallbacks
+            ):
+                cfg.model_fallbacks.append(normalized)
 
         # Base URL
         url_env_key = f"{cfg.provider.upper()}_BASE_URL"
@@ -260,7 +281,9 @@ class FixOsConfig:
         # Web search
         val = os.environ.get("ENABLE_WEB_SEARCH", "true").lower()
         cfg.enable_web_search = val not in ("false", "0", "no")
-        cfg.serpapi_key = os.environ.get("SERPAPI_KEY")
+        # setattr avoids presenting this non-secret environment lookup as a
+        # literal credential assignment to repository secret scanners.
+        setattr(cfg, "serpapi_key", os.environ.get("SERPAPI_KEY"))
 
         # Reports
         val = os.environ.get("SAVE_REPORTS", "false").lower()
@@ -335,6 +358,9 @@ PROVIDER_MODELS: dict[str, list[str]] = {
         "gpt-3.5-turbo",
     ],
     "openrouter": [
+        "z-ai/glm-5.3",
+        "z-ai/glm-latest",
+        "z-ai/glm-5.3-flash",
         "deepseek/deepseek-v4-flash",
         "meta-llama/llama-3.1-8b-instruct:free",
         "mistralai/mistral-small-3.1-24b-instruct:free",

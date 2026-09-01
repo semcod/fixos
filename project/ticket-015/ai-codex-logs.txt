@@ -12,3 +12,14 @@ DISCOVERY — 2026-09-01
   followed later on the same line by backticked text.
 - Existing structured remediation contract exposes commands and explanation
   but has no explicit affected-target field.
+
+PRE-PUBLICATION VALIDATION — 2026-09-01
+- `python -m pytest -q tests/unit/test_core.py`: PASS — 64 passed.
+- `ruff check --no-cache fixos/agent/session_core.py
+  fixos/agent/session_handlers.py fixos/agent/session_io.py fixos/config.py
+  tests/unit/test_core.py`: PASS.
+- `python -m pytest -q`: PASS — 561 passed, 5 skipped, 16 deselected.
+- `git diff --check`: PASS.
+- `./project/governance-check.sh`: GOV-PASS — 0 errors, 0 warnings.
+- No system cleanup, package removal, service mutation or provider API request
+  was executed during validation.

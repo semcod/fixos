@@ -54,6 +54,7 @@ class RemediationAction:
     commands: tuple[str, ...]
     verification: tuple[str, ...]
     explanation: str
+    affected_targets: tuple[str, ...] = ()
     evidence: tuple[str, ...] = ()
 
     @property
@@ -99,7 +100,7 @@ After the diagnosis append exactly one fenced JSON block in this shape:
 
 ```fixos-remediation
 {
-  "schema": "fixos.remediation-plan/v1",
+  "schema": "fixos.remediation-plan/v2",
   "mode": "PLAN",
   "findings": [
     {
@@ -114,6 +115,7 @@ After the diagnosis append exactly one fenced JSON block in this shape:
           "label": "short selectable label",
           "risk": "CAUTION",
           "recommended": true,
+          "affected_targets": ["/exact/path/or/resource:identifier"],
           "commands": ["one concrete mutating command per ordered step"],
           "verification": ["read-only command proving the outcome"],
           "explanation": "what this strategy changes and its trade-off"
@@ -140,6 +142,14 @@ IMPORTANT RULES:
   policy-filtered default, not approval.
 - Commands must be concrete one-line repair steps. Do not use placeholders,
   ellipses or read-only diagnostics in `commands`.
+- `affected_targets` is mandatory for every strategy. List every exact path
+  read, written, moved or deleted by its commands. For a command that has no
+  direct filesystem target, use a precise resource identifier such as
+  `systemd:logrotate.service`, `docker:build-cache` or `package:curl`. Never use
+  a generic target such as `cache`, `logs`, `/path/to/...` or `something`.
+- For cleanup or deletion, include both the owning storage root and every more
+  specific path or glob named by the command. The explanation must say what is
+  removed, what is retained and whether data can be recreated or recovered.
 - Put ordered logical steps in separate `commands` array entries. Use shell
   chaining inside one entry only when the operations are an atomic unit.
 - Put read-only checks only in `verification`. A successful exit code without
@@ -182,7 +192,7 @@ IMPORTANT: Adapt commands to the detected OS (Linux/Windows/macOS).
 """
 
 
-REMEDIATION_PLAN_SCHEMA = "fixos.remediation-plan/v1"
+REMEDIATION_PLAN_SCHEMA = "fixos.remediation-plan/v2"
 _PLAN_BLOCK_RE = re.compile(
     r"```fixos-remediation\s*(\{.*?\})\s*```", re.IGNORECASE | re.DOTALL
 )
@@ -336,12 +346,16 @@ def _pattern_no_backticks(reply: str) -> List[Tuple[str, str]]:
 
 
 def _pattern_fallbacks(reply: str) -> List[Tuple[str, str]]:
-    """Fallback patterns: → Fix, [N] command, EXEC."""
+    """Fallback patterns requiring an explicit repair marker."""
     fixes: List[Tuple[str, str]] = []
     for m in re.finditer(r"→\s*Fix:\s*`([^`]+)`", reply, re.IGNORECASE):
         fixes.append((m.group(1).strip(), ""))
     if not fixes:
-        for m in re.finditer(r"\[(\d+)\][^`\n]+`([^`]+)`", reply):
+        for m in re.finditer(
+            r"^\s*\[(\d{1,2})\]\s+(?:Fix|Komenda|Command):\s*`([^`\r\n]+)`\s*$",
+            reply,
+            re.IGNORECASE | re.MULTILINE,
+        ):
             fixes.append((m.group(2).strip(), f"Fix #{m.group(1)}"))
     if not fixes:
         for m in re.finditer(r"EXEC:\s*`([^`]+)`", reply, re.IGNORECASE):
@@ -432,6 +446,7 @@ def _parse_strategy(
         "label",
         "risk",
         "recommended",
+        "affected_targets",
         "commands",
         "verification",
         "explanation",
@@ -444,6 +459,9 @@ def _parse_strategy(
     explanation = _bounded_text(raw["explanation"], maximum=500)
     risk = raw["risk"]
     recommended = raw["recommended"]
+    affected_targets = _bounded_text_list(
+        raw["affected_targets"], minimum=1, maximum=12, item_maximum=500
+    )
     commands = _bounded_text_list(
         raw["commands"], minimum=1, maximum=5, item_maximum=4000
     )
@@ -458,6 +476,7 @@ def _parse_strategy(
         or explanation is None
         or risk not in _RISKS
         or not isinstance(recommended, bool)
+        or affected_targets is None
         or commands is None
         or verification is None
     ):
@@ -466,6 +485,8 @@ def _parse_strategy(
         _is_diagnostic_only_command(command) or _has_command_placeholder(command)
         for command in commands
     ):
+        return None
+    if any(_has_command_placeholder(target) for target in affected_targets):
         return None
     if any(
         not _is_diagnostic_only_command(command)
@@ -486,6 +507,7 @@ def _parse_strategy(
         commands=commands,
         verification=verification,
         explanation=explanation,
+        affected_targets=affected_targets,
         evidence=evidence,
     )
 
@@ -572,6 +594,7 @@ def _legacy_remediation_actions(reply: str) -> list[RemediationAction]:
                 commands=(command,),
                 verification=(),
                 explanation=explanation,
+                affected_targets=(),
             )
         )
     return actions
@@ -664,6 +687,9 @@ def transform_remediation_commands(
         commands=tuple(transform(command) for command in action.commands),
         verification=tuple(transform(command) for command in action.verification),
         explanation=action.explanation,
+        affected_targets=tuple(
+            transform(target) for target in action.affected_targets
+        ),
         evidence=action.evidence,
     )
 

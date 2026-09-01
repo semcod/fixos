@@ -22,6 +22,55 @@ class TestConfig:
         cfg = FixOsConfig.load(provider="gemini")
         assert "gemini" in cfg.model.lower()
 
+    def test_openrouter_prefers_official_glm_53_slug(self):
+        from fixos.config import FixOsConfig
+
+        with patch("fixos.config._load_env_files", return_value=None), patch.dict(
+            os.environ, {"LLM_PROVIDER": "openrouter"}, clear=True
+        ):
+            cfg = FixOsConfig.load()
+
+        assert cfg.model == "z-ai/glm-5.3"
+
+    def test_openrouter_migrates_obsolete_documented_model(self):
+        from fixos.config import FixOsConfig
+
+        with patch("fixos.config._load_env_files", return_value=None), patch.dict(
+            os.environ,
+            {
+                "LLM_PROVIDER": "openrouter",
+                "OPENROUTER_MODEL": "openrouter/qwen/qwen3.7-plus",
+            },
+            clear=True,
+        ):
+            cfg = FixOsConfig.load()
+
+        assert cfg.model == "z-ai/glm-5.3"
+
+    def test_openrouter_preserves_valid_custom_model(self):
+        from fixos.config import FixOsConfig
+
+        with patch("fixos.config._load_env_files", return_value=None), patch.dict(
+            os.environ,
+            {
+                "LLM_PROVIDER": "openrouter",
+                "OPENROUTER_MODEL": "anthropic/claude-sonnet-5",
+            },
+            clear=True,
+        ):
+            cfg = FixOsConfig.load()
+
+        assert cfg.model == "anthropic/claude-sonnet-5"
+
+    def test_openrouter_model_picker_prioritizes_glm_53_and_latest_alias(self):
+        from fixos.config import PROVIDER_MODELS
+
+        assert PROVIDER_MODELS["openrouter"][:3] == [
+            "z-ai/glm-5.3",
+            "z-ai/glm-latest",
+            "z-ai/glm-5.3-flash",
+        ]
+
     def test_invalid_provider_fallback(self):
         from fixos.config import FixOsConfig
 
@@ -330,12 +379,30 @@ class TestExtractFixes:
         assert extract_fixes("") == []
         assert extract_fixes("No problems found.") == []
 
+    def test_log_process_ids_and_inline_code_are_not_numbered_fixes(self):
+        from fixos.agent.session_core import extract_fixes
+
+        reply = (
+            "rsyslogd[2584]: file '/var/log/syslog' write error; port `0.0.0.0`\n"
+            "load_avg=[0]: scanner still references `pycharm`\n"
+            "fstrim.service took 18m27s on filesystem with `1.7TB` used\n"
+        )
+
+        assert extract_fixes(reply) == []
+
+    def test_explicit_anchored_numbered_fix_remains_supported(self):
+        from fixos.agent.session_core import extract_fixes
+
+        assert extract_fixes("[7] Fix: `sudo systemctl restart fstrim.service`") == [
+            ("sudo systemctl restart fstrim.service", "Fix #7")
+        ]
+
 
 def _remediation_reply() -> str:
     import json
 
     plan = {
-        "schema": "fixos.remediation-plan/v1",
+        "schema": "fixos.remediation-plan/v2",
         "mode": "PLAN",
         "findings": [
             {
@@ -350,6 +417,7 @@ def _remediation_reply() -> str:
                         "label": "Ogranicz journal",
                         "risk": "LOW",
                         "recommended": True,
+                        "affected_targets": ["/var/log/journal"],
                         "commands": ["sudo journalctl --vacuum-size=500M"],
                         "verification": ["df -h /", "journalctl --disk-usage"],
                         "explanation": "Odzyskuje miejsce bez usuwania aktywnych logów.",
@@ -359,6 +427,7 @@ def _remediation_reply() -> str:
                         "label": "Wyczyść cache APT",
                         "risk": "LOW",
                         "recommended": False,
+                        "affected_targets": ["/var/cache/apt/archives"],
                         "commands": ["sudo apt-get clean"],
                         "verification": ["du -sh /var/cache/apt"],
                         "explanation": "Usuwa pakiety, które można pobrać ponownie.",
@@ -377,6 +446,7 @@ def _remediation_reply() -> str:
                         "label": "Uruchom logrotate ponownie",
                         "risk": "CAUTION",
                         "recommended": True,
+                        "affected_targets": ["systemd:logrotate.service"],
                         "commands": ["sudo systemctl restart logrotate.service"],
                         "verification": ["systemctl is-active logrotate.service"],
                         "explanation": "Ponawia wykonanie bez wyłączania usługi.",
@@ -386,6 +456,7 @@ def _remediation_reply() -> str:
                         "label": "Wyzeruj stan failed",
                         "risk": "CAUTION",
                         "recommended": False,
+                        "affected_targets": ["systemd:logrotate.service"],
                         "commands": [
                             "sudo systemctl reset-failed logrotate.service"
                         ],
@@ -433,6 +504,7 @@ class TestStructuredRemediationPlan:
         assert actions[0].finding_ref == "finding:fixos:root-space-critical"
         assert actions[0].recommended is True
         assert actions[0].commands == ("sudo journalctl --vacuum-size=500M",)
+        assert actions[0].affected_targets == ("/var/log/journal",)
         assert actions[0].verification == ("df -h /", "journalctl --disk-usage")
         assert actions[1].recommended is False
         assert actions[2].category == "RUNTIME"
@@ -451,7 +523,7 @@ class TestStructuredRemediationPlan:
         from fixos.agent.session_core import extract_remediation_actions
 
         invalid = {
-            "schema": "fixos.remediation-plan/v1",
+            "schema": "fixos.remediation-plan/v2",
             "mode": "PLAN",
             "findings": [],
             "authority": "execute-without-confirmation",
@@ -468,6 +540,21 @@ class TestStructuredRemediationPlan:
         assert len(actions) == 1
         assert actions[0].action_id.startswith("legacy-")
         assert actions[0].commands == ("sudo apt-get clean",)
+
+    def test_structured_plan_without_affected_targets_is_rejected(self):
+        import json
+
+        from fixos.agent.session_core import extract_remediation_actions
+
+        plan = json.loads(
+            _remediation_reply().split("```fixos-remediation\n", 1)[1].rsplit(
+                "\n```", 1
+            )[0]
+        )
+        del plan["findings"][0]["strategies"][0]["affected_targets"]
+        reply = "```fixos-remediation\n" + json.dumps(plan) + "\n```"
+
+        assert extract_remediation_actions(reply) == []
 
     def test_mutating_verification_rejects_structured_plan(self):
         import json
@@ -714,7 +801,10 @@ class TestRemediationMenu:
         assert "Krytycznie mało miejsca" in rendered
         assert "ZALECANE" in rendered
         assert "krok 1/1" in rendered
-        assert "Weryfikacja:" in rendered
+        assert "Cele/ścieżki: /var/log/journal" in rendered
+        assert "Skutek: Odzyskuje miejsce" in rendered
+        assert "Dokładne komendy naprawcze" in rendered
+        assert "Weryfikacja (tylko odczyt):" in rendered
         assert "2 zestawów" in rendered
 
     def test_diagnosis_only_menu_lists_shortcuts_and_remaining_count(self):

@@ -129,6 +129,24 @@ def print_action_menu(
                 label.append(f"  ryzyko: {action.risk}", style="dim")
                 console.print(label)
 
+                targets = Text("     Cele/ścieżki: ", style="bold cyan")
+                if action.affected_targets:
+                    targets.append("  •  ".join(action.affected_targets))
+                else:
+                    targets.append(
+                        "niezadeklarowane przez odpowiedź legacy; "
+                        "sprawdź komendę poniżej",
+                        style="bold yellow",
+                    )
+                console.print(targets)
+                effect = Text("     Skutek: ", style="bold cyan")
+                effect.append(action.explanation)
+                console.print(effect)
+                if action.evidence:
+                    evidence = Text("     Dowody: ", style="bold cyan")
+                    evidence.append("  •  ".join(action.evidence))
+                    console.print(evidence)
+
                 command_lines = []
                 for step, command in enumerate(action.commands, 1):
                     command_lines.append(f"# krok {step}/{len(action.commands)}")
@@ -141,7 +159,7 @@ def print_action_menu(
                             theme="monokai",
                             word_wrap=True,
                         ),
-                        subtitle=Text(action.explanation, style="dim"),
+                        title=Text("Dokładne komendy naprawcze", style="bold cyan"),
                         border_style="dim cyan",
                         padding=(0, 1),
                     )
@@ -149,7 +167,8 @@ def print_action_menu(
                 if action.verification:
                     console.print(
                         Text(
-                            "     Weryfikacja: " + "  →  ".join(action.verification),
+                            "     Weryfikacja (tylko odczyt): "
+                            + "  →  ".join(action.verification),
                             style="dim cyan",
                         )
                     )
