@@ -25,3 +25,32 @@ PASS | GOV-PASS: passed (0 errors, 0 warnings)
 2026-09-01 | human publication authorization
 AUTHORIZED | User previously requested: wypchnij z goal -a; the current bug
 report explicitly continues that published HITL work.
+
+2026-09-01T10:55:54Z | goal -a publication
+PASS | 554 passed, 5 skipped, 16 deselected
+HEAD | 5cd7227084dd396b79444ca9913b995378a2e77b
+PR | https://github.com/semcod/fixos/pull/27
+
+2026-09-01T10:58:05Z | hosted PR checks
+PASS | Python 3.10/3.11/3.12, Alpine, Arch, Debian, Fedora, Ubuntu,
+test-summary and governance remote lifecycle
+
+2026-09-01T11:07:00Z | automatic dispatch audit
+FAIL | restarted OneDev controller exposes 58 PR profiles but active
+`/app/config/repositories.toml` contains no `semcod/fixos` profile
+PRESERVED | PR exact HEAD remained unchanged; no untrusted merge attempted
+
+2026-09-01T11:10:39Z | protected exact-head validation and merge
+PASS | validator_run=33500956505 review=5077270100
+HEAD | 5cd7227084dd396b79444ca9913b995378a2e77b
+MERGED | merge_commit=4cc84ab1d62e7c3b012015c92bd96e066f4a24c1
+BRANCH | remote goal/ticket-013 deleted after merge
+
+2026-09-01T11:12:00Z | FixOS workspace lifecycle
+PASS | implementation HEAD reachable from origin/main; local merged branch
+removed; only the clean primary FixOS worktree remains
+
+2026-09-01T11:13:00Z | wider workspace lifecycle
+FAIL | 29 errors belong to pre-existing worktrees/ticket collisions in other
+repositories, including dirty unique workspaces
+PRESERVED | no unrelated workspace was removed or modified
