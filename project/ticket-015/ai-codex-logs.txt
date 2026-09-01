@@ -1,0 +1,14 @@
+SESSION_EXECUTION_AUTHORIZATION
+- Source: the user explicitly requested continuation, implementation and
+  publication through the established Goal/OneDev/Validator path.
+- Scope: exact remediation targets/commands, false-action parser regression and
+  OpenRouter GLM 5.3 preference for ticket-015.
+
+DISCOVERY — 2026-09-01
+- Accepted base: c227667fb3e20397f510ddfa9ccb329902aa20ac.
+- Official OpenRouter catalog identifies GLM 5.3 as `z-ai/glm-5.3`; an
+  `openrouter/` prefix is not part of the API model slug.
+- Root cause of Fix #2584/Fix #0: `_pattern_fallbacks` accepted any `[number]`
+  followed later on the same line by backticked text.
+- Existing structured remediation contract exposes commands and explanation
+  but has no explicit affected-target field.
