@@ -667,6 +667,31 @@ class TestRemediationExecution:
 
 
 class TestRemediationMenu:
+    def test_header_describes_timeout_as_per_llm_turn(self):
+        import io
+
+        from rich.console import Console
+
+        from fixos.agent import session_io
+
+        output = io.StringIO()
+        original_console = session_io.console
+        session_io.console = Console(file=output, force_terminal=False, width=120)
+        try:
+            session_io.print_session_header(
+                {"system": "Linux", "release": "test"},
+                "apt-get",
+                "test-model",
+                300,
+                lambda: 300,
+            )
+        finally:
+            session_io.console = original_console
+
+        rendered = output.getvalue()
+        assert "Limit tury LLM: 00:05:00" in rendered
+        assert "Sesja: max" not in rendered
+
     def test_menu_groups_strategies_and_labels_recommended_aggregate(self):
         import io
 
@@ -721,6 +746,92 @@ class TestRemediationMenu:
 
 
 class TestIterativeOptimizationQueue:
+    def test_summary_keeps_total_wall_clock_elapsed_time(self):
+        from types import SimpleNamespace
+        from unittest.mock import Mock
+
+        from fixos.agent import hitl_session
+        from fixos.agent.hitl_session import HITLSession
+
+        session = HITLSession.__new__(HITLSession)
+        session.session_started_ts = 100.0
+        session.start_ts = 500.0
+        session.messages = [{}, {}, {}]
+        session.llm = SimpleNamespace(total_tokens=42)
+        session.executed = []
+
+        with (
+            patch.object(hitl_session.time, "time", return_value=700.0),
+            patch.object(
+                hitl_session.io, "print_session_summary", new=Mock()
+            ) as print_summary,
+        ):
+            session._print_summary()
+
+        print_summary.assert_called_once_with(1, 600, 42, [])
+
+    def test_slow_diagnosis_choice_receives_a_fresh_llm_turn(self):
+        from types import SimpleNamespace
+        from unittest.mock import Mock
+
+        from fixos.agent import hitl_session
+        from fixos.agent.hitl_session import HITLSession
+
+        session = HITLSession.__new__(HITLSession)
+        session.config = SimpleNamespace(
+            session_timeout=300,
+            enable_web_search=False,
+            serpapi_key=None,
+        )
+        session.llm = SimpleNamespace(
+            chat=Mock(side_effect=[_diagnosis_only_reply(), "Plan dla problemu 2."]),
+            total_tokens=42,
+        )
+        session.messages = [{"role": "system", "content": "test"}]
+        session.executed = []
+        session.web_search_count = 0
+        session.last_fixes = []
+        session._diagnosis_queue_active = False
+        session._pending_optimizations = []
+        session._focused_optimization = None
+        session._remediation_queue_active = False
+        session._pending_remediations = []
+        session._completed_finding_refs = set()
+        session.session_started_ts = 100.0
+        session.start_ts = 100.0
+        session._setup_timeout = Mock()
+
+        displayed_remaining = []
+        user_choices = iter(["2", "q"])
+        clock = iter([100.0, 100.0, 500.0, 500.0, 500.0, 510.0])
+
+        with (
+            patch.object(hitl_session.time, "time", side_effect=clock),
+            patch.object(hitl_session.io, "print_thinking"),
+            patch.object(hitl_session.io, "clear_thinking"),
+            patch.object(hitl_session.io, "print_llm_reply"),
+            patch.object(
+                hitl_session.io,
+                "print_action_menu",
+                side_effect=lambda fixes, remaining, *args, **kwargs: (
+                    displayed_remaining.append(remaining)
+                ),
+            ),
+            patch.object(
+                hitl_session.io,
+                "get_user_input",
+                side_effect=lambda remaining: next(user_choices),
+            ),
+        ):
+            assert session._process_turn() is True
+            assert session._process_turn() is False
+
+        assert session.llm.chat.call_count == 2
+        assert session._setup_timeout.call_count == 2
+        assert displayed_remaining == [0, 290]
+        assert "Problem 2: Usługi systemd" in session.messages[2]["content"]
+        assert "only this problem" in session.messages[2]["content"]
+
     def test_success_refreshes_fallback_queue_with_only_remaining_problems(self):
         from fixos.agent.hitl_session import HITLSession
 

@@ -73,7 +73,7 @@ def print_session_header(
         f"🖥️  OS: {os_info['system']} {os_info['release']}  |  PM: {pkg_manager}\n",
         style="cyan",
     )
-    header.append(f"⏰ Sesja: max {fmt_time(timeout)}", style="dim")
+    header.append(f"⏰ Limit tury LLM: {fmt_time(timeout)}", style="dim")
     console.print()
     console.print(Panel(header, border_style="cyan"))
 

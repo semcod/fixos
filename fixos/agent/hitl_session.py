@@ -60,7 +60,8 @@ class HITLSession:
         self._remediation_queue_active = False
         self._pending_remediations: List[RemediationAction] = []
         self._completed_finding_refs: set[str] = set()
-        self.start_ts = time.time()
+        self.session_started_ts = time.time()
+        self.start_ts = self.session_started_ts
         self._setup_timeout()
 
     def _setup_timeout(self) -> None:
@@ -77,6 +78,11 @@ class HITLSession:
     def _clear_timeout(self) -> None:
         """Clear the timeout alarm."""
         cancel_signal_timeout()
+
+    def _start_llm_turn(self) -> None:
+        """Give the next accepted interaction a fresh bounded LLM turn."""
+        self.start_ts = time.time()
+        self._setup_timeout()
 
     def remaining(self) -> int:
         """Get remaining session time in seconds."""
@@ -252,6 +258,7 @@ class HITLSession:
 
     def _process_turn(self) -> bool:
         """Process one turn of the HITL session."""
+        self._start_llm_turn()
         rem = self.remaining()
         if rem <= 0:
             raise SessionTimeout()
@@ -274,6 +281,7 @@ class HITLSession:
         if self._check_low_confidence(reply):
             return True
 
+        rem = max(0, self.remaining())
         io.print_action_menu(
             self.last_fixes,
             rem,
@@ -335,7 +343,7 @@ class HITLSession:
 
     def _print_summary(self) -> None:
         """Print session summary."""
-        elapsed = int(time.time() - self.start_ts)
+        elapsed = int(time.time() - self.session_started_ts)
         io.print_session_summary(
             len(self.messages) - 2, elapsed, self.llm.total_tokens, self.executed
         )

@@ -1,0 +1,98 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-013",
+  "summary": "Preserve accepted HITL choice across turn timeout",
+  "workstream": "application",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P1",
+    "origin": "regression"
+  },
+  "allowedPaths": [
+    "project/ticket-013/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/agent/hitl_session.py",
+    "fixos/agent/session_io.py",
+    "tests/unit/test_core.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md",
+    "docs/**",
+    "README.md",
+    "CHANGELOG.md",
+    "VERSION",
+    "pyproject.toml",
+    "uv.lock",
+    ".env",
+    "**/*.pem",
+    "**/*secret*"
+  ],
+  "stacks": ["python"],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "0171d7bded01c9e4436cb288fc7de66032627da8",
+    "targetBranch": "main",
+    "outcome": "A numbered HITL choice always reaches its bounded focused LLM turn instead of expiring immediately after acceptance",
+    "nonGoals": [
+      "No changes to autonomous mode, diagnostic probes or public CLI options",
+      "No automatic command execution or expansion of user authority",
+      "No changes to remediation parsing, command safety or verification",
+      "No runtime dependency, public API path or integration-owned manifest change"
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 20,
+    "budgets": {
+      "maxImplementationFiles": 3,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Preserve total session elapsed time separately while refreshing the existing signal deadline at the start of every LLM turn and recalculating menu time after its reply",
+      "components": [
+        {
+          "name": "hitl-turn-lifecycle",
+          "paths": [
+            "fixos/agent/hitl_session.py",
+            "tests/unit/test_core.py"
+          ]
+        },
+        {
+          "name": "hitl-timeout-ui",
+          "paths": ["fixos/agent/session_io.py"]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "multi-state",
+        "states": ["error", "success"],
+        "evidence": ["tests/unit/test_core.py"]
+      },
+      "rollback": "Revert the three scoped implementation/test files; no persistent state or external data is changed"
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-05",
+        "commands": ["python -m pytest -q tests/unit/test_core.py"],
+        "evidence": "project/ticket-013/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-06",
+        "commands": [
+          "ruff check fixos/agent/hitl_session.py fixos/agent/session_io.py tests/unit/test_core.py",
+          "python -m compileall -q fixos",
+          "python -m pytest -q",
+          "./project/governance-check.sh"
+        ],
+        "evidence": "project/ticket-013/ai-codex-logs.txt"
+      }
+    ]
+  }
+}
