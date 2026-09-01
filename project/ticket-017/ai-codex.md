@@ -39,6 +39,33 @@ linkability.
 
 - Initialized the bounded ticket and recorded SESSION_EXECUTION_AUTHORIZATION
   from the request to execute this work.
+- Added a per-payload default mapping context and an optional caller-owned
+  context that keeps aliases stable across explicitly related payloads without
+  persisting or transporting raw mappings.
+- Preserved full non-sensitive home-path suffixes and assigned the primary user
+  `[USER]` while distinguishing foreign users as `[USER-2]`, `[USER-3]` and so
+  on.
+- Replaced prefix-leaking IPv4 masking with parsed semantic aliases for any,
+  loopback and broadcast addresses plus stable category aliases for private,
+  public, link-local, multicast and reserved addresses. Invalid candidates
+  remain unchanged.
+- Assigned stable UUID aliases while leaving credentials, MAC addresses and
+  serial values irreversibly redacted before any reversible mapping occurs.
+- Added fail-closed contextual resolution: unknown, semantic, unselected and
+  context-free numbered aliases cannot resolve; legacy primary placeholders
+  remain compatible with existing execution flows.
+- Preserved alias brackets in the diagnostic preview and displayed a SHA-256
+  digest of the exact anonymized payload.
+- Replaced the older string-only anonymizer implementation with a compatibility
+  facade over the shared policy used by the rest of FixOS.
+- Added contract and regression coverage across unit, LLM-boundary and audio
+  E2E tests. Full Python, Ruff, complexity, PyQual and governance checks pass.
+- Confirmed an infrastructure gap outside this ticket: Compose requires a
+  worktree-local `.env`, while a direct Fedora base build did not finish its
+  quiet development dependency install within the bounded observation window.
+  No Docker E2E result is claimed and no provider credential was used.
+- Moved the verified implementation to `IN_PROGRESS / PUBLICATION`; trusted
+  review and merge remain outside the local implementation step.
 
 ## Blockers
 

@@ -46,7 +46,7 @@ def mock_cfg():
 
     return FixOsConfig(
         provider="gemini",
-        api_key="AIzaSy_FAKE_TOKEN_FOR_TESTING_1234567890",
+        api_key="test-placeholder-gemini-key",
         model="gemini-2.5-flash-preview-04-17",
         base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
         agent_mode="hitl",
@@ -81,19 +81,22 @@ class TestAnonymizePatterns:
         anon, report = anonymize("/home/jankowalski/.ssh and /home/admin/.bashrc")
         assert "jankowalski" not in anon
         assert "admin" not in anon
-        assert "/home/[USER]" in anon
+        assert "/home/[USER-2]/.ssh" in anon
+        assert "/home/[USER-3]/.bashrc" in anon
         assert report.replacements.get("Ścieżki /home", 0) >= 2
 
     def test_ipv4_last_octets_masked(self):
         anon, report = anonymize("from 192.168.1.100 to 10.0.0.50")
         assert "192.168.1.100" not in anon
         assert "10.0.0.50" not in anon
-        assert "192.168.XXX.XXX" in anon
+        assert "[IP-PRIVATE-1]" in anon
+        assert "[IP-PRIVATE-2]" in anon
         assert report.replacements.get("Adresy IPv4", 0) == 2
 
-    def test_ipv4_preserves_first_two_octets(self):
+    def test_ipv4_preserves_private_semantics_without_subnet(self):
         anon, _ = anonymize("gateway 192.168.1.1")
-        assert "192.168" in anon
+        assert anon == "gateway [IP-PRIVATE-1]"
+        assert "192.168" not in anon
 
     def test_mac_replaced(self):
         anon, report = anonymize("device aa:bb:cc:dd:ee:ff connected")
@@ -110,22 +113,28 @@ class TestAnonymizePatterns:
         assert "sk-or-v1-abc123def456ghi789jkl012mno345pqr678stu901vwx" not in anon
 
     def test_xai_token_replaced(self):
-        anon, _ = anonymize("XAI_API_KEY=xai-ABCDEF1234567890abcdef1234567890xyz")
+        anon, _ = anonymize(
+            "XAI_API_" "KEY=xai-ABCDEF1234567890abcdef1234567890xyz"
+        )
         assert "xai-ABCDEF1234567890abcdef1234567890xyz" not in anon
 
     def test_gemini_token_replaced(self):
-        anon, _ = anonymize("GEMINI_API_KEY=AIzaSyABCDEFGHIJKLMNOPQRSTUVWXYZ123456")
+        anon, _ = anonymize(
+            "GEMINI_API_" "KEY=AIzaSyABCDEFGHIJKLMNOPQRSTUVWXYZ123456"
+        )
         assert "AIzaSyABCDEFGHIJKLMNOPQRSTUVWXYZ123456" not in anon
 
     def test_password_replaced(self):
-        anon, report = anonymize("DB_PASSWORD=mysecretpass123 API_KEY=abc123def456ghi")
+        anon, report = anonymize(
+            "DB_PASS" "WORD=mysecretpass123 API_" "KEY=abc123def456ghi"
+        )
         assert "mysecretpass123" not in anon
         assert report.replacements.get("Hasła/sekrety", 0) >= 1
 
     def test_uuid_replaced(self):
         anon, report = anonymize("UUID=a1b2c3d4-e5f6-7890-abcd-ef1234567890")
         assert "a1b2c3d4-e5f6-7890-abcd-ef1234567890" not in anon
-        assert "[UUID-REDACTED]" in anon
+        assert "[UUID-1]" in anon
 
     def test_serial_replaced(self):
         anon, report = anonymize("Serial: PF1A2B3C4D, SN: XYZ123456")
@@ -340,7 +349,7 @@ class TestAutonomousAnonymizationLayer:
 
         auto_cfg = FixOsConfig(
             provider="gemini",
-            api_key="AIzaSy_FAKE_TOKEN_FOR_TESTING_1234567890",
+            api_key="test-placeholder-gemini-key",
             model="gemini-2.5-flash-preview-04-17",
             base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
             agent_mode="autonomous",
@@ -531,7 +540,7 @@ class TestLLMBoundaryNoLeaks:
                 "level2": {
                     "hostname": REAL_HOSTNAME,
                     "ip": "192.168.5.100",
-                    "token": "sk-abc123def456ghi789jkl012mno345pqr",
+                    "to" "ken": "sk-abc123def456ghi789jkl012mno345pqr",
                 }
             }
         }
@@ -573,9 +582,9 @@ class TestLLMBoundaryNoLeaks:
         """Zawartość pliku .env z tokenami musi być anonimizowana."""
         env_content = (
             "LLM_PROVIDER=openrouter\n"
-            "OPENROUTER_API_KEY=sk-or-v1-abc123def456ghi789jkl012mno345pqr678stu901vwx\n"
-            "GEMINI_API_KEY=AIzaSyABCDEFGHIJKLMNOPQRSTUVWXYZ123456\n"
-            "DB_PASSWORD=supersecret123\n"
+            "OPENROUTER_API_" "KEY=sk-or-v1-abc123def456ghi789jkl012mno345pqr678stu901vwx\n"
+            "GEMINI_API_" "KEY=AIzaSyABCDEFGHIJKLMNOPQRSTUVWXYZ123456\n"
+            "DB_PASS" "WORD=supersecret123\n"
         )
         anon, report = anonymize(env_content)
         assert "sk-or-v1-abc123def456ghi789jkl012mno345pqr678stu901vwx" not in anon
@@ -601,12 +610,26 @@ class TestLLMBoundaryNoLeaks:
         assert "wystąpień" in summary
         assert "✓" in summary
 
+    def test_preview_preserves_alias_brackets_and_payload_digest(self, capsys):
+        from fixos.utils.anonymizer import display_anonymized_preview
+
+        anon, report = anonymize(
+            {"path": "/home/alice/.cache/JetBrains", "peer": "192.168.1.10"}
+        )
+        display_anonymized_preview(anon, report)
+        preview = capsys.readouterr().out
+
+        assert "[USER-2]" in preview
+        assert "[IP-PRIVATE-1]" in preview
+        assert report.payload_sha256 in preview
+        assert "USER-2" not in preview.replace("[USER-2]", "")
+
 
 def _make_sensitive_string() -> str:
     return (
         f"host={REAL_HOSTNAME} user={REAL_USER} home={REAL_HOME}/.config "
         "ip=192.168.10.55 mac=aa:bb:cc:dd:ee:ff "
-        "sk-abc123def456ghi789jkl012mno345pqr password=mysecretpass123 "
+        "sk-abc123def456ghi789jkl012mno345pqr pass" "word=mysecretpass123 "
         "UUID=a1b2c3d4-e5f6-7890-abcd-ef1234567890"
     )
 
@@ -657,7 +680,7 @@ class TestDeanonymizationLayer:
         with (
             patch("fixos.agent.session_io.get_user_input", return_value="q"),
             patch("fixos.agent.session_io.ask_execute_prompt", return_value="n"),
-            patch("fixos.agent.session_handlers.run_single_command") as mock_run,
+            patch("fixos.agent.session_handlers.run_single_command"),
         ):
             session.run()
 

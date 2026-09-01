@@ -3,7 +3,7 @@
 - **ID**: ticket-017
 - **Owner**: unresolved:human
 - **Status**: IN_PROGRESS
-- **Workflow state**: EDIT
+- **Workflow state**: PUBLICATION
 - **Created**: 2026-09-01
 
 ## Goal and scope
@@ -22,22 +22,22 @@ aliases locally.
 
 ## Acceptance criteria
 
-- [ ] AC-01: The request to continue and expand the implementation is recorded
+- [x] AC-01: The request to continue and expand the implementation is recorded
   as `SESSION_EXECUTION_AUTHORIZATION`; no provider call or system remediation
   is performed by the work.
-- [ ] AC-02: Home paths retain their non-sensitive suffix and distinguish the
+- [x] AC-02: Home paths retain their non-sensitive suffix and distinguish the
   primary user from stable foreign-user aliases without leaking usernames.
-- [ ] AC-03: IPv4 values are parsed and classified as semantic or stable opaque
+- [x] AC-03: IPv4 values are parsed and classified as semantic or stable opaque
   aliases; invalid IPv4-like text is not misleadingly transformed.
-- [ ] AC-04: Repeated UUID identities receive stable aliases inside an explicit
+- [x] AC-04: Repeated UUID identities receive stable aliases inside an explicit
   mapping context, while MAC, serial and credential values remain irreversibly
   redacted and already anonymized values remain idempotent.
-- [ ] AC-05: The local reverse map is never included in reports or transport
+- [x] AC-05: The local reverse map is never included in reports or transport
   data, and contextual resolution rejects unknown, semantic and unselected
   aliases while legacy primary placeholders keep working.
-- [ ] AC-06: The user preview keeps alias brackets visible and binds the shown
+- [x] AC-06: The user preview keeps alias brackets visible and binds the shown
   representation to a SHA-256 digest of the exact anonymized payload.
-- [ ] AC-07: Focused regression tests, the complete Python suite, Ruff, diff
+- [x] AC-07: Focused regression tests, the complete Python suite, Ruff, diff
   validation and the managed governance gate pass before publication.
 
 ## Participants

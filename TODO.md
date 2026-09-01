@@ -11,7 +11,8 @@ Ostatni przegląd: 2026-07-23.
 - [ ] Dostarczyć [ticket-017](project/ticket-017/README.md): zachować logikę
   diagnostyczną przez stabilne aliasy ścieżek, adresów i identyfikatorów,
   utrzymując surową mapę wyłącznie lokalnie oraz weryfikując brak regresji na
-  granicy LLM. Stan: `IN_PROGRESS / EDIT`.
+  granicy LLM. Stan: `IN_PROGRESS / PUBLICATION`; implementacja i lokalne
+  bramy przeszły, oczekuje na publikację dokładnego HEAD.
 
 - [x] Dostarczyć [ticket-016](project/ticket-016/README.md): zwiększyć limit
   pełnej tury HITL do 50 000, ustawić niski reasoning GLM 5.3, przełączać model

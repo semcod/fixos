@@ -75,9 +75,7 @@
       ],
       "responsibilityChanges": false,
       "interfaceChanges": [],
-      "dataChanges": [
-        "Anonymized paths and identifiers retain category and equality relationships without raw values"
-      ],
+      "dataChanges": [],
       "ui": {
         "impact": "single-state",
         "states": ["success"],
@@ -117,6 +115,10 @@
         "commands": [
           "ruff check --no-cache fixos/utils/anonymizer.py fixos/anonymizer.py tests/unit/test_anonymizer.py tests/e2e/test_anonymization_layers.py",
           "python -m pytest -q",
+          "radon cc fixos/utils/anonymizer.py -s -a",
+          "lizard fixos/utils/anonymizer.py fixos/anonymizer.py",
+          "pyqual validate --strict",
+          "pyqual gates",
           "git diff --check",
           "./project/governance-check.sh"
         ],

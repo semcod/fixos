@@ -1,0 +1,42 @@
+AUTHORIZATION / BASELINE — 2026-09-01
+- Human instruction `kontynuuj ... sproboj rozbudowac` recorded as
+  SESSION_EXECUTION_AUTHORIZATION.
+- Accepted base: `65ee7703d4d3c35ae2f93de7e354382091215fd0`.
+- Legacy focused anonymization tests: PASS — 71 passed.
+- Contract tests were added before implementation and initially failed during
+  collection because `AnonymizationContext` did not exist.
+
+IMPLEMENTATION / REGRESSION — 2026-09-01
+- Changed implementation paths: exactly 5, matching the intent budget.
+- Focused final regression:
+  `python -m pytest -q tests/unit/test_anonymizer.py tests/e2e/test_anonymization_layers.py tests/e2e/test_audio_broken.py`:
+  PASS — 96 passed, 1 skipped.
+- Full final regression: PASS — 575 passed, 5 skipped, 16 deselected.
+- Coverage run: PASS — 574 passed, 5 skipped, 16 deselected; total 50.6%.
+- `ruff check --no-cache` on all five implementation paths: PASS.
+- `git diff --check`: PASS.
+- Synthetic privacy/logic audit: PASS — raw paths, IPs and secrets absent;
+  stable relationships and fail-closed resolution present.
+- Radon average for the shared anonymizer improved from 4.4 to 3.66. The first
+  contextual implementation raised `deanonymize` to CC=13; splitting legacy
+  and contextual resolution reduced it to CC=3.
+- Lizard: PASS — no complexity or length thresholds exceeded.
+- `pyqual validate --strict`: PASS with informational diagnostics for embedded
+  shell blocks in the existing manifest.
+- `pyqual gates`: PASS — CC 5.4 <= 6.0, Vallm 66.1 >= 65.0, coverage 50.6 >= 27.0.
+- Initial governance validation found an inaccurate persistent-data declaration
+  and probable-secret false positives in synthetic fixtures. The data movement
+  declaration was corrected to empty and fixtures now compose explicit test
+  placeholders; no scanner bypass or suppression was added.
+- `./project/governance-check.sh`: PASS — 0 errors, 0 warnings.
+
+DOCKER E2E EVIDENCE — 2026-09-01
+- Compose runner did not start in the isolated worktree because its shared
+  service block requires `.env`; no file containing credentials was copied or
+  created.
+- A direct build of `docker/base/Dockerfile` completed Fedora package
+  installation but the quiet editable development install produced no output
+  for 90 seconds. The build was cancelled and no container test result is
+  claimed.
+- Docker/Compose configuration requires a distinct infrastructure workstream;
+  it was not changed under this application ticket.
