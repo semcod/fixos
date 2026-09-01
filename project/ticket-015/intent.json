@@ -1,0 +1,112 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-015",
+  "summary": "Show exact remediation effects and prefer GLM 5.3",
+  "workstream": "application",
+  "classification": {
+    "kind": "SERVICE",
+    "priority": "P2",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "fixos/agent/session_core.py",
+    "fixos/agent/session_handlers.py",
+    "fixos/agent/session_io.py",
+    "fixos/config.py",
+    "tests/unit/test_core.py",
+    "project/ticket-015/**",
+    "TODO.md",
+    "project/TICKETS.md"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md",
+    "README.md",
+    ".env.example",
+    "pyproject.toml",
+    "VERSION",
+    "CHANGELOG.md",
+    ".github/**",
+    ".governance/**",
+    "**/*.pem",
+    "**/*secret*"
+  ],
+  "stacks": ["python"],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "c227667fb3e20397f510ddfa9ccb329902aa20ac",
+    "targetBranch": "main",
+    "outcome": "FixOS shows exact affected targets and commands for each valid remediation and prefers official OpenRouter GLM 5.3",
+    "nonGoals": [
+      "No cleanup or remediation command is executed by this implementation",
+      "No dependency, public interface or release change",
+      "No dynamic untrusted model-catalog selection",
+      "No documentation or provider-secret file change in the application workstream"
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 25,
+    "budgets": {
+      "maxImplementationFiles": 5,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Extend the closed remediation manifest with mandatory affected targets, render those targets explicitly, tighten legacy parsing, and use a deterministic vetted GLM 5.3 OpenRouter default",
+      "components": [
+        {
+          "name": "fixos-hitl-runtime",
+          "paths": [
+            "fixos/agent/session_core.py",
+            "fixos/agent/session_handlers.py",
+            "fixos/agent/session_io.py",
+            "fixos/config.py",
+            "tests/unit/test_core.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "multi-state",
+        "states": ["success", "error", "empty"],
+        "evidence": ["tests/unit/test_core.py"]
+      },
+      "rollback": "Revert ticket-015; no cleanup command or persistent system mutation is performed by the change itself"
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "python -m pytest -q tests/unit/test_core.py",
+          "python -m ruff check --no-cache fixos/agent/session_core.py fixos/agent/session_handlers.py fixos/agent/session_io.py fixos/config.py tests/unit/test_core.py"
+        ],
+        "evidence": "project/ticket-015/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-03",
+        "commands": ["python -m pytest -q tests/unit/test_core.py"],
+        "evidence": "project/ticket-015/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-04",
+        "commands": ["python -m pytest -q tests/unit/test_core.py"],
+        "evidence": "project/ticket-015/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-05",
+        "commands": [
+          "python -m pytest -q",
+          "git diff --check",
+          "./project/governance-check.sh",
+          "goal -a"
+        ],
+        "evidence": "project/ticket-015/ai-codex-logs.txt"
+      }
+    ]
+  }
+}

@@ -1,0 +1,25 @@
+SESSION_EXECUTION_AUTHORIZATION
+- Source: the user explicitly requested continuation, implementation and
+  publication through the established Goal/OneDev/Validator path.
+- Scope: exact remediation targets/commands, false-action parser regression and
+  OpenRouter GLM 5.3 preference for ticket-015.
+
+DISCOVERY — 2026-09-01
+- Accepted base: c227667fb3e20397f510ddfa9ccb329902aa20ac.
+- Official OpenRouter catalog identifies GLM 5.3 as `z-ai/glm-5.3`; an
+  `openrouter/` prefix is not part of the API model slug.
+- Root cause of Fix #2584/Fix #0: `_pattern_fallbacks` accepted any `[number]`
+  followed later on the same line by backticked text.
+- Existing structured remediation contract exposes commands and explanation
+  but has no explicit affected-target field.
+
+PRE-PUBLICATION VALIDATION — 2026-09-01
+- `python -m pytest -q tests/unit/test_core.py`: PASS — 64 passed.
+- `ruff check --no-cache fixos/agent/session_core.py
+  fixos/agent/session_handlers.py fixos/agent/session_io.py fixos/config.py
+  tests/unit/test_core.py`: PASS.
+- `python -m pytest -q`: PASS — 561 passed, 5 skipped, 16 deselected.
+- `git diff --check`: PASS.
+- `./project/governance-check.sh`: GOV-PASS — 0 errors, 0 warnings.
+- No system cleanup, package removal, service mutation or provider API request
+  was executed during validation.

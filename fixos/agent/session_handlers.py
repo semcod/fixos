@@ -333,9 +333,10 @@ def handle_fix_by_number(
                         f"Diagnosis choice: Problem {selected.source_number}: "
                         f"{selected.title}\n"
                         f"Diagnosis severity: {selected.severity}\n\n"
-                        "Return a fixos.remediation-plan/v1 PLAN for only this "
-                        "problem. Include concrete repair commands and read-only "
-                        "verification. Do not include other findings."
+                        "Return a fixos.remediation-plan/v2 PLAN for only this "
+                        "problem. Include exact affected_targets, concrete repair "
+                        "commands and read-only verification. Do not include "
+                        "other findings."
                     ),
                 }
             )

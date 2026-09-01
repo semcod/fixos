@@ -8,6 +8,12 @@ Ostatni przegląd: 2026-07-23.
 
 ## Aktywne
 
+- [ ] Dostarczyć [ticket-015](project/ticket-015/README.md): przed każdym
+  wyborem remediacji pokazywać dokładne cele/ścieżki, skutek, komendy i
+  weryfikację, odrzucać fałszywe akcje z numerów w logach oraz preferować
+  oficjalny model OpenRouter `z-ai/glm-5.3`. Stan:
+  `IN_PROGRESS / PUBLICATION`; walidacja lokalna zakończona powodzeniem.
+
 - [x] Dostarczyć [ticket-014](project/ticket-014/README.md): potwierdzić na
   rzeczywistym PR FixOS, że wdrożony profil manifestu automatycznie wykonuje
   lokalną walidację dokładnego HEAD, przekazuje go do Validator Agent i scala
