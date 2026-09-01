@@ -1,0 +1,113 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-011",
+  "summary": "Standaryzowana remediacja wykrytych problemów systemowych",
+  "workstream": "application",
+  "classification": {
+    "kind": "FEATURE",
+    "priority": "P1",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-011/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/agent/session_core.py",
+    "fixos/agent/session_io.py",
+    "fixos/agent/session_handlers.py",
+    "fixos/agent/hitl_session.py",
+    "tests/unit/test_core.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md",
+    "docs/**",
+    "README.md",
+    "CHANGELOG.md",
+    "VERSION",
+    "pyproject.toml",
+    "uv.lock",
+    ".env",
+    "**/*.pem",
+    "**/*secret*"
+  ],
+  "stacks": ["python"],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "86842dd7456591407f0108d4b16772f332bdf4ed",
+    "targetBranch": "main",
+    "outcome": "FixOS presents evidence-bound remediation alternatives and safely executes one verified command bundle per detected problem",
+    "nonGoals": [
+      "No automatic destructive cleanup or authority inferred from LLM output",
+      "No canonical wellmanifest.logs event store or adopter error catalog in this ticket",
+      "No changes to autonomous mode, diagnostics probes or public CLI options",
+      "No runtime dependency, public API path or integration-owned manifest change"
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 30,
+    "budgets": {
+      "maxImplementationFiles": 5,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Keep structured finding and strategy parsing in session_core, then let the existing HITL UI and handlers render and execute bounded bundles through the current confirmation and safety boundary",
+      "components": [
+        {
+          "name": "hitl-remediation-planning",
+          "paths": [
+            "fixos/agent/session_core.py",
+            "fixos/agent/hitl_session.py",
+            "tests/unit/test_core.py"
+          ]
+        },
+        {
+          "name": "hitl-remediation-execution",
+          "paths": [
+            "fixos/agent/session_io.py",
+            "fixos/agent/session_handlers.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "multi-state",
+        "states": ["empty", "error", "success"],
+        "evidence": ["tests/unit/test_core.py"]
+      },
+      "rollback": "Revert the five scoped implementation/test files; the legacy Komenda parser remains backward compatible and no persistent runtime state is created"
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python -m pytest -q tests/unit/test_core.py"
+        ],
+        "evidence": "project/ticket-011/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "python -m pytest -q tests/unit/test_core.py tests/e2e/test_anonymization_layers.py"
+        ],
+        "evidence": "project/ticket-011/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-06",
+        "commands": [
+          "ruff check fixos/agent/session_core.py fixos/agent/session_io.py fixos/agent/session_handlers.py fixos/agent/hitl_session.py tests/unit/test_core.py",
+          "python -m compileall -q fixos",
+          "python -m pytest -q",
+          "./project/governance-check.sh"
+        ],
+        "evidence": "project/ticket-011/ai-codex-logs.txt"
+      }
+    ]
+  }
+}

@@ -19,6 +19,7 @@ from ..utils.terminal import (
     print_stderr_box,
 )
 from ..platform_utils import cancel_signal_timeout, setup_signal_timeout
+from .session_core import RemediationAction, select_recommended_actions
 
 if TYPE_CHECKING:
     from .session_core import CmdResult
@@ -88,20 +89,76 @@ def print_action_menu(fixes: list, remaining: int, total_tokens: int) -> None:
         )
     )
     if fixes:
-        for i, (cmd, comment) in enumerate(fixes, 1):
-            label = comment if comment else (f"{cmd[:55]}..." if len(cmd) > 55 else cmd)
-            console.print(f"  [bold yellow][{i}][/bold yellow] {label}")
-            console.print(
-                Panel(
-                    Syntax(cmd, "bash", theme="monokai", word_wrap=True),
-                    border_style="dim cyan",
-                    padding=(0, 1),
+        current_finding = None
+        for i, action in enumerate(fixes, 1):
+            if isinstance(action, RemediationAction):
+                if action.finding_ref != current_finding:
+                    current_finding = action.finding_ref
+                    finding = Text()
+                    finding.append(f"\n  {action.severity} ", style="bold red")
+                    finding.append(action.finding_title, style="bold")
+                    finding.append(
+                        f"  [{action.category} · {action.finding_ref}]", style="dim"
+                    )
+                    console.print(finding)
+
+                label = Text("  ")
+                label.append(f"[{i}]", style="bold yellow")
+                label.append("  ")
+                if action.recommended:
+                    label.append("ZALECANE  ", style="bold green")
+                label.append(action.label)
+                label.append(f"  ryzyko: {action.risk}", style="dim")
+                console.print(label)
+
+                command_lines = []
+                for step, command in enumerate(action.commands, 1):
+                    command_lines.append(f"# krok {step}/{len(action.commands)}")
+                    command_lines.append(command)
+                console.print(
+                    Panel(
+                        Syntax(
+                            "\n".join(command_lines),
+                            "bash",
+                            theme="monokai",
+                            word_wrap=True,
+                        ),
+                        subtitle=Text(action.explanation, style="dim"),
+                        border_style="dim cyan",
+                        padding=(0, 1),
+                    )
                 )
-            )
+                if action.verification:
+                    console.print(
+                        Text(
+                            "     Weryfikacja: " + "  →  ".join(action.verification),
+                            style="dim cyan",
+                        )
+                    )
+            else:
+                cmd, comment = action
+                label = comment if comment else (
+                    f"{cmd[:55]}..." if len(cmd) > 55 else cmd
+                )
+                console.print(f"  [bold yellow][{i}][/bold yellow] {label}")
+                console.print(
+                    Panel(
+                        Syntax(cmd, "bash", theme="monokai", word_wrap=True),
+                        border_style="dim cyan",
+                        padding=(0, 1),
+                    )
+                )
         console.print()
-        console.print(
-            f"  [bold yellow][A][/bold yellow]  Wykonaj wszystkie ({len(fixes)} komend)"
-        )
+        if all(isinstance(action, RemediationAction) for action in fixes):
+            recommended_count = len(select_recommended_actions(fixes))
+            console.print(
+                "  [bold yellow][A][/bold yellow]  Wykonaj zalecany zestaw dla "
+                f"każdego problemu ({recommended_count} zestawów)"
+            )
+        else:
+            console.print(
+                f"  [bold yellow][A][/bold yellow]  Wykonaj wszystkie ({len(fixes)} komend)"
+            )
         console.print("  [bold yellow][S][/bold yellow]  Pomiń wszystkie")
     else:
         console.print("  [dim](brak zaproponowanych komend)[/dim]")
@@ -235,9 +292,9 @@ def print_session_interrupted() -> None:
 
 
 def print_executing_all(count: int) -> None:
-    """Print executing all commands message."""
+    """Print executing all recommended command sets message."""
     console.print(
-        f"\n  [bold cyan]▶️  Wykonuję wszystkie {count} komend...[/bold cyan]\n"
+        f"\n  [bold cyan]▶️  Wykonuję {count} zalecanych zestawów...[/bold cyan]\n"
     )
 
 

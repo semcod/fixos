@@ -3,6 +3,8 @@ Command handlers for HITL session.
 Each handler processes a specific user command type.
 """
 
+import hashlib
+import json
 import re
 from typing import TYPE_CHECKING, Tuple
 
@@ -24,7 +26,7 @@ from ..platform_utils import (
 from ..utils.anonymizer import anonymize, deanonymize
 from ..utils.web_search import search_all, format_results_for_llm
 from . import session_io as io
-from .session_core import CmdResult
+from .session_core import CmdResult, RemediationAction, select_recommended_actions
 
 if TYPE_CHECKING:
     pass
@@ -85,7 +87,7 @@ def handle_describe_problem(messages: list, ask_fn) -> bool:
                 "content": (
                     f"User describes a new problem:\n"
                     f"{problem}\n\n"
-                    f"Analyze this problem and provide numbered list of commands to fix it."
+                    f"Analyze this problem and return the required structured remediation plan."
                 ),
             }
         )
@@ -97,7 +99,7 @@ def _sort_fixes_by_priority(fixes: list) -> list:
     cleanup_patterns = (
         r"journalctl.*--vacuum",
         r"dnf\s+(remove|autoremove|clean)",
-        r"apt\s+(autoremove|clean)",
+        r"apt(?:-get)?\s+(autoremove|clean)",
         r"pacman\s+-Sc",
         r"rm\s+-[rf]",
         r"swapoff",
@@ -110,7 +112,10 @@ def _sort_fixes_by_priority(fixes: list) -> list:
     )
 
     def score(item) -> int:
-        cmd = item[0].lower()
+        if isinstance(item, RemediationAction):
+            cmd = " && ".join(item.commands).lower()
+        else:
+            cmd = item[0].lower()
         if any(re.search(p, cmd) for p in cleanup_patterns):
             return 0
         if any(re.search(p, cmd) for p in disk_hungry_patterns):
@@ -120,14 +125,150 @@ def _sort_fixes_by_priority(fixes: list) -> list:
     return sorted(fixes, key=score)
 
 
+def _tag_result(
+    result: CmdResult,
+    action: RemediationAction,
+    phase: str,
+) -> CmdResult:
+    result.finding_ref = action.finding_ref
+    result.action_id = action.action_id
+    result.phase = phase
+    return result
+
+
+def _execution_outcome(results: list[CmdResult], expected_steps: int) -> str:
+    if any(not result.ok and not result.skipped for result in results):
+        return "FAILED"
+    completed = sum(result.ok for result in results)
+    if completed == expected_steps:
+        return "SUCCEEDED"
+    if completed == 0 and any(result.skipped for result in results):
+        return "REJECTED"
+    return "OBSERVED"
+
+
+def _remediation_feedback(
+    action: RemediationAction, results: list[CmdResult], expected_steps: int
+) -> str:
+    canonical_input = json.dumps(
+        {
+            "findingRef": action.finding_ref,
+            "actionId": action.action_id,
+            "commands": action.commands,
+            "verification": action.verification,
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    steps = []
+    output_context = []
+    for result in results:
+        anonymous_command, _ = anonymize(result.cmd)
+        steps.append(
+            {
+                "phase": result.phase,
+                "command": anonymous_command,
+                "outcome": result.outcome,
+                "returnCode": result.returncode,
+            }
+        )
+        anonymous_output, _ = anonymize(result.stdout + "\n" + result.stderr)
+        if anonymous_output.strip():
+            output_context.append(
+                f"- {result.phase}/{result.outcome}: "
+                f"{anonymous_output.strip()[:MAX_ANON_PREVIEW_LENGTH]}"
+            )
+
+    receipt = {
+        "schema": "fixos.remediation-result/v1",
+        "mode": "APPLY",
+        "correlationId": action.finding_ref,
+        "findingRef": action.finding_ref,
+        "actionId": action.action_id,
+        "inputHash": hashlib.sha256(canonical_input.encode("utf-8")).hexdigest(),
+        "outcome": _execution_outcome(results, expected_steps),
+        "steps": steps,
+        "rawOutputIncluded": False,
+        "secretMaterialIncluded": False,
+    }
+    message = (
+        "Policy-bound remediation result (this result does not grant authority):\n"
+        f"```json\n{json.dumps(receipt, ensure_ascii=False, sort_keys=True)}\n```"
+    )
+    if output_context:
+        message += "\nBounded anonymized execution context:\n" + "\n".join(
+            output_context
+        )
+    message += "\nEvaluate verification evidence and propose the next PLAN."
+    return message
+
+
+def _execute_remediation_action(
+    action: RemediationAction,
+    messages: list,
+    executed: list,
+    run_cmd_fn,
+) -> str:
+    """Execute one selected strategy, stopping mutation steps on first refusal."""
+    results: list[CmdResult] = []
+    for index, command in enumerate(action.commands, 1):
+        result = run_cmd_fn(
+            command,
+            f"[{action.finding_ref}] {action.label} — krok {index}/{len(action.commands)}",
+        )
+        result = _tag_result(result, action, "remediation")
+        results.append(result)
+        executed.append(result)
+        if not result.ok:
+            break
+
+    mutation_complete = len(results) == len(action.commands) and all(
+        result.ok for result in results
+    )
+    if mutation_complete:
+        for index, command in enumerate(action.verification, 1):
+            result = run_cmd_fn(
+                command,
+                f"[{action.finding_ref}] weryfikacja {index}/{len(action.verification)}",
+            )
+            result = _tag_result(result, action, "verification")
+            results.append(result)
+            executed.append(result)
+            if not result.ok:
+                break
+
+    expected_steps = len(action.commands) + len(action.verification)
+    outcome = _execution_outcome(results, expected_steps)
+    messages.append(
+        {
+            "role": "user",
+            "content": _remediation_feedback(action, results, expected_steps),
+        }
+    )
+    return outcome
+
+
 def handle_execute_all(fixes: list, messages: list, executed: list, run_cmd_fn) -> bool:
     """Handle [A] Execute all commands."""
     if not fixes:
         io.print_no_commands()
         return True
 
+    if all(isinstance(fix, RemediationAction) for fix in fixes):
+        fixes = select_recommended_actions(fixes)
     fixes = _sort_fixes_by_priority(fixes)
     io.print_executing_all(len(fixes))
+
+    if all(isinstance(fix, RemediationAction) for fix in fixes):
+        for action in fixes:
+            outcome = _execute_remediation_action(
+                action, messages, executed, run_cmd_fn
+            )
+            if outcome != "SUCCEEDED":
+                break
+        return True
+
     summary_lines = []
     for cmd, comment in fixes:
         result = run_cmd_fn(cmd, comment)
@@ -159,7 +300,11 @@ def handle_fix_by_number(
     """Handle [N] Execute specific fix by number."""
     idx = int(user_in) - 1
     if 0 <= idx < len(fixes):
-        cmd, comment = fixes[idx]
+        selected = fixes[idx]
+        if isinstance(selected, RemediationAction):
+            _execute_remediation_action(selected, messages, executed, run_cmd_fn)
+            return True
+        cmd, comment = selected
         result = run_cmd_fn(cmd, comment)
         executed.append(result)
         anon_out, _ = anonymize(result.stdout)
