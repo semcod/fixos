@@ -1,0 +1,123 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-016",
+  "summary": "Raise HITL output limit and recover empty LLM responses",
+  "workstream": "application",
+  "classification": {
+    "kind": "SERVICE",
+    "priority": "P2",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "fixos/agent/hitl_session.py",
+    "fixos/agent/session_handlers.py",
+    "fixos/providers/llm.py",
+    "tests/unit/test_core.py",
+    "tests/unit/test_llm_provider.py",
+    "project/ticket-016/**",
+    "TODO.md",
+    "project/TICKETS.md"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md",
+    "README.md",
+    ".env.example",
+    "pyproject.toml",
+    "VERSION",
+    "CHANGELOG.md",
+    ".github/**",
+    ".governance/**",
+    "**/*.pem",
+    "**/*secret*"
+  ],
+  "stacks": ["python"],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "ca7c315e1d2f4f40c8beab655ccdd71700256845",
+    "targetBranch": "main",
+    "outcome": "Full HITL turns use a 50000-token ceiling, GLM 5.3 uses low reasoning, empty completions fail over, and bounded cleanup typos request a safe plan",
+    "nonGoals": [
+      "No cleanup or remediation command is executed by this implementation",
+      "No increase to short ping or structured-call token defaults",
+      "No dependency, public interface, anonymization or release change",
+      "No dynamic model-catalog lookup or provider-secret access"
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 25,
+    "budgets": {
+      "maxImplementationFiles": 5,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Keep the 50000-token limit at the full HITL call site, add GLM-specific OpenRouter reasoning options and unusable-response fallback to the provider, and normalize only bounded cleanup intent variants",
+      "components": [
+        {
+          "name": "fixos-hitl-runtime",
+          "paths": [
+            "fixos/agent/hitl_session.py",
+            "fixos/agent/session_handlers.py",
+            "tests/unit/test_core.py"
+          ]
+        },
+        {
+          "name": "fixos-llm-provider",
+          "paths": [
+            "fixos/providers/llm.py",
+            "tests/unit/test_llm_provider.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "multi-state",
+        "states": ["success", "empty", "error"],
+        "evidence": [
+          "tests/unit/test_core.py",
+          "tests/unit/test_llm_provider.py"
+        ]
+      },
+      "rollback": "Revert ticket-016; no cleanup or persistent system mutation is performed by the change itself"
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-02",
+        "commands": ["python -m pytest -q tests/unit/test_core.py"],
+        "evidence": "project/ticket-016/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-03",
+        "commands": ["python -m pytest -q tests/unit/test_llm_provider.py"],
+        "evidence": "project/ticket-016/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-04",
+        "commands": ["python -m pytest -q tests/unit/test_llm_provider.py"],
+        "evidence": "project/ticket-016/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-05",
+        "commands": ["python -m pytest -q tests/unit/test_core.py"],
+        "evidence": "project/ticket-016/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-06",
+        "commands": [
+          "ruff check --no-cache fixos/agent/hitl_session.py fixos/agent/session_handlers.py fixos/providers/llm.py tests/unit/test_core.py tests/unit/test_llm_provider.py",
+          "python -m pytest -q",
+          "git diff --check",
+          "./project/governance-check.sh",
+          "goal -a"
+        ],
+        "evidence": "project/ticket-016/ai-codex-logs.txt"
+      }
+    ]
+  }
+}

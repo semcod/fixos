@@ -917,6 +917,9 @@ class TestIterativeOptimizationQueue:
             assert session._process_turn() is False
 
         assert session.llm.chat.call_count == 2
+        assert [
+            call.kwargs["max_tokens"] for call in session.llm.chat.call_args_list
+        ] == [50_000, 50_000]
         assert session._setup_timeout.call_count == 2
         assert displayed_remaining == [0, 290]
         assert "Problem 2: Usługi systemd" in session.messages[2]["content"]
@@ -976,6 +979,25 @@ class TestIterativeOptimizationQueue:
             "restart-logrotate",
             "reset-logrotate-state",
         ]
+
+    def test_cleanup_typo_becomes_planning_prompt_without_execution(self):
+        from fixos.agent.session_handlers import is_cleanup_intent, parse_user_input
+
+        messages = []
+        executed = []
+
+        should_continue, was_handled = parse_user_input(
+            "clanup", [], messages, executed, None
+        )
+
+        assert should_continue is True
+        assert was_handled is True
+        assert executed == []
+        assert len(messages) == 1
+        assert "cleanup planning only" in messages[0]["content"]
+        assert "Do not execute anything" in messages[0]["content"]
+        assert is_cleanup_intent("cleanup now") is False
+        assert is_cleanup_intent("clear") is False
 
 
 class TestAllModulesRegistered:
