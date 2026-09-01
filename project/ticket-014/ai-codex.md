@@ -45,10 +45,20 @@ local and trusted-review boundaries run normally.
   `onedev/local-verify` plus all existing hosted checks and participates in
   scheduled reconciliation. Validator run `33505622939` approved exact head
   `d618023e...` as review `5077772304` and merged it as `7d3fa049...`.
+- Published FixOS PR #29 through `goal -a` at exact head `03df0940...`; every
+  hosted FixOS check passed for that head.
+- Used the first automatic local failure as environment evidence: the trusted
+  executor lacked `ps` and a usable `systemctl`. Onedev PR #121 added the
+  pinned system tools, passed 368 tests and was independently merged by
+  Validator as `7ba98344...`.
+- Observed the normal OneDev round-robin revalidate the unchanged FixOS head
+  without a retry command or manual dispatch. It passed all five local gates,
+  including 553 tests, and published `onedev/local-verify=PASS`.
+- Observed scheduled Validator run `33513878865` derive `semcod/fixos` from
+  the protected manifest, approve the same head in review `5078899687`, merge
+  PR #29 as `67fde329...` and delete `goal/ticket-014`.
 
 ## Blockers
 
-- None inside the recorded intent; proceed without a second confirmation.
-- The user already requested `goal -a` publication and automatic coordination
-  with the existing OneDev/Validator services. Trusted approval and merge
-  remain independently owned by Validator Agent.
+- None. The bounded proof is integrated and this governance-only closure is
+  based on the resulting default-branch merge.

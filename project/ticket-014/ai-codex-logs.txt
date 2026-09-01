@@ -38,5 +38,48 @@ CONTROLLER PROFILE PRECONDITION
   merged it as `7d3fa049185c3975eedcd3a6f41a83204b6a636e`, and deleted the branch.
 
 PUBLICATION / TRUSTED REVIEW
-- Ready to publish the FixOS ticket head through `goal -a`. No manual
-  Validator dispatch will be used for the FixOS proof.
+- `goal -a` published PR #29 at exact head
+  `03df094016eb2ac3eba1b11edf49077d0a61cd97` against accepted base
+  `9951348fa5c6bc6839e4f09ceed25d92da5a91bd`.
+- PASS: Python 3.10/3.11/3.12, Fedora, Ubuntu, Debian, Arch, Alpine,
+  `test-summary` and governance remote lifecycle all completed successfully
+  for the unchanged candidate.
+
+AUTOMATIC ONEDEV VERIFICATION
+- The first normal round-robin attempt failed only the two environment probes:
+  its trusted executor image lacked `ps` and an initialized `systemctl`.
+  Receipt: 551 passed, 2 failed, 6 skipped, 16 deselected; no candidate change
+  or untrusted merge was attempted.
+- Onedev ticket-093/PR #121 added `procps` and `systemd` to the executor image.
+  Validation: 368 tests passed; Ruff 0.15.11 clean; exact FixOS probes passed
+  in rebuilt image
+  `sha256:3d5f27ad408d5d1177888cd8138503913d164290273da7d55a8fb8117bd35457`.
+- Protected Validator run `33509079837` approved PR #121 exact head
+  `9d61e5ab64909d0f22122424b38bd820af93337a` and merged it as
+  `7ba983445ee93d57ef9d421e52fb88de650e74c6`; its branch was deleted.
+- After deployment, the standard OneDev round-robin automatically selected
+  unchanged FixOS PR #29. Receipt: 553 passed, 6 skipped, 16 deselected; Ruff,
+  governance and branch lifecycle passed; all 5 local gates passed.
+- GitHub status `onedev/local-verify=PASS` was published for exact head
+  `03df094016eb2ac3eba1b11edf49077d0a61cd97` at 2026-09-01T12:57:55Z.
+
+AUTOMATIC VALIDATOR REVIEW AND MERGE
+- No manual FixOS Validator dispatch was used. Scheduled run `33513878865`
+  derived `scan-direct (semcod, fixos)` from protected registry digest
+  `4931e9c4925bd87ea905fd78d48f0aecdc8d05de25322b708a680783280835c0`.
+- Job `99877501300`: PASS, 2026-09-01T13:52:14Z–13:54:07Z.
+- Trusted review `5078899687`: APPROVED at 2026-09-01T13:53:32Z, bound to
+  repository `semcod/fixos`, PR #29, ticket-014, actor
+  `ifuri-validator-agent[bot]` and exact head
+  `03df094016eb2ac3eba1b11edf49077d0a61cd97`.
+- PR #29 merged at 2026-09-01T13:53:53Z as
+  `67fde3293df6ed21b7b423887d50d06f2a457041`.
+- Remote branch `goal/ticket-014` was absent after merge, as required.
+
+GOVERNANCE-ONLY CLOSURE VALIDATION
+- Base: integrated `origin/main` at
+  `67fde3293df6ed21b7b423887d50d06f2a457041`.
+- `python -m pytest -q`: PASS — 554 passed, 5 skipped, 16 deselected.
+- changed-Python Ruff gate: PASS — no Python files changed.
+- `git diff --check`: PASS.
+- `./project/governance-check.sh`: GOV-PASS — 0 errors, 0 warnings.
