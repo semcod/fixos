@@ -1,0 +1,127 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-017",
+  "summary": "Adopt context-preserving anonymization",
+  "workstream": "application",
+  "classification": {
+    "kind": "FEATURE",
+    "priority": "P2",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "fixos/utils/anonymizer.py",
+    "fixos/anonymizer.py",
+    "tests/unit/test_anonymizer.py",
+    "tests/e2e/test_anonymization_layers.py",
+    "tests/e2e/test_audio_broken.py",
+    "project/ticket-017/**",
+    "TODO.md",
+    "project/TICKETS.md"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md",
+    "README.md",
+    ".env.example",
+    "pyproject.toml",
+    "VERSION",
+    "CHANGELOG.md",
+    ".github/**",
+    ".governance/**",
+    "docker/**",
+    "**/*.pem",
+    "**/*secret*"
+  ],
+  "stacks": ["python"],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "65ee7703d4d3c35ae2f93de7e354382091215fd0",
+    "targetBranch": "main",
+    "outcome": "FixOS preserves diagnostic relationships with scoped opaque aliases while keeping raw identities local and retaining existing anonymizer callers",
+    "nonGoals": [
+      "No diagnostic, cleanup or remediation command is executed",
+      "No LLM provider, external API or repository secret is accessed",
+      "No Docker, CI, dependency manifest or release configuration is changed",
+      "No implicit process-wide identity map or persistent reverse-map storage is introduced"
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 30,
+    "budgets": {
+      "maxImplementationFiles": 5,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Use an optional per-payload or caller-owned memory context, parsed IP classification and category-scoped stable aliases; retain the legacy return shape and primary placeholder resolution",
+      "components": [
+        {
+          "name": "fixos-anonymization-runtime",
+          "paths": [
+            "fixos/utils/anonymizer.py",
+            "fixos/anonymizer.py"
+          ]
+        },
+        {
+          "name": "fixos-anonymization-verification",
+          "paths": [
+            "tests/unit/test_anonymizer.py",
+            "tests/e2e/test_anonymization_layers.py",
+            "tests/e2e/test_audio_broken.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [
+        "Anonymized paths and identifiers retain category and equality relationships without raw values"
+      ],
+      "ui": {
+        "impact": "single-state",
+        "states": ["success"],
+        "evidence": ["tests/e2e/test_anonymization_layers.py"]
+      },
+      "rollback": "Revert ticket-017; anonymization remains local and creates no persistent state"
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-02",
+        "commands": ["python -m pytest -q tests/unit/test_anonymizer.py"],
+        "evidence": "project/ticket-017/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-03",
+        "commands": ["python -m pytest -q tests/unit/test_anonymizer.py"],
+        "evidence": "project/ticket-017/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-04",
+        "commands": ["python -m pytest -q tests/unit/test_anonymizer.py tests/e2e/test_anonymization_layers.py"],
+        "evidence": "project/ticket-017/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-05",
+        "commands": ["python -m pytest -q tests/unit/test_anonymizer.py tests/e2e/test_anonymization_layers.py"],
+        "evidence": "project/ticket-017/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-06",
+        "commands": ["python -m pytest -q tests/e2e/test_anonymization_layers.py"],
+        "evidence": "project/ticket-017/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-07",
+        "commands": [
+          "ruff check --no-cache fixos/utils/anonymizer.py fixos/anonymizer.py tests/unit/test_anonymizer.py tests/e2e/test_anonymization_layers.py",
+          "python -m pytest -q",
+          "git diff --check",
+          "./project/governance-check.sh"
+        ],
+        "evidence": "project/ticket-017/ai-codex-logs.txt"
+      }
+    ]
+  }
+}
