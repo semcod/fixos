@@ -401,6 +401,28 @@ def _remediation_reply() -> str:
     ) + "\n```"
 
 
+def _diagnosis_only_reply() -> str:
+    return """━━━ DIAGNOZA ━━━
+🔴 CRITICAL
+
+**Problem 1: Dysk systemowy na 99.4% pojemności**
+
+Evidence: disk.percent=99.4
+
+🟡 IMPORTANT
+
+Problem 2: Usługi systemd w stanie failed
+
+Evidence: systemctl_failed=logrotate.service
+
+🟢 MINOR
+
+- Problem 3: Cache aplikacji do wyczyszczenia
+
+Evidence: cache.size=7.8GB
+"""
+
+
 class TestStructuredRemediationPlan:
     def test_parses_multiple_strategies_bound_to_findings(self):
         from fixos.agent.session_core import extract_remediation_actions
@@ -478,6 +500,27 @@ class TestStructuredRemediationPlan:
             "journal-recovery",
             "restart-logrotate",
         ]
+
+    def test_diagnosis_only_reply_becomes_non_executable_numbered_choices(self):
+        from fixos.agent.session_core import (
+            DiagnosticChoice,
+            extract_diagnostic_choices,
+            extract_remediation_actions,
+        )
+
+        reply = _diagnosis_only_reply()
+        choices = extract_diagnostic_choices(reply)
+
+        assert extract_remediation_actions(reply) == []
+        assert all(isinstance(choice, DiagnosticChoice) for choice in choices)
+        assert [choice.source_number for choice in choices] == [1, 2, 3]
+        assert [choice.severity for choice in choices] == [
+            "CRITICAL",
+            "IMPORTANT",
+            "MINOR",
+        ]
+        assert choices[0].title == "Dysk systemowy na 99.4% pojemności"
+        assert len({choice.finding_ref for choice in choices}) == 3
 
 
 class TestRemediationExecution:
@@ -571,6 +614,57 @@ class TestRemediationExecution:
         assert len(messages) == 1
         assert '"outcome": "FAILED"' in messages[0]["content"]
 
+    def test_success_removes_resolved_finding_but_keeps_other_choices(self):
+        from fixos.agent.session_core import CmdResult, extract_remediation_actions
+        from fixos.agent.session_handlers import handle_fix_by_number
+
+        actions = extract_remediation_actions(_remediation_reply())
+        resolved_ref = actions[0].finding_ref
+
+        def run(command, comment):
+            return CmdResult(command, comment, True, "ok", "", 0)
+
+        handle_fix_by_number("1", actions, [], [], run)
+
+        assert all(action.finding_ref != resolved_ref for action in actions)
+        assert [action.finding_ref for action in actions] == [
+            "finding:fixos:logrotate-failed",
+            "finding:fixos:logrotate-failed",
+        ]
+
+    def test_failed_choice_remains_available(self):
+        from fixos.agent.session_core import CmdResult, extract_remediation_actions
+        from fixos.agent.session_handlers import handle_fix_by_number
+
+        actions = extract_remediation_actions(_remediation_reply())
+        original_ids = [action.action_id for action in actions]
+
+        def run(command, comment):
+            return CmdResult(command, comment, False, "", "failed", 1)
+
+        handle_fix_by_number("1", actions, [], [], run)
+
+        assert [action.action_id for action in actions] == original_ids
+
+    def test_diagnosis_choice_requests_one_plan_without_running_commands(self):
+        from fixos.agent.session_core import extract_diagnostic_choices
+        from fixos.agent.session_handlers import handle_fix_by_number
+
+        choices = extract_diagnostic_choices(_diagnosis_only_reply())
+        messages = []
+        executed = []
+        calls = []
+
+        handle_fix_by_number(
+            "2", choices, messages, executed, lambda *args: calls.append(args)
+        )
+
+        assert calls == []
+        assert executed == []
+        assert "Problem 2: Usługi systemd" in messages[0]["content"]
+        assert "planning focus, not execution authority" in messages[0]["content"]
+        assert "only this problem" in messages[0]["content"]
+
 
 class TestRemediationMenu:
     def test_menu_groups_strategies_and_labels_recommended_aggregate(self):
@@ -597,6 +691,90 @@ class TestRemediationMenu:
         assert "krok 1/1" in rendered
         assert "Weryfikacja:" in rendered
         assert "2 zestawów" in rendered
+
+    def test_diagnosis_only_menu_lists_shortcuts_and_remaining_count(self):
+        import io
+
+        from rich.console import Console
+
+        from fixos.agent import session_io
+        from fixos.agent.session_core import extract_diagnostic_choices
+
+        output = io.StringIO()
+        original_console = session_io.console
+        session_io.console = Console(file=output, force_terminal=False, width=120)
+        try:
+            session_io.print_action_menu(
+                extract_diagnostic_choices(_diagnosis_only_reply()), 120, 42
+            )
+        finally:
+            session_io.console = original_console
+
+        rendered = output.getvalue()
+        assert "[1]" in rendered
+        assert "[2]" in rendered
+        assert "[3]" in rendered
+        assert "Dysk systemowy na 99.4%" in rendered
+        assert "Pozostałe opcje: 3" in rendered
+        assert "Wykonaj zalecany zestaw" not in rendered
+        assert "Wykonaj wszystkie" not in rendered
+
+
+class TestIterativeOptimizationQueue:
+    def test_success_refreshes_fallback_queue_with_only_remaining_problems(self):
+        from fixos.agent.hitl_session import HITLSession
+
+        session = HITLSession.__new__(HITLSession)
+        session._diagnosis_queue_active = False
+        session._pending_optimizations = []
+        session._focused_optimization = None
+        session._remediation_queue_active = False
+        session._pending_remediations = []
+        session._completed_finding_refs = set()
+
+        diagnosed = session._select_turn_choices(_diagnosis_only_reply())
+        assert [choice.source_number for choice in diagnosed] == [1, 2, 3]
+
+        session._focused_optimization = diagnosed[0]
+        planned = session._select_turn_choices(_remediation_reply())
+        assert {action.finding_ref for action in planned} == {
+            "finding:fixos:root-space-critical"
+        }
+
+        session._record_completed_choices(planned, [])
+        refreshed = session._select_turn_choices("Naprawa zakończona poprawnie.")
+
+        assert [choice.source_number for choice in refreshed] == [2, 3]
+        assert session._focused_optimization is None
+        assert "finding:fixos:root-space-critical" in (
+            session._completed_finding_refs
+        )
+
+    def test_structured_queue_survives_a_followup_without_a_new_plan(self):
+        from fixos.agent.hitl_session import HITLSession
+
+        session = HITLSession.__new__(HITLSession)
+        session._diagnosis_queue_active = False
+        session._pending_optimizations = []
+        session._focused_optimization = None
+        session._remediation_queue_active = False
+        session._pending_remediations = []
+        session._completed_finding_refs = set()
+
+        planned = session._select_turn_choices(_remediation_reply())
+        remaining = [
+            action
+            for action in planned
+            if action.finding_ref != "finding:fixos:root-space-critical"
+        ]
+        session._record_completed_choices(planned, remaining)
+
+        refreshed = session._select_turn_choices("Naprawa zakończona poprawnie.")
+
+        assert [action.action_id for action in refreshed] == [
+            "restart-logrotate",
+            "reset-logrotate-state",
+        ]
 
 
 class TestAllModulesRegistered:

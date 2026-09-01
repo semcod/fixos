@@ -1,0 +1,30 @@
+2026-09-01T09:47:00Z | python -m pytest -q tests/unit/test_core.py
+PASS | 54 passed in 2.14s
+
+2026-09-01T09:47:00Z | python -m pytest -q tests/e2e/test_anonymization_layers.py
+PASS | 47 passed in 2.84s
+
+2026-09-01T09:49:00Z | ruff check fixos/agent/session_core.py fixos/agent/session_io.py fixos/agent/session_handlers.py fixos/agent/hitl_session.py tests/unit/test_core.py
+PASS | All checks passed
+
+2026-09-01T09:49:00Z | python -m compileall -q fixos
+PASS | no output
+
+2026-09-01T09:50:00Z | python -m pytest -q
+PASS | 551 passed, 5 skipped, 16 deselected in 22.22s
+
+2026-09-01T09:51:00Z | ./project/governance-check.sh
+FAIL | GOV-INTENT-002: delivery UI states and validation criterion were invalid
+REMEDIATION | Replaced UI states with the schema vocabulary and mapped each validation entry to one AC identifier
+
+2026-09-01T09:52:00Z | ./project/governance-check.sh
+PASS | GOV-PASS: passed (0 errors, 0 warnings)
+
+2026-09-01T09:54:00Z | final ruff check + python -m compileall -q fixos
+PASS | All checks passed; compileall produced no output
+
+2026-09-01T09:54:00Z | final python -m pytest -q
+PASS | 551 passed, 5 skipped, 16 deselected in 18.47s
+
+2026-09-01T09:56:00Z | human publication authorization
+AUTHORIZED | User requested: wypchnij z goal -a

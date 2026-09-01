@@ -26,7 +26,12 @@ from ..platform_utils import (
 from ..utils.anonymizer import anonymize, deanonymize
 from ..utils.web_search import search_all, format_results_for_llm
 from . import session_io as io
-from .session_core import CmdResult, RemediationAction, select_recommended_actions
+from .session_core import (
+    CmdResult,
+    DiagnosticChoice,
+    RemediationAction,
+    select_recommended_actions,
+)
 
 if TYPE_CHECKING:
     pass
@@ -255,22 +260,38 @@ def handle_execute_all(fixes: list, messages: list, executed: list, run_cmd_fn) 
         io.print_no_commands()
         return True
 
-    if all(isinstance(fix, RemediationAction) for fix in fixes):
-        fixes = select_recommended_actions(fixes)
-    fixes = _sort_fixes_by_priority(fixes)
-    io.print_executing_all(len(fixes))
+    if any(isinstance(fix, DiagnosticChoice) for fix in fixes):
+        io.print_select_one()
+        return True
 
+    selected_fixes = fixes
     if all(isinstance(fix, RemediationAction) for fix in fixes):
-        for action in fixes:
+        selected_fixes = select_recommended_actions(fixes)
+    selected_fixes = _sort_fixes_by_priority(selected_fixes)
+    io.print_executing_all(len(selected_fixes))
+
+    if all(isinstance(fix, RemediationAction) for fix in selected_fixes):
+        completed_findings: set[str] = set()
+        for action in selected_fixes:
             outcome = _execute_remediation_action(
                 action, messages, executed, run_cmd_fn
             )
+            if outcome == "SUCCEEDED":
+                completed_findings.add(action.finding_ref)
             if outcome != "SUCCEEDED":
                 break
+        fixes[:] = [
+            fix
+            for fix in fixes
+            if not (
+                isinstance(fix, RemediationAction)
+                and fix.finding_ref in completed_findings
+            )
+        ]
         return True
 
     summary_lines = []
-    for cmd, comment in fixes:
+    for cmd, comment in selected_fixes:
         result = run_cmd_fn(cmd, comment)
         executed.append(result)
         anon_out, _ = anonymize(result.stdout + result.stderr)
@@ -301,8 +322,37 @@ def handle_fix_by_number(
     idx = int(user_in) - 1
     if 0 <= idx < len(fixes):
         selected = fixes[idx]
+        if isinstance(selected, DiagnosticChoice):
+            messages.append(
+                {
+                    "role": "user",
+                    "content": (
+                        "The human selected exactly one diagnosed optimization "
+                        "to address next. This selection is planning focus, not "
+                        "execution authority.\n"
+                        f"Diagnosis choice: Problem {selected.source_number}: "
+                        f"{selected.title}\n"
+                        f"Diagnosis severity: {selected.severity}\n\n"
+                        "Return a fixos.remediation-plan/v1 PLAN for only this "
+                        "problem. Include concrete repair commands and read-only "
+                        "verification. Do not include other findings."
+                    ),
+                }
+            )
+            return True
         if isinstance(selected, RemediationAction):
-            _execute_remediation_action(selected, messages, executed, run_cmd_fn)
+            outcome = _execute_remediation_action(
+                selected, messages, executed, run_cmd_fn
+            )
+            if outcome == "SUCCEEDED":
+                fixes[:] = [
+                    fix
+                    for fix in fixes
+                    if not (
+                        isinstance(fix, RemediationAction)
+                        and fix.finding_ref == selected.finding_ref
+                    )
+                ]
             return True
         cmd, comment = selected
         result = run_cmd_fn(cmd, comment)
@@ -321,6 +371,8 @@ def handle_fix_by_number(
                 ),
             }
         )
+        if result.ok:
+            fixes.pop(idx)
     else:
         io.print_invalid_option(user_in, len(fixes))
     return True

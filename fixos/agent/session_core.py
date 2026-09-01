@@ -71,6 +71,16 @@ class RemediationAction:
         yield self.comment
 
 
+@dataclass(frozen=True)
+class DiagnosticChoice:
+    """A diagnosed problem that is selectable but has no executable plan yet."""
+
+    finding_ref: str
+    source_number: int
+    title: str
+    severity: str
+
+
 SYSTEM_PROMPT = """You are an expert Linux/Windows/macOS system diagnostics assistant.
 
 You receive anonymized diagnostic data OR a user-described problem. Your tasks:
@@ -584,6 +594,58 @@ def extract_remediation_actions(reply: str) -> list[RemediationAction]:
 def strip_remediation_plan(reply: str) -> str:
     """Hide the machine plan block from the human-readable diagnosis."""
     return _ANY_PLAN_BLOCK_RE.sub("", reply).rstrip()
+
+
+_DIAGNOSTIC_PROBLEM_RE = re.compile(
+    r"^problem(?:\s+(?:nr|no)\.?)?\s*(\d+)\s*[:.)-]\s*(.+)$",
+    re.IGNORECASE,
+)
+
+
+def extract_diagnostic_choices(reply: str) -> list[DiagnosticChoice]:
+    """Extract non-executable choices from numbered diagnosis headings."""
+    choices: list[DiagnosticChoice] = []
+    seen_numbers: set[int] = set()
+    severity = "UNSPECIFIED"
+
+    for raw_line in strip_remediation_plan(reply).splitlines():
+        line = raw_line.strip()
+        line = re.sub(r"^(?:(?:#{1,6}|[-+*>])\s*)+", "", line)
+        line = line.strip(" *_`").strip()
+        if not line:
+            continue
+
+        match = _DIAGNOSTIC_PROBLEM_RE.match(line)
+        if match:
+            source_number = int(match.group(1))
+            title = match.group(2).strip(" *_`").strip()
+            if not title or source_number in seen_numbers:
+                continue
+            digest = hashlib.sha256(
+                f"{source_number}\0{title}".encode("utf-8", errors="replace")
+            ).hexdigest()[:10]
+            choices.append(
+                DiagnosticChoice(
+                    finding_ref=(
+                        f"diagnosis:fixos:problem-{source_number}-{digest}"
+                    ),
+                    source_number=source_number,
+                    title=title,
+                    severity=severity,
+                )
+            )
+            seen_numbers.add(source_number)
+            continue
+
+        normalized = line.upper()
+        if "🔴" in line or normalized in {"CRITICAL", "KRYTYCZNE"}:
+            severity = "CRITICAL"
+        elif "🟡" in line or normalized in {"IMPORTANT", "WAŻNE", "WAZNE"}:
+            severity = "IMPORTANT"
+        elif "🟢" in line or normalized in {"MINOR", "DROBNE"}:
+            severity = "MINOR"
+
+    return choices
 
 
 def transform_remediation_commands(
