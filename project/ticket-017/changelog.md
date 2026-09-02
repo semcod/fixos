@@ -26,3 +26,8 @@
   that merely share the same prefix.
 - Recognize serialized whitespace delimiters before an isolated home path, so
   dictionary-form diagnostics cannot retain a nested executor home.
+- Publish exact head `610bcb1d...` through PR #35 after all hosted and OneDev
+  checks passed.
+- Record protected Validator approval `5084141876`, merge `31f3e6ec...` and
+  deletion of the remote ticket branch.
+- Close the integrated ticket as `DONE / DONE` on the resulting default branch.

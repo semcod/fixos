@@ -79,9 +79,12 @@ linkability.
   No Docker E2E result is claimed and no provider credential was used.
 - Moved the corrected implementation to `IN_PROGRESS / PUBLICATION`; trusted
   review and merge remain outside the local implementation step.
+- Published exact head `610bcb1d...` through PR #35. Protected Validator
+  review `5084141876` approved that head for ticket-017, the PR merged as
+  `31f3e6ec...`, and the remote ticket branch was deleted.
+- Closed the integrated ticket as `DONE / DONE` using governance-only changes
+  based on the resulting default branch.
 
 ## Blockers
 
-- None inside the recorded intent; proceed without a second confirmation.
-- New authority remains required for destructive action, secret access, new
-  external coordination, material objective expansion and trusted merge.
+- None. Implementation, trusted exact-head review and merge are complete.

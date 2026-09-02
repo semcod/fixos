@@ -81,3 +81,28 @@ ONEDEV ISOLATED-HOME REGRESSION / CORRECTION — 2026-09-01
   occurs in the static system prompt. It is not the OneDev failure and does not
   represent a raw home-path leak; root-account path boundaries remain covered
   by the explicit unit regression.
+
+PUBLICATION / TRUSTED REVIEW — 2026-09-02
+- Exact implementation head: `610bcb1db9bff2bb2021a47be2543cb747ce4b9b`.
+- PASS: Python 3.10/3.11/3.12, Fedora, Ubuntu, Debian, Arch, Alpine,
+  `test-summary`, governance remote lifecycle and `onedev/local-verify` all
+  completed successfully for that head.
+- Trusted review `5084141876`: APPROVED by
+  `ifuri-validator-agent[bot]`, bound to repository `semcod/fixos`, PR #35,
+  ticket-017 and the exact implementation head. Its deterministic verdict,
+  not the advisory model verdict, authorized the merge.
+- PR #35 merged at 2026-09-01T23:34:13Z as
+  `31f3e6ecb8cd1cc2483be4982a5241bd8748a13a`.
+- Remote branch `goal/ticket-017` was absent after fetch/prune, as required.
+
+GOVERNANCE-ONLY CLOSURE — 2026-09-02
+- The request to continue is treated as SESSION_EXECUTION_AUTHORIZATION for
+  this bounded closure and the subsequent separately ticketed investigation.
+- Base: integrated `origin/main` at
+  `31f3e6ecb8cd1cc2483be4982a5241bd8748a13a`.
+- No implementation, test, dependency or public-interface file is changed by
+  this closure.
+- `python -m pytest -q`: PASS — 577 passed, 5 skipped, 16 deselected.
+- Changed-Python Ruff gate: PASS — no Python files changed.
+- `git diff --check`: PASS.
+- `./project/governance-check.sh`: GOV-PASS — 0 errors, 0 warnings.
