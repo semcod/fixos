@@ -8,8 +8,10 @@ Ostatni przegląd: 2026-07-23.
 
 ## Aktywne
 
-- [ ] Dostarczyć [ticket-018](project/ticket-018/README.md): udokumentować
-  stan i pozostałe prace autonomizacji oraz lokalnego Registry. Stan: `IN_PROGRESS / EDIT`.
+- [x] Dostarczyć [ticket-018](project/ticket-018/README.md): udokumentować
+  stan i pozostałe prace autonomizacji oraz lokalnego Registry. Stan:
+  `DONE / DONE`; exact HEAD `771da39...` scalony do `main`, testy i governance
+  przeszły.
 
 - [x] Dostarczyć [ticket-021](project/ticket-021/README.md): ustabilizować
   launcher CLI w testach e2e przez preferowanie executable aktywnego

@@ -2,8 +2,8 @@
 
 - **ID**: ticket-018
 - **Owner**: agent:codex
-- **Status**: IN_PROGRESS
-- **Workflow state**: PUBLICATION
+- **Status**: DONE
+- **Workflow state**: DONE
 - **Created**: 2026-09-02
 
 ## Goal and scope
@@ -16,6 +16,8 @@ pozostałe prace związane z lokalnym Registry, SQLite i chronioną attestacją.
 - [x] AC-01: Zakres wynika z żądania użytkownika z 2026-09-02.
 - [x] AC-02: TODO zawiera wszystkie potwierdzone otwarte zadania.
 - [x] AC-03: Dokumentacja stanu i kontraktu Registry znajduje się w `docs/`.
+- [x] AC-04: Exact HEAD `771da39...` został scalony do `main`; governance i
+  pełny suite zakończyły się pomyślnie.
 
 ## Participants
 
