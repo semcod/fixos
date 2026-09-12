@@ -86,9 +86,9 @@ def print_interactive_menu() -> None:
         num_styled = click.style(f"[{num}]", fg="yellow", bold=True)
         cmd_styled = click.style(f"{cmd:<18}", fg="green")
         click.echo(f"  {num_styled} {cmd_styled} {desc}")
-    click.echo(
-        f"  {click.style("[q]", fg="yellow", bold=True)} {click.style("exit / quit       ", fg="white")} Wyjście z programu"
-    )
+    q_styled = click.style("[q]", fg="yellow", bold=True)
+    exit_styled = click.style("exit / quit       ", fg="white")
+    click.echo(f"  {q_styled} {exit_styled} Wyjście z programu")
     click.echo()
     click.echo(
         click.style(
