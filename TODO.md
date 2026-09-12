@@ -8,6 +8,9 @@ Ostatni przegląd: 2026-07-23.
 
 ## Aktywne
 
+- [ ] Dostarczyć [ticket-018](project/ticket-018/README.md): udokumentować
+  stan i pozostałe prace autonomizacji oraz lokalnego Registry. Stan: `IN_PROGRESS / EDIT`.
+
 - [x] Dostarczyć [ticket-021](project/ticket-021/README.md): ustabilizować
   launcher CLI w testach e2e przez preferowanie executable aktywnego
   interpretera. Stan: `DONE / DONE`; exact HEAD `ded18b7...` scalony do
@@ -134,6 +137,17 @@ Ostatni przegląd: 2026-07-23.
   prawdziwych menedżerów usług na pozostałych platformach.
 - [ ] Ujednolicić formatowanie i typowanie starszych komend CLI (`scan`,
   `features`, `provider`) bez zmiany ich publicznych opcji.
+- [ ] Zastąpić hardkodowany `config/direct-pr-registry.json` lokalnym,
+  checkpointowanym snapshotem Registry (SQLite) oraz podpisaną attestacją.
+  Pozostawić JSON jako fail-closed fallback do czasu migracji.
+- [ ] Skonfigurować chroniony Validator App do pobierania artefaktów i
+  attestacji oraz weryfikować podpis, issuer, predicate type, repozytorium i
+  digest SQLite przed nadaniem uprawnień review/merge.
+- [ ] Dodać lokalną usługę Registry i adaptery synchronizacji (GitHub, PyPI,
+  npm) w `subactor/registry/packages/*`; zapewnić API/CLI do publikacji,
+  pobierania i zarządzania artefaktami bez zależności od sieci.
+- [ ] Utrzymywać kontekst anonimizacji przez wiele tur HITL oraz dodać testy
+  integracyjne cyklu życia snapshotu, podpisu i odtworzenia po awarii.
 
 ## Zasady utrzymania
 

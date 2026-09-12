@@ -1,0 +1,29 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-018",
+  "summary": "Udokumentować stan i pozostałe prace autonomizacji",
+  "workstream": "integration",
+  "classification": {
+    "kind": "SERVICE",
+    "priority": "P2",
+    "origin": "health"
+  },
+  "allowedPaths": ["project/ticket-018/**", "TODO.md", "project/TICKETS.md", "docs/**"],
+  "forbiddenPaths": ["project/ticket-*/user-*.md"],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "2d203eddfbff3a90e825fcce04288dace3235f80",
+    "targetBranch": "main",
+    "outcome": "Record remaining autonomy work and document delivered capabilities and local Registry contract",
+    "nonGoals": ["No runtime or dependency changes", "No external coordination or secret access"],
+    "complexity": "XS",
+    "estimatedMinutes": 10,
+"budgets": {"maxImplementationFiles": 5, "maxAffectedComponents": 2, "maxPublicInterfaceChanges": 0, "maxRuntimeDependencies": 0},
+    "architecture": {"status": "accepted", "decision": "Keep status and integration contract in Markdown; track executable work as follow-up TODO items", "components": [{"name": "project-documentation", "paths": ["TODO.md", "docs/**"]}], "responsibilityChanges": false, "interfaceChanges": [], "dataChanges": [], "ui": {"impact": "none", "states": [], "evidence": []}, "rollback": "Revert the documentation commit."},
+    "runtimeDependencies": [],
+    "validation": [{"criterion": "AC-02", "commands": ["./project/governance-check.sh"], "evidence": "Governance gate passes."}, {"criterion": "AC-03", "commands": ["test -f docs/autonomy-status.md", "test -f docs/registry-integration.md"], "evidence": "Documentation files exist."}]
+  }
+}
