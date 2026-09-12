@@ -15,52 +15,75 @@ def ask(prompt, dry_run) -> None:
     _handle_natural_command(prompt, dry_run)
 
 
-# Heuristic keyword mappings for common commands
-_ACTION_KEYWORDS = {
-    # Docker actions - "wylacz wszystkie" = usun wszystkie kontenery
-    ("wylacz", "wyłącz"): "docker ps -aq | xargs -r docker rm -f",
-    ("stop", "zatrzymaj"): "docker ps -aq | xargs -r docker stop",
-    ("usun", "rm", "remove", "delete", "usuń"): "docker ps -aq | xargs -r docker rm -f",
-    # System actions
-    ("scan", "diagnostyka", "zlap", "bledy", "errors"): ("fixos", ["scan"]),
-    ("fix", "napraw", "naprawa"): ("fixos", ["fix"]),
-    # Other - handled specially
-    ("lista", "list", "ps", "pokaz", "pokaż"): None,
-}
-
-
-_OBJECT_KEYWORDS: list[tuple[list[str], tuple]] = [
-    (["docker", "kontener", "container"], ("docker", ["ps", "-aq"])),
-    (["audio", "dzwięk", "sound"], ("fixos", ["fix", "--modules", "audio"])),
-    (["siec", "network", "internet"], ("fixos", ["scan", "--modules", "system"])),
-    (["bezpieczenstwo", "security"], ("fixos", ["scan", "--modules", "security"])),
-]
-
-
-def _object_based_match(prompt_lower: str) -> object | None:
-    """Fallback object-based matching when no action keyword is found."""
-    for keywords, cmd in _OBJECT_KEYWORDS:
-        if any(kw in prompt_lower for kw in keywords):
-            return cmd
-    return None
-
-
 def _match_heuristic_command(prompt_lower: str) -> object | None:
     """
     Match user prompt against heuristic keyword mappings.
-
     Returns:
         - str: Direct shell command
         - tuple: (program, args) for subprocess
         - None: No match found
     """
-    for keywords, cmd in _ACTION_KEYWORDS.items():
-        if any(kw in prompt_lower for kw in keywords):
-            if cmd is not None:
-                return cmd
-            if "docker" in prompt_lower or "kontener" in prompt_lower:
-                return ("docker", ["ps", "-a"])
-    return _object_based_match(prompt_lower)
+    is_docker = any(
+        kw in prompt_lower
+        for kw in ["docker", "kontener", "kontenery", "container", "containers"]
+    )
+    is_audio = any(
+        kw in prompt_lower
+        for kw in [
+            "audio",
+            "dzwiek",
+            "dzwięk",
+            "dźwięk",
+            "sound",
+            "glosnik",
+            "głośnik",
+            "mikrofon",
+        ]
+    )
+    is_network = any(
+        kw in prompt_lower
+        for kw in ["siec", "sieć", "network", "internet", "wifi", "eth0", "wlan"]
+    )
+    is_security = any(
+        kw in prompt_lower
+        for kw in ["bezpieczenstwo", "bezpieczeństwo", "security", "firewall", "porty"]
+    )
+
+    # 1. Docker-specific actions
+    if is_docker:
+        if any(kw in prompt_lower for kw in ["wylacz", "wyłącz", "usun", "usuń", "rm", "remove", "delete"]):
+            return "docker ps -aq | xargs -r docker rm -f"
+        if any(kw in prompt_lower for kw in ["stop", "zatrzymaj"]):
+            return "docker ps -aq | xargs -r docker stop"
+        if any(kw in prompt_lower for kw in ["lista", "list", "ps", "pokaz", "pokaż"]):
+            return ("docker", ["ps", "-a"])
+        return ("docker", ["ps", "-aq"])
+
+    # 2. Audio-specific actions
+    if is_audio:
+        if any(kw in prompt_lower for kw in ["fix", "napraw", "naprawa"]):
+            return ("fixos", ["fix", "--modules", "audio"])
+        return ("fixos", ["scan", "--modules", "audio"])
+
+    # 3. Network-specific actions
+    if is_network:
+        if any(kw in prompt_lower for kw in ["fix", "napraw", "naprawa"]):
+            return ("fixos", ["fix", "--modules", "system"])
+        return ("fixos", ["scan", "--modules", "system"])
+
+    # 4. Security-specific actions
+    if is_security:
+        if any(kw in prompt_lower for kw in ["fix", "napraw", "naprawa"]):
+            return ("fixos", ["fix", "--modules", "security"])
+        return ("fixos", ["scan", "--modules", "security"])
+
+    # 5. General system actions (when no specific domain is targeted)
+    if any(kw in prompt_lower for kw in ["scan", "diagnostyka", "zlap", "bledy", "błędy", "errors"]):
+        return ("fixos", ["scan"])
+    if any(kw in prompt_lower for kw in ["fix", "napraw", "naprawa"]):
+        return ("fixos", ["fix"])
+
+    return None
 
 
 def _format_command(matched_cmd: object) -> str:
@@ -168,8 +191,12 @@ def _execute_with_llm(prompt: str, dry_run: bool, cfg) -> None:
         llm = LLMClient(cfg)
 
         # Prompt for command generation
-        llm_prompt = f"""Jesteś asystentem CLI. Użytkownik wpisał: '{prompt}'
-Wybierz najlepszą komendę systemową Linux do wykonania.
+        llm_prompt = f"""Jesteś asystentem CLI fixOS. Użytkownik wpisał: '{prompt}'
+Wybierz najlepszą, bezpieczną komendę systemową Linux do wykonania.
+ZASADY BEZPIECZEŃSTWA:
+- NIGDY nie proponuj poleceń usuwania pakietów ani autoremove (np. 'apt autoremove'), chyba że użytkownik wprost o to poprosił.
+- NIGDY nie proponuj poleceń destrukcyjnych kasujących dane użytkownika lub środowisko IDE.
+- Preferuj polecenia diagnostyczne lub sprawdzające stan.
 Odpowiedz TYLKO komendą (bez żadnego dodatkowego tekstu).
 Przykłady:
 - "wyłącz docker" → docker ps -aq | xargs -r docker stop
@@ -191,6 +218,37 @@ Przykłady:
             click.echo(yaml.dump(output, default_flow_style=False, allow_unicode=True))
             return
 
+        # Safety validation: check for dangerous commands
+        from fixos.platform_utils import is_dangerous, is_interactive_blocker
+
+        danger = is_dangerous(cmd_str)
+        if danger:
+            output = _build_output_dict(
+                status="blocked",
+                prompt=prompt,
+                source="llm",
+                command=cmd_str,
+                reason="dangerous_command",
+                message=f"Zablokowano niebezpieczną komendę: {danger}",
+                llm=llm_provider,
+            )
+            click.echo(yaml.dump(output, default_flow_style=False, allow_unicode=True))
+            return
+
+        blocker = is_interactive_blocker(cmd_str)
+        if blocker:
+            output = _build_output_dict(
+                status="blocked",
+                prompt=prompt,
+                source="llm",
+                command=cmd_str,
+                reason="interactive_blocker",
+                message=f"Komenda wymaga sesji interaktywnej: {blocker}",
+                llm=llm_provider,
+            )
+            click.echo(yaml.dump(output, default_flow_style=False, allow_unicode=True))
+            return
+
         if dry_run:
             output = _build_output_dict(
                 status="dry_run",
@@ -201,6 +259,60 @@ Przykłady:
             )
             click.echo(yaml.dump(output, default_flow_style=False, allow_unicode=True))
             return
+
+        # Safety: modifying commands require confirmation in interactive session or are blocked non-interactively
+        import sys
+
+        modifying_keywords = [
+            "sudo",
+            "rm ",
+            "apt",
+            "dnf",
+            "pacman",
+            "systemctl",
+            "kill",
+            "pip uninstall",
+        ]
+        is_modifying = any(kw in cmd_str.lower() for kw in modifying_keywords)
+
+        if is_modifying:
+            if sys.stdin.isatty():
+                click.echo(
+                    click.style(
+                        f"\n⚠️  Wygenerowano komendę modyfikującą system:\n   {cmd_str}\n",
+                        fg="yellow",
+                        bold=True,
+                    )
+                )
+                if not click.confirm(
+                    "Czy na pewno chcesz wykonać to polecenie?", default=False
+                ):
+                    output = _build_output_dict(
+                        status="cancelled",
+                        prompt=prompt,
+                        source="llm",
+                        command=cmd_str,
+                        message="Anulowano przez użytkownika",
+                        llm=llm_provider,
+                    )
+                    click.echo(
+                        yaml.dump(output, default_flow_style=False, allow_unicode=True)
+                    )
+                    return
+            else:
+                output = _build_output_dict(
+                    status="blocked",
+                    prompt=prompt,
+                    source="llm",
+                    command=cmd_str,
+                    reason="requires_confirmation",
+                    message="Komenda modyfikująca system wymaga interaktywnego potwierdzenia użytkownika.",
+                    llm=llm_provider,
+                )
+                click.echo(
+                    yaml.dump(output, default_flow_style=False, allow_unicode=True)
+                )
+                return
 
         # Execute the generated command
         result = subprocess.run(cmd_str, capture_output=True, text=True, shell=True)
@@ -298,6 +410,15 @@ Przykłady:
         check_cmd = check_cmd.strip("`").strip()
 
         if not check_cmd or len(check_cmd) <= 2:
+            return
+
+        # Verification command must be strictly read-only and safe
+        from fixos.platform_utils import is_dangerous
+
+        if is_dangerous(check_cmd) or any(
+            bad in check_cmd.lower()
+            for bad in ["sudo", "rm ", "apt", "dnf", "pacman", "kill", "mkfs", "dd "]
+        ):
             return
 
         # Execute check command

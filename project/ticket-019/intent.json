@@ -1,0 +1,77 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-019",
+  "summary": "Fix CLI command typo detection and execution safety",
+  "workstream": "application",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P1",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-019/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/cli/shared.py",
+    "fixos/cli/ask_cmd.py",
+    "tests/unit/test_ask_and_nl_group.py"
+  ],
+  "forbiddenPaths": ["project/ticket-*/user-*.md"],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "cf1737e5beea6c33f24620d5e12707ca8399abef",
+    "targetBranch": "main",
+    "outcome": "Catch CLI typos (e.g. cleanuo -> cleanup) instead of sending to LLM; fix heuristic command matching and add execution safety to ask command",
+    "nonGoals": [
+      "Do not remove natural language capabilities when explicitly requested",
+      "Do not alter core diagnostics"
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 15,
+    "budgets": {
+      "maxImplementationFiles": 5,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Add fuzzy typo matching in NaturalLanguageGroup, refine heuristic matching, and add danger/interactive checks in ask_cmd",
+      "components": [
+        {
+          "name": "fixos-cli",
+          "paths": ["fixos/cli/shared.py", "fixos/cli/ask_cmd.py"]
+        },
+        {
+          "name": "fixos-tests",
+          "paths": ["tests/unit/test_ask_and_nl_group.py"]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the commit on ticket-019 branch."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": ["pytest tests/unit/test_ask_and_nl_group.py"],
+        "evidence": "All CLI typo and safety tests pass."
+      },
+      {
+        "criterion": "AC-02",
+        "commands": ["./project/governance-check.sh"],
+        "evidence": "Governance check passes with 0 errors."
+      }
+    ]
+  }
+}
