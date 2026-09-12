@@ -6,6 +6,7 @@ Weryfikuje działanie na różnych dystrybucjach Linux.
 import subprocess
 import sys
 import os
+from pathlib import Path
 import pytest
 
 # Sprawdź czy jesteśmy w trybie testowym Docker
@@ -78,8 +79,12 @@ class TestCliCommands:
 
     @pytest.fixture
     def fixos_path(self):
-        """Znajdź ścieżkę do fixos."""
+        """Prefer the launcher belonging to the interpreter running pytest."""
         import shutil
+
+        interpreter_launcher = Path(sys.executable).with_name("fixos")
+        if interpreter_launcher.is_file() and os.access(interpreter_launcher, os.X_OK):
+            return str(interpreter_launcher)
 
         path = shutil.which("fixos")
         if not path:

@@ -8,11 +8,15 @@ ticket: ticket-021
 
 ## Understanding
 
-To be completed after reading human-owned input and the ticket preprompt.
+The remaining two full-suite failures came from `shutil.which("fixos")`
+selecting a global launcher whose interpreter could not import the checkout.
+User authorized continuation, merge and testing.
 
 ## Execution plan
 
 1. Validate the ticket scope and acceptance evidence before implementation.
+2. Prefer the launcher next to `sys.executable` in the e2e fixture.
+3. Run focused, full and governance checks, then publish the exact tested HEAD.
 
 ## Actual changes
 

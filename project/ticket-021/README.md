@@ -8,11 +8,17 @@
 
 ## Goal and scope
 
-To be completed from human-owned input.
+Testy e2e CLI nie powinny wybierać przypadkowego globalnego launchera
+`fixos`, gdy uruchomiono je w środowisku virtualenv repozytorium. Fixture ma
+preferować executable znajdujący się obok `sys.executable`, a dopiero potem
+szukać go w `PATH`.
 
 ## Acceptance criteria
 
-- [ ] AC-01: Scope is approved by a human owner.
+- [x] AC-01: Zakres autoryzowany żądaniem użytkownika „kontynuuj, merguj,
+  testuj” z 2026-09-12 (`SESSION_EXECUTION_AUTHORIZATION`).
+- [ ] AC-02: Testy CLI e2e przechodzą z launcherem aktywnego interpretera.
+- [ ] AC-03: Governance i pełny suite przechodzą.
 
 ## Participants
 

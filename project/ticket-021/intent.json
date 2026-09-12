@@ -8,10 +8,27 @@
     "priority": "P2",
     "origin": "health"
   },
-  "allowedPaths": ["project/ticket-021/**", "TODO.md", "project/TICKETS.md"],
+  "allowedPaths": [
+    "project/ticket-021/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "tests/e2e/test_multi_system.py"
+  ],
   "forbiddenPaths": ["project/ticket-*/user-*.md"],
   "stacks": [],
   "dependsOn": [],
   "conflictsWith": [],
-  "integrationTicket": null
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "7d1f4fbf3d3c2499493de28cfd16d982f792f1fa",
+    "targetBranch": "main",
+    "outcome": "Make CLI e2e tests use the launcher from the active test interpreter",
+    "nonGoals": ["No runtime behavior changes", "No dependency changes"],
+    "complexity": "XS",
+    "estimatedMinutes": 10,
+    "budgets": {"maxImplementationFiles": 1, "maxAffectedComponents": 1, "maxPublicInterfaceChanges": 0, "maxRuntimeDependencies": 0},
+    "architecture": {"status": "accepted", "decision": "Resolve the console launcher next to sys.executable before falling back to PATH", "components": [{"name": "e2e-cli-fixture", "paths": ["tests/e2e/test_multi_system.py"]}], "responsibilityChanges": false, "interfaceChanges": [], "dataChanges": [], "ui": {"impact": "none", "states": [], "evidence": []}, "rollback": "Revert the ticket commit."},
+    "runtimeDependencies": [],
+    "validation": [{"criterion": "AC-02", "commands": [".venv/bin/python -m pytest -q tests/e2e/test_multi_system.py"], "evidence": "CLI e2e tests use the active interpreter launcher."}, {"criterion": "AC-03", "commands": ["./project/governance-check.sh"], "evidence": "Governance gate passes."}]
+  }
 }
