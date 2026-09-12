@@ -3,7 +3,7 @@
 - **ID**: ticket-019
 - **Owner**: unresolved:human
 - **Status**: IN_PROGRESS
-- **Workflow state**: EDIT
+- **Workflow state**: PUBLICATION
 - **Created**: 2026-09-12
 
 ## Goal and scope
@@ -11,6 +11,7 @@
 Detect and intercept CLI command typos (e.g. `cleanuo` -> `cleanup`) before forwarding to the LLM.
 Improve command routing in `NaturalLanguageGroup` and heuristic matching in `ask_cmd.py` (prevent accidental Docker stops/removals).
 Add execution safety checks (`is_dangerous`, interactive confirmation for system modifications) to prevent destructive commands from running without approval.
+Add interactive shell (REPL) and quick menu with TAB completion and command history for seamless user experience.
 
 ## Acceptance criteria
 
@@ -18,7 +19,8 @@ Add execution safety checks (`is_dangerous`, interactive confirmation for system
 - [x] AC-02: Heuristic matching in `ask_cmd` only targets Docker when docker keywords are present, and properly routes module-specific repairs (e.g. audio).
 - [x] AC-03: Generated LLM commands check `is_dangerous` and prompt for confirmation on modifying actions in interactive sessions.
 - [x] AC-04: Automated tests verify typo interception, heuristic matching, and safety guards.
-- [x] AC-05: `./project/governance-check.sh` passes.
+- [x] AC-05: Interactive shell (REPL) and quick menu with TAB completion implemented and tested.
+- [x] AC-06: `./project/governance-check.sh` passes.
 
 ## Participants
 
