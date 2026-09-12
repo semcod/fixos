@@ -8,10 +8,13 @@ Ostatni przegląd: 2026-07-23.
 
 ## Aktywne
 
-- [ ] Dostarczyć [ticket-019](project/ticket-019/README.md): wychwytywanie
+- [x] Dostarczyć [ticket-019](project/ticket-019/README.md): wychwytywanie
   literówek w poleceniach CLI (np. `cleanuo` -> `cleanup`), poprawa routingu
   języka naturalnego, doprecyzowanie heurystyk i zabezpieczenie wykonania
-  poleceń LLM (`is_dangerous`, potwierdzenie interaktywne). Stan: `IN_PROGRESS / EDIT`.
+  poleceń LLM (`is_dangerous`, potwierdzenie interaktywne). Stan: `DONE / DONE`;
+  dokładny HEAD `2d1faa5...` przeszedł pomyślnie wszystkie testy CI (Python 3.10/3.11/3.12,
+  Multi-System Docker i governance), scalił PR #37 jako `f0a3d1c...`
+  i usunął zdalną gałąź ticketu.
 
 - [x] Dostarczyć [ticket-017](project/ticket-017/README.md): zachować logikę
   diagnostyczną przez stabilne aliasy ścieżek, adresów i identyfikatorów,
