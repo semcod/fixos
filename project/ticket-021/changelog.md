@@ -9,3 +9,7 @@
 
 - Prefer the active pytest interpreter's `fixos` launcher in multi-system CLI
   tests, avoiding unrelated global installations.
+
+## [0.3.0] - 2026-09-12
+
+- Closed ticket-021 after exact-head merge and successful integrated testing.

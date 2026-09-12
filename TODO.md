@@ -8,6 +8,11 @@ Ostatni przegląd: 2026-07-23.
 
 ## Aktywne
 
+- [x] Dostarczyć [ticket-021](project/ticket-021/README.md): ustabilizować
+  launcher CLI w testach e2e przez preferowanie executable aktywnego
+  interpretera. Stan: `DONE / DONE`; exact HEAD `ded18b7...` scalony do
+  `main`, pełny suite przeszedł.
+
 - [x] Dostarczyć [ticket-019](project/ticket-019/README.md): wychwytywanie
   literówek w poleceniach CLI (np. `cleanuo` -> `cleanup`), poprawa routingu
   języka naturalnego, doprecyzowanie heurystyk i zabezpieczenie wykonania

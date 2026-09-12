@@ -2,8 +2,8 @@
 
 - **ID**: ticket-021
 - **Owner**: unresolved:human
-- **Status**: IN_PROGRESS
-- **Workflow state**: EDIT
+- **Status**: DONE
+- **Workflow state**: DONE
 - **Created**: 2026-09-12
 
 ## Goal and scope
@@ -17,8 +17,9 @@ szukać go w `PATH`.
 
 - [x] AC-01: Zakres autoryzowany żądaniem użytkownika „kontynuuj, merguj,
   testuj” z 2026-09-12 (`SESSION_EXECUTION_AUTHORIZATION`).
-- [ ] AC-02: Testy CLI e2e przechodzą z launcherem aktywnego interpretera.
-- [ ] AC-03: Governance i pełny suite przechodzą.
+- [x] AC-02: Testy CLI e2e przechodzą z launcherem aktywnego interpretera.
+- [x] AC-03: Governance i pełny suite przechodzą na exact HEAD `ded18b7...`;
+  wynik: 596 passed, 5 skipped, 16 deselected.
 
 ## Participants
 

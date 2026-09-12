@@ -22,6 +22,12 @@ User authorized continuation, merge and testing.
 
 - Initialized the bounded ticket and recorded SESSION_EXECUTION_AUTHORIZATION
   from the request to execute this work.
+- Updated `tests/e2e/test_multi_system.py` to prefer the launcher beside
+  `sys.executable`, eliminating failures caused by unrelated global installs.
+- Focused e2e tests passed 13/13 with 2 environment skips; the integrated full
+  suite passed 596 tests with 5 skips and 16 deselected.
+- Published and merged exact HEAD `ded18b7...` to `main`, then removed the
+  merged worktree and branch.
 
 ## Blockers
 
