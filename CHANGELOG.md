@@ -80,6 +80,34 @@
   rekurencyjnych skanów `/` oraz `/home` z szybkich kontroli.
 - Czyszczenie cache JetBrains trafia w aktualną ścieżkę i wymaga zamknięcia IDE.
 
+## [2.2.48] - 2026-09-12
+
+### Docs
+- Update TODO.md
+- Update docs/autonomy-status.md
+- Update docs/registry-integration.md
+- Update project/TICKETS.md
+- Update project/ticket-018/README.md
+- Update project/ticket-018/ai-codex.md
+- Update project/ticket-018/changelog.md
+- Update project/ticket-018/preprompt.md
+- Update project/ticket-020/README.md
+- Update project/ticket-020/ai-codex.md
+- ... and 2 more files
+
+### Test
+- Update tests/unit/test_ask_and_nl_group.py
+
+### Other
+- Update fixos/cli/ask_cmd.py
+- Update fixos/cli/main.py
+- Update fixos/cli/shared.py
+- Update fixos/cli/shell_cmd.py
+- Update project/ticket-018/ai-codex-logs.txt
+- Update project/ticket-018/intent.json
+- Update project/ticket-020/ai-codex-logs.txt
+- Update project/ticket-020/intent.json
+
 ## [2.2.48] - 2026-09-01
 
 ### Docs
