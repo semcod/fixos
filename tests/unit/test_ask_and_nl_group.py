@@ -202,11 +202,12 @@ class TestInteractiveShell:
             assert "Do widzenia" in output
 
     def test_shell_shortcut_runs_command(self):
+        from fixos.cli.main import cli
         from fixos.cli.shell_cmd import run_interactive_shell
 
         # User chooses "7" (config show), then "q"
-        with patch("prompt_toolkit.PromptSession.prompt", side_effect=["7", "q"]), patch(
-            "fixos.cli.main.cli.main"
+        with patch("prompt_toolkit.PromptSession.prompt", side_effect=["7", "q"]), patch.object(
+            cli, "main"
         ) as mock_cli_main:
             run_interactive_shell(None)
             assert mock_cli_main.called
