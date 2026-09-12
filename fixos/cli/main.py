@@ -17,13 +17,22 @@ from fixos.config import FixOsConfig
     default=False,
     help="Symuluj bez wykonania (dla komend naturalnych)",
 )
+@click.option(
+    "--interactive/--no-interactive",
+    "-i",
+    "interactive_mode",
+    default=None,
+    help="Uruchom interaktywny shell przy wywołaniu bez podkomendy",
+)
 @click.option("--version", "-v", is_flag=True, default=False, help="Pokaż wersję fixos")
-def cli(ctx, dry_run, version) -> None:
+def cli(ctx, dry_run, interactive_mode, version) -> None:
     """
     fixos – AI-powered diagnostyka i naprawa Linux, Windows, macOS.
 
     \b
     Szybki start:
+      fixos                       # interaktywne menu i shell w terminalu
+      fixos shell                 # dedykowany interaktywny shell (REPL)
       fixos quick                 # wynik w kilka sekund, bez LLM
       fixos token set AIzaSy...   # opcjonalnie: zapisz token Gemini
       fixos fix                   # pogłębiona diagnostyka + naprawa
@@ -45,6 +54,16 @@ def cli(ctx, dry_run, version) -> None:
 
     if ctx.invoked_subcommand is None:
         _print_welcome()
+        import sys
+
+        is_tty = sys.stdin.isatty() if hasattr(sys.stdin, "isatty") else False
+        should_run_interactive = (
+            interactive_mode is True or (interactive_mode is None and is_tty)
+        )
+        if should_run_interactive:
+            from fixos.cli.shell_cmd import run_interactive_shell
+
+            run_interactive_shell(ctx)
 
 
 def _print_welcome() -> None:
@@ -67,6 +86,7 @@ def _print_welcome() -> None:
     click.echo()
 
     commands = [
+        ("fixos shell", "", "Interaktywny shell z autouzupełnianiem TAB i menu"),
         ("fixos quick", "", "Szybki wynik bez LLM + trend CPU/RAM/dysku"),
         ("fixos fix", "", "Diagnostyka + sesja naprawcza z AI (HITL)"),
         ("fixos scan", "", "Diagnostyka systemu bez AI"),
@@ -240,7 +260,9 @@ from fixos.cli.projects_cmd import projects_cmd
 from fixos.cli.features_cmd import features
 from fixos.cli.quick_cmd import quick
 from fixos.cli.jetbrains_cmd import jetbrains
+from fixos.cli.shell_cmd import shell_cmd
 
+cli.add_command(shell_cmd, name="shell")
 cli.add_command(quick)
 cli.add_command(rollback)
 cli.add_command(watch)

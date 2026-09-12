@@ -8,6 +8,11 @@ Ostatni przegląd: 2026-07-23.
 
 ## Aktywne
 
+- [ ] Dostarczyć [ticket-019](project/ticket-019/README.md): wychwytywanie
+  literówek w poleceniach CLI (np. `cleanuo` -> `cleanup`), poprawa routingu
+  języka naturalnego, doprecyzowanie heurystyk i zabezpieczenie wykonania
+  poleceń LLM (`is_dangerous`, potwierdzenie interaktywne). Stan: `IN_PROGRESS / EDIT`.
+
 - [x] Dostarczyć [ticket-017](project/ticket-017/README.md): zachować logikę
   diagnostyczną przez stabilne aliasy ścieżek, adresów i identyfikatorów,
   utrzymując surową mapę wyłącznie lokalnie oraz weryfikując brak regresji na

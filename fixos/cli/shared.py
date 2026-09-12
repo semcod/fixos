@@ -105,11 +105,98 @@ def add_shared_options(func) -> object:
 
 
 class NaturalLanguageGroup(click.Group):
-    """Click group that routes unknown commands to 'ask' command."""
+    """
+    Click group that intelligently handles typos and routes natural language commands to 'ask'.
+    """
+
+    # Common action keywords that indicate a natural language prompt even if a single word
+    _NL_ACTION_KEYWORDS = {
+        "wylacz",
+        "wyłącz",
+        "wlacz",
+        "włącz",
+        "zatrzymaj",
+        "usun",
+        "usuń",
+        "napraw",
+        "naprawa",
+        "zbadaj",
+        "sprawdz",
+        "sprawdź",
+        "pokaz",
+        "pokaż",
+        "znajdz",
+        "znajdź",
+        "wyczysc",
+        "wyczyść",
+        "start",
+        "stop",
+        "kill",
+        "rm",
+        "delete",
+        "clean",
+        "fix",
+        "scan",
+        "show",
+        "find",
+        "list",
+    }
 
     def resolve_command(self, ctx, args) -> tuple[str, click.Command, list[str]]:
+        import difflib
+        import sys
+
         cmd_name = args[0] if args else None
         cmd = self.get_command(ctx, cmd_name) if cmd_name else None
-        if cmd is None and args and not args[0].startswith("-"):
+
+        if cmd is None and ctx.token_normalize_func is not None and cmd_name:
+            norm_name = ctx.token_normalize_func(cmd_name)
+            cmd = self.get_command(ctx, norm_name)
+            if cmd is not None:
+                cmd_name = norm_name
+
+        if cmd is not None or not args or args[0].startswith("-"):
+            return super().resolve_command(ctx, args)
+
+        # 1. Check for command typos using fuzzy matching
+        all_commands = self.list_commands(ctx)
+        matches = difflib.get_close_matches(cmd_name, all_commands, n=3, cutoff=0.6)
+
+        if matches:
+            best_match = matches[0]
+            # If running in an interactive terminal, offer to run the matched command
+            if sys.stdin.isatty() and not getattr(ctx, "resilient_parsing", False):
+                try:
+                    if click.confirm(
+                        click.style(
+                            f"Nieznana komenda '{cmd_name}'. Czy chodziło o '{best_match}'?",
+                            fg="yellow",
+                        ),
+                        default=True,
+                    ):
+                        return super().resolve_command(ctx, [best_match] + list(args[1:]))
+                except (click.Abort, EOFError):
+                    pass
+            # In non-interactive mode or if rejected, fail cleanly with typo suggestion
+            raise click.exceptions.NoSuchCommand(
+                cmd_name, possibilities=all_commands, ctx=ctx
+            )
+
+        # 2. Check if this is a genuine natural language command:
+        # - multiple arguments: e.g. `fixos wylacz kontenery`
+        # - argument contains spaces: e.g. `fixos "wylacz wszystkie kontenery"`
+        # - single word matches known natural language action keywords
+        is_natural_language = (
+            len(args) > 1
+            or " " in cmd_name
+            or cmd_name.lower() in self._NL_ACTION_KEYWORDS
+        )
+
+        if is_natural_language:
             return super().resolve_command(ctx, ["ask"] + args)
-        return super().resolve_command(ctx, args)
+
+        # 3. Otherwise, unrecognized single token that is not NL nor a close match
+        raise click.exceptions.NoSuchCommand(
+            cmd_name, possibilities=all_commands, ctx=ctx
+        )
+
