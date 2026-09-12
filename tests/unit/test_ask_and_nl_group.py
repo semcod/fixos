@@ -157,3 +157,59 @@ class TestAskSafety:
                 combined = " ".join(calls)
                 assert "blocked" in combined
                 assert "requires_confirmation" in combined
+
+
+class TestInteractiveShell:
+    """Test interactive shell (REPL) and quick menu."""
+
+    def test_shell_help(self, runner):
+        result = runner.invoke(cli, ["shell", "--help"])
+        assert result.exit_code == 0
+        assert "shell" in result.output.lower()
+
+    def test_command_completer_has_key_commands(self):
+        from fixos.cli.shell_cmd import get_command_completer
+
+        completer = get_command_completer()
+        words = list(completer.options.keys())
+        assert "quick" in words
+        assert "cleanup" in words
+        assert "fix" in words
+        assert "scan" in words
+        assert "jetbrains" in words
+        assert "ask" in words
+        assert "config" in words
+
+    def test_print_interactive_menu_shows_options(self):
+        from fixos.cli.shell_cmd import print_interactive_menu
+
+        with patch("click.echo") as mock_echo:
+            print_interactive_menu()
+            output = " ".join(str(call) for call in mock_echo.call_args_list)
+            assert "FIXOS INTERACTIVE SHELL" in output
+            assert "quick" in output
+            assert "cleanup" in output
+            assert "fix" in output
+
+    def test_shell_loop_exit_on_q(self):
+        from fixos.cli.shell_cmd import run_interactive_shell
+
+        with patch("prompt_toolkit.PromptSession.prompt", side_effect=["q"]), patch(
+            "click.echo"
+        ) as mock_echo:
+            run_interactive_shell(None)
+            output = " ".join(str(call) for call in mock_echo.call_args_list)
+            assert "Do widzenia" in output
+
+    def test_shell_shortcut_runs_command(self):
+        from fixos.cli.shell_cmd import run_interactive_shell
+
+        # User chooses "7" (config show), then "q"
+        with patch("prompt_toolkit.PromptSession.prompt", side_effect=["7", "q"]), patch(
+            "fixos.cli.main.cli.main"
+        ) as mock_cli_main:
+            run_interactive_shell(None)
+            assert mock_cli_main.called
+            called_args = mock_cli_main.call_args_list[0][0][0]
+            assert called_args == ["config", "show"]
+

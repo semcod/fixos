@@ -14,6 +14,8 @@
     "project/TICKETS.md",
     "fixos/cli/shared.py",
     "fixos/cli/ask_cmd.py",
+    "fixos/cli/shell_cmd.py",
+    "fixos/cli/main.py",
     "tests/unit/test_ask_and_nl_group.py"
   ],
   "forbiddenPaths": ["project/ticket-*/user-*.md"],
@@ -24,13 +26,13 @@
   "delivery": {
     "acceptedBaseSha": "cf1737e5beea6c33f24620d5e12707ca8399abef",
     "targetBranch": "main",
-    "outcome": "Catch CLI typos (e.g. cleanuo -> cleanup) instead of sending to LLM; fix heuristic command matching and add execution safety to ask command",
+    "outcome": "Catch CLI typos, add interactive shell/menu with tab completion, fix heuristic matching, and add execution safety",
     "nonGoals": [
       "Do not remove natural language capabilities when explicitly requested",
       "Do not alter core diagnostics"
     ],
     "complexity": "S",
-    "estimatedMinutes": 15,
+    "estimatedMinutes": 20,
     "budgets": {
       "maxImplementationFiles": 5,
       "maxAffectedComponents": 2,
@@ -39,11 +41,11 @@
     },
     "architecture": {
       "status": "accepted",
-      "decision": "Add fuzzy typo matching in NaturalLanguageGroup, refine heuristic matching, and add danger/interactive checks in ask_cmd",
+      "decision": "Add fuzzy typo matching in NaturalLanguageGroup, interactive REPL shell with tab completion and quick menu, and execution safety checks in ask_cmd",
       "components": [
         {
           "name": "fixos-cli",
-          "paths": ["fixos/cli/shared.py", "fixos/cli/ask_cmd.py"]
+          "paths": ["fixos/cli/shared.py", "fixos/cli/ask_cmd.py", "fixos/cli/shell_cmd.py", "fixos/cli/main.py"]
         },
         {
           "name": "fixos-tests",
