@@ -1,0 +1,53 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-024",
+  "summary": "Odświeżanie konfiguracji endpointów po zmianie DNS lub IP",
+  "workstream": "application",
+  "classification": {
+    "kind": "FEATURE",
+    "priority": "P2",
+    "origin": "health"
+  },
+  "allowedPaths": ["project/ticket-024/**", "TODO.md", "project/TICKETS.md", "fixos/**", "tests/**"],
+  "forbiddenPaths": ["project/ticket-*/user-*.md"],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "5b765f5197dcc27374f1568a33e76d19aec4ecb3",
+    "targetBranch": "main",
+    "outcome": "FixOsConfig automatically observes DNS-backed provider endpoints, reports address changes and preserves the last known in-process observation during transient DNS failures without rewriting secrets or replacing hostnames with IP literals.",
+    "nonGoals": [
+      "No external DNS, Plesk or server mutation.",
+      "No API key, endpoint cache or other persistent data.",
+      "No health-check requests or public API compatibility break."
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 25,
+    "budgets": {
+      "maxImplementationFiles": 5,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Resolve the configured URL hostname at configuration-load time and retain only a process-local observation. Keep the configured hostname as the client URL so DNS changes are picked up by the network stack and TLS identity is preserved; use stale observations only for diagnostics when DNS is temporarily unavailable.",
+      "components": [
+        {"name": "endpoint-observation", "paths": ["fixos/endpoint_refresh.py"]},
+        {"name": "configuration-integration", "paths": ["fixos/config.py", "tests/unit/test_endpoint_refresh.py"]}
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {"impact": "none", "states": [], "evidence": []},
+      "rollback": "Revert the ticket commit; existing endpoint environment variables and client URL behavior remain unchanged."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {"criterion": "AC-02", "commands": ["python -m pytest -q tests/unit/test_endpoint_refresh.py", "ruff check fixos/endpoint_refresh.py fixos/config.py tests/unit/test_endpoint_refresh.py", "python -m compileall -q fixos tests/unit/test_endpoint_refresh.py"], "evidence": "7 focused tests passed; Ruff and compileall passed."},
+      {"criterion": "AC-03", "commands": ["./project/governance-check.sh --actor agent", "python -m pytest -q"], "evidence": "GOV-PASS; 601 passed, 5 skipped, 2 failed, 16 deselected. Both failures are the known global miniconda3/bin/fixos import defect, not endpoint-refresh regressions."}
+    ]
+  }
+}

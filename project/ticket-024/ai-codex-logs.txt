@@ -1,0 +1,5 @@
+2026-09-14 — SESSION_EXECUTION_AUTHORIZATION
+User requested continuation of the endpoint-refresh implementation. Scope is
+limited to local FixOS behavior, tests and ticket evidence. DNS/Plesk changes,
+secret access, external mutation and trusted merge approval remain outside the
+ticket authority.

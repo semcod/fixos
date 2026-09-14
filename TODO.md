@@ -8,6 +8,12 @@ Ostatni przegląd: 2026-07-23.
 
 ## Aktywne
 
+- [ ] Dostarczyć [ticket-024](project/ticket-024/README.md): automatycznie
+  obserwować DNS-backed endpoint providera przy ładowaniu konfiguracji i
+  sygnalizować zmianę adresu bez zapisywania sekretów ani trwałego cache'u.
+  Stan: `IN_PROGRESS / EDIT`; plan i intent są zatwierdzone przed zmianami
+  implementacyjnymi.
+
 - [x] Dostarczyć [ticket-018](project/ticket-018/README.md): udokumentować
   stan i pozostałe prace autonomizacji oraz lokalnego Registry. Stan:
   `DONE / DONE`; exact HEAD `771da39...` scalony do `main`, testy i governance
