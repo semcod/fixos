@@ -41,5 +41,6 @@ the configured hostname with a raw IP.
   configured hostname for the LLM client.
 - Added seven focused regression tests covering changed addresses, freshness,
   stale observations, IP literals and custom URL compatibility.
-- Focused tests, Ruff and compileall pass. The full suite retains two known
-  global-entrypoint import failures unrelated to endpoint refresh.
+- Focused tests, Ruff and compileall pass. The full suite reports `597 passed,
+  5 skipped, 6 failed, 16 deselected`; the six failures reproduce on the
+  preserved original branch and are unrelated to endpoint refresh.
