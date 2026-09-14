@@ -3,7 +3,7 @@
 - **ID**: ticket-024
 - **Owner**: unresolved:human
 - **Status**: IN_PROGRESS
-- **Workflow state**: EDIT
+- **Workflow state**: VALIDATION
 - **Created**: 2026-09-14
 
 ## Goal and scope
@@ -21,9 +21,9 @@ health-checku usługi.
 ## Acceptance criteria
 
 - [x] AC-01: Scope is approved by the user's execution request (`kontynuuj`).
-- [ ] AC-02: Resolver and process-local cache tests pass; transient DNS failure is fail-open
+- [x] AC-02: Resolver and process-local cache tests pass; transient DNS failure is fail-open
   for the existing configured endpoint and no secret is persisted.
-- [ ] AC-03: Managed governance check passes; full suite is `601 passed, 5
+- [x] AC-03: Managed governance check passes; full suite is `601 passed, 5
   skipped, 2 failed` with both failures matching the pre-existing global
   entrypoint environment defect (`miniconda3/bin/fixos` cannot import
   `fixos`).

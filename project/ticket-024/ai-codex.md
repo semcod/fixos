@@ -34,3 +34,12 @@ the configured hostname with a raw IP.
 - No secret access, external mutation or trusted merge approval is included.
 - New authority remains required for destructive action, secret access, new
   external coordination, material objective expansion and trusted merge.
+
+## Validation
+
+- Added DNS-backed observation to `FixOsConfig.load()` while preserving the
+  configured hostname for the LLM client.
+- Added seven focused regression tests covering changed addresses, freshness,
+  stale observations, IP literals and custom URL compatibility.
+- Focused tests, Ruff and compileall pass. The full suite retains two known
+  global-entrypoint import failures unrelated to endpoint refresh.
