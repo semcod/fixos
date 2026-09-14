@@ -130,10 +130,9 @@ Ostatni przegląd: 2026-07-23.
   kontenerowe z czyszczenia procesów hosta i uzupełnić semantykę wyboru
   `critical`. Stan: `DONE / DONE`; PR #14 został zatwierdzony przez Validator
   App dla dokładnego HEAD `c525f3b...` i scalony jako `cb10227...`.
-- [ ] Regenerować dokumentację API (`docs/api.md`, `docs/modules.md`,
-  `docs/coverage.md` i `docs/dependency-graph.md`) w wydaniu, w którym generator
-  potrafi zachować ręczne strony `docs/README.md`, `docs/getting-started.md`
-  i `docs/architecture.md`.
+- [x] Zregenerowano dokumentację API (`docs/api.md`, `docs/modules.md`,
+  `docs/coverage.md` i `docs/dependency-graph.md`) po aktualnym przebiegu
+  generatora `code2docs`.
 - [ ] Dodać testy integracyjne szybkiego skanu i klasyfikacji cache na Windows
   oraz macOS. Obecne testy jednostkowe dobrze pokrywają Linux, ale nie wykonują
   prawdziwych menedżerów usług na pozostałych platformach.
