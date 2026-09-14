@@ -2,8 +2,8 @@
 
 - **ID**: ticket-022
 - **Owner**: unresolved:human
-- **Status**: IN_PROGRESS
-- **Workflow state**: EDIT
+- **Status**: DONE
+- **Workflow state**: DONE
 - **Created**: 2026-09-13
 
 ## Goal and scope
@@ -20,7 +20,7 @@ documentation projections.
 
 ## Acceptance criteria
 
-- [ ] AC-01: No tracked `pyproject.toml` declares a `[tool.pfix]` table or a
+- [x] AC-01: No tracked `pyproject.toml` declares a `[tool.pfix]` table or a
   pfix requirement; every other parsed value is unchanged.
 - [ ] AC-02: Not in this ticket. `uv.lock` still lists the pfix requirement
   because `.governance/manifest.json` assigns `uv.lock` to no workstream;
