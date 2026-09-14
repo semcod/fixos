@@ -1,0 +1,80 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-023",
+  "summary": "Dostarczyć ticket-023: regeneracja dokumentacji API/modules/dependency/coverage",
+  "workstream": "integration",
+  "classification": {
+    "kind": "SERVICE",
+    "priority": "P2",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-023/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "docs/api.md",
+    "docs/modules.md",
+    "docs/coverage.md",
+    "docs/dependency-graph.md"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "51a86218274c30ecd2786d88d9d16b69c1ef3271",
+    "targetBranch": "main",
+    "outcome": "Docs pages (`docs/api.md`, `docs/modules.md`, `docs/dependency-graph.md`, `docs/coverage.md`) are refreshed by the local generator to match repository state.",
+    "nonGoals": [
+      "No source-code change.",
+      "No runtime dependency changes.",
+      "No release and no registry publish."
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 15,
+    "budgets": {
+      "maxImplementationFiles": 5,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Update integration docs for API/modules/dependency/coverage snapshots and keep manually maintained docs untouched.",
+      "components": [
+        {
+          "name": "project-documentation",
+          "paths": [
+            "docs/api.md",
+            "docs/modules.md",
+            "docs/dependency-graph.md",
+            "docs/coverage.md"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the documentation commit."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-07",
+        "commands": [
+          "./project/governance-check.sh --actor agent",
+          "python -m pytest -q"
+        ],
+        "evidence": "Governance and tests pass on ticket HEAD."
+      }
+    ]
+  }
+}

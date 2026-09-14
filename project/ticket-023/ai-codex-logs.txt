@@ -1,0 +1,13 @@
+Executed validation and regression checks for ticket-023:
+
+- `./project/governance-check.sh --actor agent`
+  - Result: GOV-PASS (0 errors, 0 warnings)
+- `python -m pytest -q`
+  - Result: 594 passed, 5 skipped, 2 failed
+  - Failures in `tests/e2e/test_multi_system.py::TestCliCommands::test_help_command`
+    and `::test_scan_help`
+  - Failure symptom: `ModuleNotFoundError: No module named 'fixos'` from
+    `bin/fixos` entrypoint on the current host; known pre-existing environment
+    isolation issue.
+
+Outcome: no regression attributable to docs regeneration.
