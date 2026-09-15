@@ -31,3 +31,10 @@
   stabilny `main`.
 - Odświeżono `acceptedBaseSha` po zmianie gałęzi docelowej; zakres i
   architektura ticketu pozostały bez zmian.
+
+## [0.4.0] - 2026-09-15
+
+- Zastąpiono 62 ścieżki z lokalnego worktree w `docs/coverage.md` stabilnymi
+  linkami źródłowymi do `main`.
+- Odświeżono bazę intentu do `979022dc...` i przygotowano zamknięcie ticketu
+  po zintegrowanym stanie domyślnej gałęzi.

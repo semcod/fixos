@@ -8,6 +8,11 @@ Ostatni przegląd: 2026-09-15.
 
 ## Aktywne
 
+- [ ] Dostarczyć [ticket-023](project/ticket-023/README.md): usunąć lokalne
+  ścieżki worktree z generowanego raportu coverage i opublikować stabilne linki
+  źródłowe. Stan: `IN_PROGRESS / PUBLICATION`; PR #56 oczekuje na exact-head
+  review i scalenie przez chroniony Validator.
+
 - [ ] Dostarczyć [ticket-025](project/ticket-025/README.md): uczynić
   `fixos cleanup` bezpiecznym — respektować `--dry-run` w trybie
   interaktywnym, raportować tylko realnie odzyskiwalne miejsce, cytować ścieżki

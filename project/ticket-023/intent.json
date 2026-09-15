@@ -25,7 +25,7 @@
   "conflictsWith": [],
   "integrationTicket": null,
   "delivery": {
-    "acceptedBaseSha": "9ad62dff53cebab3e49e343db182013e41a1445a",
+    "acceptedBaseSha": "979022dc698fa95c5ebb6d5e4eeb6abad4def547",
     "targetBranch": "main",
     "outcome": "Docs pages (`docs/api.md`, `docs/modules.md`, `docs/dependency-graph.md`, `docs/coverage.md`) are refreshed by the local generator to match repository state.",
     "nonGoals": [
