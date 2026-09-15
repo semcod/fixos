@@ -16,11 +16,11 @@ preflight ma dostarczyć szybką informację przed pełnymi testami.
 ## Acceptance criteria
 
 - [x] AC-01: Zakres jest autoryzowany poleceniem użytkownika `wykonaj`.
-- [ ] AC-02: Preflight uruchamia się przed testami w każdym runnerze macierzy
+- [x] AC-02: Preflight uruchamia się przed testami w każdym runnerze macierzy
   i sprawdza checkout, instalację, kompilację oraz kolekcję testów.
-- [ ] AC-03: Błędy są klasyfikowane jako `CHECKOUT`, `DEPENDENCY`, `TEST`,
+- [x] AC-03: Błędy są klasyfikowane jako `CHECKOUT`, `DEPENDENCY`, `TEST`,
   `LINT` albo `INFRASTRUCTURE`, a job summary wskazuje klasę i następny krok.
-- [ ] AC-04: Workflow nie maskuje błędów przez `|| true`, zachowuje macierz
+- [x] AC-04: Workflow nie maskuje błędów przez `|| true`, zachowuje macierz
   Python 3.10/3.11/3.12 i przechodzi walidację governance.
 
 ## Participants
@@ -29,3 +29,12 @@ preflight ma dostarczyć szybką informację przed pełnymi testami.
 - Agent participant: [ai-codex.md](ai-codex.md)
 
 SESSION_EXECUTION_AUTHORIZATION: `wykonaj` from the human owner.
+
+## Validation result
+
+- YAML workflow parsed successfully and the required-check declaration still
+  publishes the single protected job `test`.
+- `python -m pytest -q`: `615 passed, 5 skipped, 16 deselected`.
+- `./project/governance-check.sh --base origin/main --head HEAD --actor agent`:
+  `GOV-PASS`.
+- The implementation is ready for exact-head OneDev and Validator review.

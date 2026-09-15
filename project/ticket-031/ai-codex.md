@@ -28,6 +28,16 @@ matrix.
   from the request to execute this work.
 - Bound implementation to `.github/workflows/ci.yml`; no runtime dependency or
   public interface is changed.
+- Kept the protected job identity `test` and moved preflight, matrix execution,
+  changed-file lint and actionable failure summary into that job.
+- Removed dependency/lint fallbacks that masked failures and added explicit
+  `CHECKOUT`, `DEPENDENCY`, `TEST`, `LINT` and `INFRASTRUCTURE` classification.
+
+## Validation result
+
+- YAML parsing and the required-check declaration passed.
+- Full suite: `615 passed, 5 skipped, 16 deselected`.
+- Managed governance: `GOV-PASS` for base `origin/main` and current HEAD.
 
 ## Blockers
 

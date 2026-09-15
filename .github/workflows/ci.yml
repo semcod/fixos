@@ -83,6 +83,11 @@ jobs:
           if [[ "$BASE_SHA" =~ ^0+$ ]]; then
             mapfile -d '' changed_python < <(git ls-files -z -- '*.py')
           else
+            if ! git cat-file -e "$BASE_SHA^{commit}"; then
+              echo "failure_class=INFRASTRUCTURE" >> "$GITHUB_OUTPUT"
+              echo "The pull request base commit is unavailable in the checkout." >&2
+              exit 1
+            fi
             mapfile -d '' changed_python < <(git diff --name-only -z "$BASE_SHA"...HEAD -- '*.py')
           fi
           if ((${#changed_python[@]} == 0)); then
@@ -102,6 +107,7 @@ jobs:
           COLLECT_RESULT: ${{ steps.collect.outcome }}
           TEST_RESULT: ${{ steps.tests.outcome }}
           LINT_RESULT: ${{ steps.lint.outcome }}
+          LINT_CLASS: ${{ steps.lint.outputs.failure_class }}
         shell: bash
         run: |
           failure_class=NONE
@@ -125,8 +131,8 @@ jobs:
             failure_class=TEST
             next_step="Run the failing Python matrix test locally with --tb=short."
           elif [[ "$LINT_RESULT" != "success" && "$LINT_RESULT" != "skipped" ]]; then
-            failure_class=LINT
-            next_step="Run Ruff against the changed Python files locally."
+            failure_class="${LINT_CLASS:-LINT}"
+            next_step="Inspect the changed-file lint or checkout base revision locally."
           fi
 
           {
