@@ -2,9 +2,50 @@
 Natural language command (ask) for fixOS CLI
 """
 
+import subprocess
+from contextlib import suppress
+
 import click
 import yaml
-import subprocess
+
+from fixos.agent.session_core import package_cleanup_guard
+
+_PACKAGE_TERMS = (
+    "pakiet",
+    "package",
+    "packages",
+    "autoremove",
+    "debuginfo",
+    "dnf",
+    "apt",
+    "rpm",
+    "pacman",
+)
+_PACKAGE_ACTION_TERMS = (
+    "usun",
+    "usuń",
+    "remove",
+    "delete",
+    "clean",
+    "wyczysc",
+    "wyczyść",
+    "sprawdz",
+    "sprawdź",
+    "pokaz",
+    "pokaż",
+    "list",
+    "lista",
+    "przejrzyj",
+    "triage",
+)
+_PACKAGE_TRIAGE_COMMAND = ("fixos", ["cleanup", "--full", "--dry-run", "--json"])
+
+
+def _is_package_triage_request(prompt_lower: str) -> bool:
+    """Recognize package cleanup/review requests without authorizing removal."""
+    return any(term in prompt_lower for term in _PACKAGE_TERMS) and any(
+        term in prompt_lower for term in _PACKAGE_ACTION_TERMS
+    )
 
 
 @click.command("ask")
@@ -48,6 +89,12 @@ def _match_heuristic_command(prompt_lower: str) -> object | None:
         kw in prompt_lower
         for kw in ["bezpieczenstwo", "bezpieczeństwo", "security", "firewall", "porty"]
     )
+
+    # Package cleanup is always an inventory-only JSON dry-run. This branch is
+    # intentionally before Docker routing so an ambiguous "pakiety docker"
+    # request cannot become a container-removal command.
+    if _is_package_triage_request(prompt_lower):
+        return _PACKAGE_TRIAGE_COMMAND
 
     # 1. Docker-specific actions
     if is_docker:
@@ -136,6 +183,22 @@ def _build_output_dict(
 def _execute_heuristic_command(cmd_str: str, prompt: str, dry_run: bool, cfg) -> None:
     """Execute a heuristic-matched command and output result."""
 
+    package_guard = package_cleanup_guard(cmd_str)
+    if package_guard:
+        output = _build_output_dict(
+            status="dry_run" if dry_run else "blocked",
+            prompt=prompt,
+            source="heuristics",
+            command=cmd_str,
+            reason=package_guard,
+            message=(
+                "Czyszczenie pakietów wymaga listy dokładnych celów, podglądu "
+                "transakcji i osobnego potwierdzenia; operacja zbiorcza została zablokowana."
+            ),
+        )
+        click.echo(yaml.dump(output, default_flow_style=False, allow_unicode=True))
+        return
+
     if dry_run:
         output = _build_output_dict(
             status="dry_run",
@@ -148,7 +211,9 @@ def _execute_heuristic_command(cmd_str: str, prompt: str, dry_run: bool, cfg) ->
         return
 
     try:
-        result = subprocess.run(cmd_str, capture_output=True, text=True, shell=True)
+        result = subprocess.run(
+            cmd_str, capture_output=True, text=True, shell=True, check=False
+        )
 
         output = _build_output_dict(
             status="success" if result.returncode == 0 else "failed",
@@ -164,12 +229,10 @@ def _execute_heuristic_command(cmd_str: str, prompt: str, dry_run: bool, cfg) ->
 
         # Optional LLM validation
         if cfg.api_key and result.returncode == 0:
-            try:
+            with suppress(Exception):
                 _validate_result_with_llm(prompt, cmd_str, result, cfg)
-            except Exception:
-                pass  # Ignore validation errors
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         output = _build_output_dict(
             status="error",
             prompt=prompt,
@@ -204,6 +267,7 @@ Przykłady:
 - "sprawdź sieć" → ip addr
 - "napraw dźwięk" → fixos fix --modules audio
 - "diagnostyka" → fixos scan
+- "usuń pakiety" → fixos cleanup --full --dry-run --json
 """
         resp = llm.chat([{"role": "user", "content": llm_prompt}], max_tokens=200)
         cmd_str = resp.strip().split("\n")[0].strip()
@@ -215,6 +279,23 @@ Przykłady:
                 "reason": "llm_empty_response",
                 "message": "LLM nie zwrócił komendy",
             }
+            click.echo(yaml.dump(output, default_flow_style=False, allow_unicode=True))
+            return
+
+        package_guard = package_cleanup_guard(cmd_str)
+        if package_guard:
+            output = _build_output_dict(
+                status="dry_run" if dry_run else "blocked",
+                prompt=prompt,
+                source="llm",
+                command=cmd_str,
+                reason=package_guard,
+                message=(
+                    "Zablokowano zbiorcze czyszczenie pakietów. Najpierw wymagane są "
+                    "dokładne cele ze skanu, podgląd transakcji i jawne potwierdzenie."
+                ),
+                llm=llm_provider,
+            )
             click.echo(yaml.dump(output, default_flow_style=False, allow_unicode=True))
             return
 
@@ -315,7 +396,9 @@ Przykłady:
                 return
 
         # Execute the generated command
-        result = subprocess.run(cmd_str, capture_output=True, text=True, shell=True)
+        result = subprocess.run(
+            cmd_str, capture_output=True, text=True, shell=True, check=False
+        )
         output = _build_output_dict(
             status="success" if result.returncode == 0 else "failed",
             prompt=prompt,
@@ -331,7 +414,7 @@ Przykłady:
         # Validate result
         _validate_result_with_llm(prompt, cmd_str, result, cfg)
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         output = {
             "status": "error",
             "reason": "llm_error",
@@ -423,7 +506,7 @@ Przykłady:
 
         # Execute check command
         check_result = subprocess.run(
-            check_cmd, capture_output=True, text=True, shell=True
+            check_cmd, capture_output=True, text=True, shell=True, check=False
         )
 
         # Now assess the result
@@ -451,10 +534,7 @@ validation:
         # Try to parse YAML from response
         try:
             yaml_start = resp.find("---")
-            if yaml_start >= 0:
-                yaml_content = resp[yaml_start:]
-            else:
-                yaml_content = resp
+            yaml_content = resp[yaml_start:] if yaml_start >= 0 else resp
 
             validation = yaml.safe_load(yaml_content)
             if validation and "validation" in validation:
@@ -472,7 +552,7 @@ validation:
                     )
                 )
                 return
-        except Exception:
+        except Exception:  # noqa: BLE001, S110
             pass
 
         # Fallback: show check command info
@@ -492,5 +572,5 @@ validation:
                 allow_unicode=True,
             )
         )
-    except Exception:
+    except Exception:  # noqa: BLE001, S110
         pass

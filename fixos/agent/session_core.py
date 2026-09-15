@@ -5,9 +5,10 @@ Core session types and constants for HITL agent.
 import hashlib
 import json
 import re
+import shlex
 import time
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
-from typing import Callable, Iterator, List, Tuple
 
 from ..constants import (
     MAX_SUMMARY_LENGTH,
@@ -164,12 +165,13 @@ IMPORTANT RULES:
   system changes.
 
 PACKAGE ANALYSIS rules (when "packages" data is present):
-- For orphaned packages: propose `sudo dnf autoremove` or remove only exact package names present in evidence.
-- For debug/devel packages on desktop: propose `sudo dnf remove '*-debuginfo*'` or specific removals.
+- For orphaned packages: remove only exact package names present in evidence.
+- Never propose `autoremove`, wildcard removal, command substitution or another broad package cleanup.
+- For debug/devel packages on desktop: propose only specific package names present in evidence.
 - For duplicate RPM+Flatpak apps: propose removing one version (prefer Flatpak for GUI apps).
-- For unused Flatpak runtimes: propose `flatpak uninstall --unused`.
+- For unused Flatpak runtimes: propose only exact runtime references present in evidence.
 - For leaf packages not used in 90+ days: propose specific `sudo dnf remove <pkg>`.
-- Always warn user about dependencies that will be removed.
+- Always show the exact package targets, preview the manager's transaction and warn user about dependencies that will be removed.
 
 STORAGE OPTIMIZATION rules (when "storage" data is present):
 - If unallocated disk space exists: propose `sudo growpart` or `sudo lvextend + resize2fs/xfs_growfs`.
@@ -220,17 +222,67 @@ _CATEGORIES = {
 }
 _RISKS = {"LOW", "CAUTION", "HIGH"}
 
+_PACKAGE_CLEANUP_RE = re.compile(
+    r"(?:^|\s)(?:sudo\s+)?(?:apt-get|apt|dnf|yum|pacman|zypper|brew|"
+    r"flatpak|snap)\s+(?P<action>remove|purge|erase|autoremove|"
+    r"uninstall)\b(?P<arguments>.*)$",
+    re.IGNORECASE,
+)
+
+
+def package_cleanup_targets(command: str) -> tuple[str, ...] | None:
+    """Return literal removal targets, or an empty tuple for a broad action."""
+    match = _PACKAGE_CLEANUP_RE.search(re.sub(r"\s+", " ", command.strip()))
+    if match is None:
+        return None
+    arguments = match.group("arguments").strip()
+    if not arguments or re.search(r"[`;$|&<>*?\[\]]|\$\(", arguments):
+        return ()
+    try:
+        tokens = shlex.split(arguments)
+    except ValueError:
+        return ()
+    targets = tuple(token for token in tokens if not token.startswith("-"))
+    return targets or ()
+
+
+def package_cleanup_guard(command: str) -> str | None:
+    """Return a reason when a package cleanup command has an unbounded scope.
+
+    Package removal is allowed only when the command carries concrete targets
+    observed by the diagnostic plan. Shell expansion and manager-wide cleanup
+    modes make the target set depend on mutable state at execution time, so
+    they are rejected before a human confirmation can be mistaken for review
+    of an exact package list.
+    """
+    normalized = re.sub(r"\s+", " ", command.strip().lower())
+    match = _PACKAGE_CLEANUP_RE.search(normalized)
+    if match is None:
+        return None
+
+    action = match.group("action")
+    arguments = match.group("arguments").strip()
+    if action == "autoremove":
+        return "package_cleanup_requires_exact_inventory"
+    if not arguments:
+        return "package_cleanup_requires_exact_inventory"
+    if re.search(r"[`;$|&<>*?\[\]\\]", arguments):
+        return "package_cleanup_rejects_shell_expansion"
+
+    # Options are fine, but at least one concrete non-option target must remain.
+    targets = package_cleanup_targets(command)
+    if not targets:
+        return "package_cleanup_requires_exact_inventory"
+    return None
+
 
 def _is_diagnostic_only_command(cmd: str) -> bool:
     """Return True if command is read-only and not a repair action."""
     # Split by common shell delimiters to check each part
     parts = re.split(r"\s*(?:&&|\|\||;|\|)\s*", cmd)
 
-    # If any part of a compound command looks like a repair, the whole thing is actionable
-    for part in parts:
-        if not _is_part_diagnostic_only(part):
-            return False
-    return True
+    # If any part of a compound command looks like a repair, the whole thing is actionable.
+    return all(_is_part_diagnostic_only(part) for part in parts)
 
 
 def _is_part_diagnostic_only(part: str) -> bool:
@@ -240,13 +292,12 @@ def _is_part_diagnostic_only(part: str) -> bool:
         normalized = normalized[5:].strip()
 
     # Special case: diagnostic tools used for cleanup/repair
-    if normalized.startswith("journalctl"):
-        if (
-            "--vacuum-" in normalized
-            or "--flush" in normalized
-            or "--rotate" in normalized
-        ):
-            return False
+    if normalized.startswith("journalctl") and (
+        "--vacuum-" in normalized
+        or "--flush" in normalized
+        or "--rotate" in normalized
+    ):
+        return False
 
     if normalized.startswith("find ") and re.search(
         r"(?:\s-delete\b|\s-exec(?:dir)?\s+(?:rm|shred)\b)", normalized
@@ -301,9 +352,9 @@ def _extract_co_robi(text: str) -> str:
     return m.group(1).strip() if m else ""
 
 
-def _pattern_strict_bold(reply: str) -> List[Tuple[str, str]]:
+def _pattern_strict_bold(reply: str) -> list[tuple[str, str]]:
     """Pattern 1: **Komenda:** `command` (strict: bold + backticks)."""
-    fixes: List[Tuple[str, str]] = []
+    fixes: list[tuple[str, str]] = []
     for m in re.finditer(
         r"\*\*Komenda:\*\*\s*`([^`]+)`(?:[^\n]*?\*\*Co robi:\*\*\s*(.+?))?(?=\n|$)",
         reply,
@@ -315,9 +366,9 @@ def _pattern_strict_bold(reply: str) -> List[Tuple[str, str]]:
     return fixes
 
 
-def _pattern_backticks(reply: str) -> List[Tuple[str, str]]:
+def _pattern_backticks(reply: str) -> list[tuple[str, str]]:
     """Pattern 2: Komenda: `command` (backticks, optional bold)."""
-    fixes: List[Tuple[str, str]] = []
+    fixes: list[tuple[str, str]] = []
     for m in re.finditer(
         r"\*{0,2}Komenda:\*{0,2}\s*`([^`]+)`",
         reply,
@@ -329,9 +380,9 @@ def _pattern_backticks(reply: str) -> List[Tuple[str, str]]:
     return fixes
 
 
-def _pattern_no_backticks(reply: str) -> List[Tuple[str, str]]:
+def _pattern_no_backticks(reply: str) -> list[tuple[str, str]]:
     """Pattern 3: Komenda: command (no backticks — until next section)."""
-    fixes: List[Tuple[str, str]] = []
+    fixes: list[tuple[str, str]] = []
     for m in re.finditer(
         r"\*{0,2}Komenda:\*{0,2}\s*"
         r"(.+?)"
@@ -345,9 +396,9 @@ def _pattern_no_backticks(reply: str) -> List[Tuple[str, str]]:
     return fixes
 
 
-def _pattern_fallbacks(reply: str) -> List[Tuple[str, str]]:
+def _pattern_fallbacks(reply: str) -> list[tuple[str, str]]:
     """Fallback patterns requiring an explicit repair marker."""
-    fixes: List[Tuple[str, str]] = []
+    fixes: list[tuple[str, str]] = []
     for m in re.finditer(r"→\s*Fix:\s*`([^`]+)`", reply, re.IGNORECASE):
         fixes.append((m.group(1).strip(), ""))
     if not fixes:
@@ -363,13 +414,13 @@ def _pattern_fallbacks(reply: str) -> List[Tuple[str, str]]:
     return fixes
 
 
-def _deduplicate(fixes: List[Tuple[str, str]]) -> List[Tuple[str, str]]:
+def _deduplicate(fixes: list[tuple[str, str]]) -> list[tuple[str, str]]:
     """Remove diagnostic-only commands and deduplicate."""
     filtered = [
         (cmd, comment) for cmd, comment in fixes if not _is_diagnostic_only_command(cmd)
     ]
     seen: set[str] = set()
-    unique: List[Tuple[str, str]] = []
+    unique: list[tuple[str, str]] = []
     for cmd, comment in filtered:
         if cmd not in seen:
             seen.add(cmd)
@@ -377,7 +428,7 @@ def _deduplicate(fixes: List[Tuple[str, str]]) -> List[Tuple[str, str]]:
     return unique
 
 
-def extract_fixes(reply: str) -> List[Tuple[str, str]]:
+def extract_fixes(reply: str) -> list[tuple[str, str]]:
     """Extract (command, comment) pairs from LLM reply."""
     fixes = (
         _pattern_strict_bold(reply)
@@ -482,12 +533,20 @@ def _parse_strategy(
     ):
         return None
     if any(
-        _is_diagnostic_only_command(command) or _has_command_placeholder(command)
+        _is_diagnostic_only_command(command)
+        or _has_command_placeholder(command)
+        or package_cleanup_guard(command)
         for command in commands
     ):
         return None
     if any(_has_command_placeholder(target) for target in affected_targets):
         return None
+    for command in commands:
+        targets = package_cleanup_targets(command)
+        if targets is not None and any(
+            f"package:{target}" not in affected_targets for target in targets
+        ):
+            return None
     if any(
         not _is_diagnostic_only_command(command)
         or _has_command_placeholder(command)

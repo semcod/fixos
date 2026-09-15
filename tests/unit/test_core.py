@@ -4,6 +4,7 @@ Testy jednostkowe – config, anonimizacja, web search.
 
 from __future__ import annotations
 
+import json
 import os
 from unittest.mock import patch
 
@@ -103,7 +104,7 @@ class TestConfig:
     def test_summary_masks_key(self):
         from fixos.config import FixOsConfig
 
-        cfg = FixOsConfig(**{"api_key": "testAIzaSyABCDEFGHIJKLMNOPQRSTUVWXYZ12345"})
+        cfg = FixOsConfig(api_key="testAIzaSyABCDEFGHIJKLMNOPQRSTUVWXYZ12345")
         summary = cfg.summary()
         assert "testAIza" in summary
         assert "ABCDEFGHIJKLMNOPQRSTUVWXYZ12345" not in summary
@@ -120,14 +121,14 @@ class TestAnonymizer:
     def test_non_string_input(self):
         from fixos.utils.anonymizer import anonymize
 
-        anon, report = anonymize({"key": "value"})
+        anon, _report = anonymize({"key": "value"})
         assert isinstance(anon, str)
 
     def test_no_sensitive_data(self):
         from fixos.utils.anonymizer import anonymize
 
         data = "systemctl status pipewire -- Active: running"
-        anon, report = anonymize(data)
+        _anon, report = anonymize(data)
         # Brak IP ani ścieżek → brak lub minimalne zastąpienia
         sensitive_replacements = {
             k: v
@@ -1052,3 +1053,46 @@ class TestInteractiveBlocker:
         from fixos.platform_utils import is_interactive_blocker
 
         assert is_interactive_blocker("dnf upgrade -y") is None
+
+
+class TestPackageCleanupSafety:
+    def test_remediation_parser_rejects_broad_package_cleanup(self):
+        from fixos.agent.session_core import extract_remediation_actions
+
+        reply = """```fixos-remediation
+{"schema":"fixos.remediation-plan/v2","mode":"PLAN","findings":[{"ref":"finding:fixos:package-cleanup","severity":"WARNING","category":"STORAGE","title":"Unused packages","evidence":["packages=observed"],"strategies":[{"id":"autoremove","label":"Remove unused","risk":"HIGH","recommended":true,"affected_targets":["package-manager:dnf"],"commands":["sudo dnf autoremove -y"],"verification":["dnf repoquery --installed"],"explanation":"Remove unused packages."}]}]}
+```"""
+
+        assert extract_remediation_actions(reply) == []
+
+    def test_remediation_parser_requires_exact_package_targets(self):
+        from fixos.agent.session_core import extract_remediation_actions
+
+        def reply_for(targets):
+            return """```fixos-remediation
+{"schema":"fixos.remediation-plan/v2","mode":"PLAN","findings":[{"ref":"finding:fixos:package-cleanup","severity":"WARNING","category":"STORAGE","title":"Unused packages","evidence":["packages=observed"],"strategies":[{"id":"remove-packages","label":"Remove selected","risk":"CAUTION","recommended":true,"affected_targets":TARGETS,"commands":["sudo dnf remove -y -- curl openssl-libs"],"verification":["dnf check-update"],"explanation":"Remove only observed packages."}]}]}
+```""".replace("TARGETS", json.dumps(targets))
+
+        assert extract_remediation_actions(reply_for(["package-manager:dnf"])) == []
+        actions = extract_remediation_actions(
+            reply_for(["package:curl", "package:openssl-libs"])
+        )
+        assert len(actions) == 1
+        assert actions[0].commands == ("sudo dnf remove -y -- curl openssl-libs",)
+
+    def test_last_execution_guard_rejects_shell_expansion(self):
+        from fixos.agent.session_handlers import run_single_command
+
+        with patch("fixos.agent.session_handlers.io.print_blocked_command") as blocked, patch(
+            "fixos.agent.session_handlers.run_command"
+        ) as run_command:
+            result = run_single_command(
+                "sudo dnf remove $(package-cleanup --leaves)",
+                "package cleanup",
+            )
+
+        assert result.ok is False
+        assert result.returncode == -98
+        assert "package_cleanup_rejects_shell_expansion" in result.stderr
+        blocked.assert_called_once()
+        run_command.assert_not_called()

@@ -3,14 +3,16 @@ Unit tests for NaturalLanguageGroup typo detection and ask_cmd heuristic matchin
 """
 
 from unittest.mock import MagicMock, patch
+
 import pytest
 from click.testing import CliRunner, _NamedTextIOWrapper
 
-from fixos.cli.main import cli
+from fixos.agent.session_core import package_cleanup_guard
 from fixos.cli.ask_cmd import (
     _execute_with_llm,
     _match_heuristic_command,
 )
+from fixos.cli.main import cli
 
 
 @pytest.fixture
@@ -64,6 +66,18 @@ class TestNaturalLanguageGroupTypoDetection:
 
 class TestAskHeuristics:
     """Test heuristic command matching in ask_cmd."""
+
+    def test_package_cleanup_is_json_dry_run(self):
+        """Package intent must expose inventory without selecting removals."""
+        cmd = _match_heuristic_command("usun pakiety")
+
+        assert cmd == ("fixos", ["cleanup", "--full", "--dry-run", "--json"])
+        assert "autoremove" not in " ".join(cmd[1])
+
+    def test_ambiguous_package_docker_request_stays_in_package_triage(self):
+        cmd = _match_heuristic_command("usun pakiety docker")
+
+        assert cmd == ("fixos", ["cleanup", "--full", "--dry-run", "--json"])
 
     def test_docker_stop_requires_docker_context(self):
         """zatrzymaj bluetooth must NOT stop docker containers."""
@@ -130,12 +144,12 @@ class TestAskSafety:
 
         with patch("fixos.providers.llm.LLMClient") as mock_llm_cls:
             mock_llm = mock_llm_cls.return_value
-            mock_llm.chat.return_value = "sudo apt autoremove"
+            mock_llm.chat.return_value = "sudo apt remove -y curl"
 
             with patch("sys.stdin.isatty", return_value=True), patch(
                 "click.confirm", return_value=False
             ), patch("click.echo") as mock_echo:
-                _execute_with_llm("usun pakiety", dry_run=False, cfg=mock_cfg)
+                _execute_with_llm("usun curl", dry_run=False, cfg=mock_cfg)
                 calls = [str(call) for call in mock_echo.call_args_list]
                 combined = " ".join(calls)
                 assert "cancelled" in combined
@@ -147,16 +161,65 @@ class TestAskSafety:
 
         with patch("fixos.providers.llm.LLMClient") as mock_llm_cls:
             mock_llm = mock_llm_cls.return_value
-            mock_llm.chat.return_value = "sudo apt autoremove"
+            mock_llm.chat.return_value = "sudo apt remove -y curl"
 
             with patch("sys.stdin.isatty", return_value=False), patch(
                 "click.echo"
             ) as mock_echo:
-                _execute_with_llm("usun pakiety", dry_run=False, cfg=mock_cfg)
+                _execute_with_llm("usun curl", dry_run=False, cfg=mock_cfg)
                 calls = [str(call) for call in mock_echo.call_args_list]
                 combined = " ".join(calls)
                 assert "blocked" in combined
                 assert "requires_confirmation" in combined
+
+    def test_broad_package_cleanup_is_blocked_before_confirmation(self):
+        mock_cfg = MagicMock()
+        mock_cfg.provider = "openrouter"
+        mock_cfg.model = "test-model"
+
+        with patch("fixos.providers.llm.LLMClient") as mock_llm_cls:
+            mock_llm_cls.return_value.chat.return_value = "sudo apt autoremove -y"
+            with patch("click.echo") as mock_echo, patch(
+                "fixos.cli.ask_cmd.subprocess.run"
+            ) as mock_run:
+                _execute_with_llm("usun pakiety", dry_run=False, cfg=mock_cfg)
+
+        combined = " ".join(str(call) for call in mock_echo.call_args_list)
+        assert "blocked" in combined
+        assert "package_cleanup_requires_exact_inventory" in combined
+        mock_run.assert_not_called()
+
+    def test_broad_package_cleanup_dry_run_is_preview_only(self):
+        mock_cfg = MagicMock()
+        mock_cfg.provider = "openrouter"
+        mock_cfg.model = "test-model"
+
+        with patch("fixos.providers.llm.LLMClient") as mock_llm_cls:
+            mock_llm_cls.return_value.chat.return_value = "sudo dnf autoremove -y"
+            with patch("click.echo") as mock_echo, patch(
+                "fixos.cli.ask_cmd.subprocess.run"
+            ) as mock_run:
+                _execute_with_llm("wyczysc pakiety", dry_run=True, cfg=mock_cfg)
+
+        combined = " ".join(str(call) for call in mock_echo.call_args_list)
+        assert "dry_run" in combined
+        assert "package_cleanup_requires_exact_inventory" in combined
+        mock_run.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "sudo dnf autoremove -y",
+            "sudo dnf remove '*debuginfo*'",
+            "sudo dnf remove $(package-cleanup --leaves)",
+            "flatpak uninstall --unused",
+        ],
+    )
+    def test_package_guard_rejects_unbounded_cleanup(self, command):
+        assert package_cleanup_guard(command) is not None
+
+    def test_package_guard_allows_exact_target(self):
+        assert package_cleanup_guard("sudo dnf remove -y -- curl") is None
 
 
 class TestInteractiveShell:
@@ -213,4 +276,3 @@ class TestInteractiveShell:
             assert mock_cli_main.called
             called_args = mock_cli_main.call_args_list[0][0][0]
             assert called_args == ["config", "show"]
-
