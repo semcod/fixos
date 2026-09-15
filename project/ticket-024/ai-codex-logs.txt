@@ -10,3 +10,9 @@ Managed governance: GOV-PASS (0 errors, 0 warnings).
 Full suite: 601 passed, 5 skipped, 2 failed, 16 deselected. Both failures are
 the known host-environment issue where the global miniconda3/bin/fixos cannot
 import the checkout package; no endpoint-refresh test failed.
+
+2026-09-14 — RECONCILIATION VALIDATION
+The corrected branch passed both managed governance checks, including the
+exact `origin/main..HEAD` history check. The full suite reports 597 passed, 5
+skipped, 6 failed, 16 deselected; the four Click typo-handling failures were
+also reproduced on the preserved original branch.

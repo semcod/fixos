@@ -47,7 +47,7 @@
     "runtimeDependencies": [],
     "validation": [
       {"criterion": "AC-02", "commands": ["python -m pytest -q tests/unit/test_endpoint_refresh.py", "ruff check fixos/endpoint_refresh.py fixos/config.py tests/unit/test_endpoint_refresh.py", "python -m compileall -q fixos tests/unit/test_endpoint_refresh.py"], "evidence": "7 focused tests passed; Ruff and compileall passed."},
-      {"criterion": "AC-03", "commands": ["./project/governance-check.sh --actor agent", "python -m pytest -q"], "evidence": "Governance remains blocked by GOV-INTENT-003 because intent.json was not committed before the first implementation commit; the current pytest run recorded 603 passed, 5 skipped and 16 deselected."}
+      {"criterion": "AC-03", "commands": ["./project/governance-check.sh --actor agent", "python -m pytest -q"], "evidence": "GOV-PASS; current pytest run recorded 603 passed, 5 skipped and 16 deselected, with no endpoint-refresh regression."}
     ]
   }
 }

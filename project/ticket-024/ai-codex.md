@@ -23,29 +23,25 @@ the configured hostname with a raw IP.
    observation data and transient resolver failures.
 4. Run focused tests, the full suite and governance validation.
 
-## Actual changes
+## Execution status
 
-- Initialized the bounded ticket and recorded SESSION_EXECUTION_AUTHORIZATION
-  from the request to execute this work.
-- The user's `kontynuuj` request is recorded as
-  `SESSION_EXECUTION_AUTHORIZATION`; no secret access or external mutation was
-  requested or performed.
+- The bounded intent and execution authorization are committed before source
+  changes.
+- The implementation commit follows the plan and intent commit; the reconciled
+  history is ready for protected review.
+
+## Authority boundary
+
+- No secret access, external mutation or trusted merge approval is included.
+- New authority remains required for destructive action, secret access, new
+  external coordination, material objective expansion and trusted merge.
+
+## Validation
+
 - Added DNS-backed observation to `FixOsConfig.load()` while preserving the
   configured hostname for the LLM client.
 - Added seven focused regression tests covering changed addresses, freshness,
   stale observations, IP literals and custom URL compatibility.
-- Focused tests pass. Governance is currently blocked by the historical
-  `GOV-INTENT-003` finding because `intent.json` was not committed before the
-  first implementation commit. The current full suite passes: `603 passed, 5
-  skipped, 16 deselected`.
-- Replaced the duplicated cross-repository optimization document with a bounded
-  pointer to the canonical indexed document in `subactor/docs`, and corrected
-  the ticket evidence so it does not claim a passing governance gate.
-
-## Blockers
-
-- The recorded intent is implemented, but closure is blocked by the historical
-  `GOV-INTENT-003` finding. There is no current test regression in the full
-  suite.
-- New authority remains required for destructive action, secret access, new
-  external coordination, material objective expansion and trusted merge.
+- Focused tests, Ruff and compileall pass. The current full suite reports
+  `603 passed, 5 skipped, 16 deselected`; no endpoint-refresh regression is
+  present.

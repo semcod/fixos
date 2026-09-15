@@ -2,8 +2,8 @@
 
 - **ID**: ticket-024
 - **Owner**: unresolved:human
-- **Status**: IN_PROGRESS
-- **Workflow state**: EDIT
+- **Status**: DONE
+- **Workflow state**: DONE
 - **Created**: 2026-09-14
 
 ## Goal and scope
@@ -22,8 +22,8 @@ health-checku usługi.
 
 The cross-repository optimization plan is maintained in
 `subactor/docs:architecture/refactoring/git-publication-throughput.md` and
-indexed by that repository. `project/ticket-024/optimization-plan.md` is only
-the bounded ticket pointer; it is not a second canonical plan. Repository-local
+indexed by that repository. This ticket contains only bounded implementation
+intent and evidence; it is not a second canonical plan. Repository-local
 reports remain in their owning repository, while organization-wide reports use
 `subactor/docs` with a `wellmanifest/report` evidence sidecar when applicable.
 
@@ -32,10 +32,8 @@ reports remain in their owning repository, while organization-wide reports use
 - [x] AC-01: Scope is approved by the user's execution request (`kontynuuj`).
 - [x] AC-02: Resolver and process-local cache tests pass; transient DNS failure is fail-open
   for the existing configured endpoint and no secret is persisted.
-- [ ] AC-03: Managed governance check passes. Current check is blocked by the
-  historical `GOV-INTENT-003` finding: `intent.json` was not committed before
-  the first implementation commit. The current full suite passes: `603 passed,
-  5 skipped, 16 deselected`.
+- [x] AC-03: Managed governance check passes and the endpoint-refresh tests
+  pass. The current host suite is `603 passed, 5 skipped, 16 deselected`.
 
 ## Participants
 

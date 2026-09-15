@@ -11,3 +11,20 @@ Executed validation and regression checks for ticket-023:
     isolation issue.
 
 Outcome: no regression attributable to docs regeneration.
+
+Continuation on 2026-09-15:
+
+- Refreshed from `origin/main` at `9ad62dff53cebab3e49e343db182013e41a1445a`
+  in a separate ticket worktree.
+- The first governance run reported only `GOV-BASE-001` because the intent
+  still referenced `51a86218274c30ecd2786d88d9d16b69c1ef3271`.
+- Following the diagnostic remediation, the accepted base was updated to the
+  observed default branch without changing scope or architecture.
+- The local generator analyzed 188 modules, 938 functions and 110 classes;
+  only the four ticket-scoped generated pages changed.
+- `git diff --check` passed. Final governance and stack results will be
+  appended after the refreshed intent is committed.
+- After the intent base refresh, `./project/governance-check.sh --actor agent`
+  returned `GOV-PASS` with 0 errors and 0 warnings.
+- `code2docs validate` checked all four generated pages and reported no issues.
+- `python -m pytest -q` returned `612 passed, 5 skipped, 16 deselected`.

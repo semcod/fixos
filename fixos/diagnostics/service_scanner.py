@@ -223,7 +223,9 @@ class ServiceDataScanner:
         ServiceType.JUPYTER: ["~/.local/share/jupyter"],
         ServiceType.THUMBNAILS: ["~/.cache/thumbnails", "~/.thumbnails"],
         ServiceType.TRASH: ["~/.local/share/Trash", "~/.Trash"],
-        ServiceType.LOGS: ["~/.cache/log", "~/.local/state"],
+        # Not ~/.local/state: XDG state holds application data (history,
+        # agent artifacts), and the logs command only removes old *.log files.
+        ServiceType.LOGS: ["~/.cache/log"],
         ServiceType.NVIDIA: [
             "~/.cache/nvidia",
             "~/.nv/ComputeCache",
@@ -278,6 +280,8 @@ class ServiceDataScanner:
         self._details_provider = ServiceDetailsProvider()
         self._cleaner = ServiceCleaner(self)
         self._docker_usage_cache: Optional[Dict[str, Any]] = None
+        self._docker_usage_failed = False
+        self.scan_warnings: List[str] = []
 
     def scan_all_services(self) -> List[ServiceDataInfo]:
         """Scan all known services for data above threshold."""
@@ -449,7 +453,9 @@ class ServiceDataScanner:
                 timeout=120,
                 check=False,
             )
-            if result.returncode == 0 and result.stdout.strip():
+            # du exits 1 when a subdirectory is unreadable but still prints the
+            # readable total; walking the tree again in Python sees no more.
+            if result.stdout.strip():
                 kb = int(result.stdout.strip().splitlines()[-1].split()[0])
                 return kb / 1024
         except (OSError, ValueError, subprocess.TimeoutExpired, IndexError):
@@ -514,22 +520,43 @@ class ServiceDataScanner:
         can't read /var/lib/docker directly (typically root-only, mode 0710).
         Docker can take tens of seconds with thousands of images, so one
         snapshot is cached for the whole scan and reused for details/counts.
+        A failed probe is cached too, so a slow daemon costs one timeout per
+        scan, and is reported in ``scan_warnings`` instead of silently hiding
+        Docker from the plan.
         """
-        if self._docker_usage_cache is not None and not refresh:
-            return self._docker_usage_cache
+        if not refresh:
+            if self._docker_usage_cache is not None:
+                return self._docker_usage_cache
+            if self._docker_usage_failed:
+                return None
 
+        timeout_s = 90
+        self._docker_usage_failed = True
         try:
             result = subprocess.run(
                 ["docker", "system", "df", "--format", "{{json .}}"],
                 capture_output=True,
                 text=True,
-                timeout=90,
+                timeout=timeout_s,
                 check=False,
             )
-        except (OSError, subprocess.TimeoutExpired):
+        except subprocess.TimeoutExpired:
+            self.scan_warnings.append(
+                f"Docker: `docker system df` nie odpowiedział w {timeout_s} s — "
+                "dane Dockera pominięto w raporcie. Sprawdź ręcznie: docker system df"
+            )
+            return None
+        except OSError:
             return None
 
-        if result.returncode != 0 or not result.stdout.strip():
+        if result.returncode != 0:
+            reason = (result.stderr or "").strip().splitlines()[:1]
+            self.scan_warnings.append(
+                "Docker: `docker system df` zakończył się błędem"
+                f"{': ' + reason[0] if reason else ''} — dane Dockera pominięto w raporcie."
+            )
+            return None
+        if not result.stdout.strip():
             return None
 
         rows: Dict[str, Dict[str, Any]] = {}
@@ -567,6 +594,7 @@ class ServiceDataScanner:
             "reclaimable_gb": round(reclaimable_mb / 1024, 3),
             "rows": rows,
         }
+        self._docker_usage_failed = False
         self._persist_docker_usage(self._docker_usage_cache)
         return self._docker_usage_cache
 
