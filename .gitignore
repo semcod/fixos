@@ -59,3 +59,8 @@ Thumbs.db
 !.github/workflows/new-project-governance.yml
 .pyqual/
 .ruff_cache/
+
+# Track the managed Wellmanifest host files after broad legacy ignores
+!.github/copilot-instructions.md
+!.subactor/
+!.subactor/manifest.json
