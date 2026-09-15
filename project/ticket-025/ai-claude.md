@@ -63,6 +63,11 @@ for the scope in `README.md` and `intent.json`.
   it with GOV-MATERIAL-001 (process carriers only, receipt
   `6c0905b2...`). The integrated ticket-024 closure (`DONE / DONE`, TODO
   evidence) is therefore carried by this material PR; PR #51 is superseded.
+- OneDev later published `onedev/local-verify=SUCCESS` for exact head
+  `0529e6be`. The trusted Validator accepted the explicit request with base
+  `d73bf65`, approved that exact head and merged PR #48 as `9ad62df`.
+- This governance-only closure was prepared from the integrated `origin/main`
+  and records the trusted merge and post-merge test evidence.
 
 ## Blockers
 

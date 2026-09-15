@@ -2,8 +2,8 @@
 
 - **ID**: ticket-025
 - **Owner**: unresolved:human
-- **Status**: IN_PROGRESS
-- **Workflow state**: PUBLICATION
+- **Status**: DONE
+- **Workflow state**: DONE
 - **Created**: 2026-09-15
 
 ## Goal and scope
@@ -38,12 +38,16 @@ network flows, no new CLI option and no real deletion during validation.
   into only absolute paths, gcloud cleanup does not revoke credentials, a
   non-zero `du` total is used, and a failed `docker system df` runs once and
   appears as a plan warning.
-- [x] AC-02: The full test suite and the governance gate pass for the exact
-  head. PR #48 CI (governance, Python 3.10/3.11/3.12 and five distribution
-  containers) passed. Locally the suite has 4 failures in
-  `tests/unit/test_ask_and_nl_group.py` that also fail on the base commit
-  because the local click 8.3.2 has no `click.exceptions.NoSuchCommand`; they
-  are outside this ticket.
+- [x] AC-02: The full test suite and the governance gate passed for exact head
+  `0529e6be`. PR #48 CI (governance, Python 3.10/3.11/3.12 and five
+  distribution containers) passed; the local Python 3.13 suite recorded
+  `612 passed, 5 skipped, 16 deselected`.
+
+## Publication evidence
+
+Trusted Validator App review approved exact head `0529e6be` after
+`onedev/local-verify=SUCCESS` and merged PR #48 into `main` as `9ad62df`.
+The remote ticket branch was deleted by the repository merge policy.
 
 ## Participants
 

@@ -93,7 +93,7 @@
           "python -m pytest -q",
           "./project/governance-check.sh --base origin/main --head HEAD --actor agent"
         ],
-        "evidence": "Full suite: 601 passed, 5 skipped, 16 deselected, 4 failed; the 4 failures are typo-detection tests in tests/unit/test_ask_and_nl_group.py that fail identically on the base commit (click 8.3.2 lacks click.exceptions.NoSuchCommand). Governance gate: GOV-PASS for base origin/main and head HEAD."
+        "evidence": "Full suite on the exact implementation head: 612 passed, 5 skipped, 16 deselected. Governance gate: GOV-PASS; OneDev published onedev/local-verify=SUCCESS and trusted Validator merged PR #48 as 9ad62df."
       }
     ]
   }
