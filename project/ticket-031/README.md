@@ -16,8 +16,8 @@ preflight ma dostarczyć szybką informację przed pełnymi testami.
 ## Acceptance criteria
 
 - [x] AC-01: Zakres jest autoryzowany poleceniem użytkownika `wykonaj`.
-- [ ] AC-02: Preflight kończy się przed pełną macierzą i sprawdza checkout,
-  instalację, kompilację oraz kolekcję testów.
+- [ ] AC-02: Preflight uruchamia się przed testami w każdym runnerze macierzy
+  i sprawdza checkout, instalację, kompilację oraz kolekcję testów.
 - [ ] AC-03: Błędy są klasyfikowane jako `CHECKOUT`, `DEPENDENCY`, `TEST`,
   `LINT` albo `INFRASTRUCTURE`, a job summary wskazuje klasę i następny krok.
 - [ ] AC-04: Workflow nie maskuje błędów przez `|| true`, zachowuje macierz

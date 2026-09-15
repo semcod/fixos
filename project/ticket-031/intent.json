@@ -34,12 +34,12 @@
     },
     "architecture": {
       "status": "accepted",
-      "decision": "Add one fast preflight job and explicit CI jobs for dependency, test and lint evidence; use always-run summaries with stable failure taxonomy and preserve the existing Python matrix.",
+      "decision": "Add one fast preflight phase before tests in each matrix runner; use an always-run summary with stable failure taxonomy and preserve the existing Python matrix without changing the protected check declaration.",
       "components": [{"name": "ci-preflight-and-summary", "paths": [".github/workflows/ci.yml"]}],
       "responsibilityChanges": false,
       "interfaceChanges": [],
       "dataChanges": [],
-      "ui": {"impact": "single-state", "states": ["success", "failure"], "evidence": ["job summary"]},
+      "ui": {"impact": "multi-state", "states": ["success", "error"], "evidence": ["job summary"]},
       "rollback": "Revert the single workflow file and ticket metadata."
     },
     "runtimeDependencies": [],
