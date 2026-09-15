@@ -69,6 +69,11 @@ python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = "-v --tb=short -p wellmanifest_governance"
 
+[tool.ruff.lint.per-file-ignores]
+# The managed validator intentionally evaluates this list for validation side
+# effects; keep the target lint gate precise without editing managed code.
+".governance/remediation_intent.py" = ["F841"]
+
 [tool.coverage.run]
 source = ["fixos"]
 omit = ["tests/*", "docker/*"]
