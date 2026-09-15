@@ -29,6 +29,16 @@ observation store.
 
 ## Blockers
 
-- None inside the recorded intent; proceed without a second confirmation.
+- Focused validation is complete (`8 passed`, Ruff passed), but publication is
+  currently blocked by repository state rather than by the endpoint test:
+  `origin/main` moved after this ticket was accepted, and the local
+  `ticket/025-governance-closure` worktree/branch remains outside `main` after
+  its PR was closed. The managed activity resolver therefore correctly keeps
+  ticket-025 active and refuses a second active application ticket.
+- Do not push this branch until the owner explicitly discards the obsolete
+  unmerged ticket-025 closure worktree/branch or the protected controller
+  supplies an equivalent terminal outcome. Then refresh the accepted base,
+  rerun the gate and publish this exact ticket head through the protected
+  route.
 - New authority remains required for destructive action, secret access, new
   external coordination, material objective expansion and trusted merge.
