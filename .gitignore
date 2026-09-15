@@ -27,6 +27,10 @@ htmlcov/
 !.env.example
 !fixos.conf.example
 
+# Managed Wellmanifest host instructions
+!.github/copilot-instructions.md
+!.subactor/manifest.json
+
 # IDE
 .idea/
 .vscode/
@@ -55,3 +59,17 @@ Thumbs.db
 !.github/workflows/new-project-governance.yml
 .pyqual/
 .ruff_cache/
+
+# Track the managed Wellmanifest host files after broad legacy ignores
+!.github/copilot-instructions.md
+!.subactor/
+!.subactor/manifest.json
+
+# Repository-local worktrees and operational state
+/.worktrees/
+/.subactor/leases/
+/.subactor/sessions/
+/.subactor/recovery/
+/.subactor/receipts/
+/.subactor/cache/
+/.subactor/snapshots/

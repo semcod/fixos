@@ -34,7 +34,7 @@ jobs:
             echo '=== Fedora Test ===' &&
             fixos --version || true &&
             fixos scan --help &&
-            python3 -m pytest tests/unit/ -v --tb=short -x
+            python3 -m pytest -p no:wellmanifest_governance tests/unit/ -v --tb=short -x
           "
 
   # ═══════════════════════════════════════════════════════════
@@ -58,7 +58,7 @@ jobs:
             echo '=== Ubuntu Test ===' &&
             fixos --version || true &&
             fixos scan --help &&
-            python3 -m pytest tests/unit/ -v --tb=short -x
+            python3 -m pytest -p no:wellmanifest_governance tests/unit/ -v --tb=short -x
           "
 
   # ═══════════════════════════════════════════════════════════
@@ -82,7 +82,7 @@ jobs:
             echo '=== Debian Test ===' &&
             fixos --version || true &&
             fixos scan --help &&
-            python3 -m pytest tests/unit/ -v --tb=short -x
+            python3 -m pytest -p no:wellmanifest_governance tests/unit/ -v --tb=short -x
           "
 
   # ═══════════════════════════════════════════════════════════
@@ -107,7 +107,7 @@ jobs:
             echo '=== Arch Linux Test ===' &&
             fixos --version || true &&
             fixos scan --help &&
-            python3 -m pytest tests/unit/ -v --tb=short -x
+            python3 -m pytest -p no:wellmanifest_governance tests/unit/ -v --tb=short -x
           " || echo "Arch test may fail due to rolling updates"
 
   # ═══════════════════════════════════════════════════════════
@@ -132,7 +132,7 @@ jobs:
             echo '=== Alpine Test ===' &&
             fixos --version || true &&
             fixos scan --help &&
-            python3 -m pytest tests/unit/ -v --tb=short -x
+            python3 -m pytest -p no:wellmanifest_governance tests/unit/ -v --tb=short -x
           " || echo "Alpine test may fail due to musl libc differences"
 
   # ═══════════════════════════════════════════════════════════
