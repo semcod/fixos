@@ -22,7 +22,7 @@
   "conflictsWith": [],
   "integrationTicket": null,
   "delivery": {
-    "acceptedBaseSha": "979022dc698fa95c5ebb6d5e4eeb6abad4def547",
+    "acceptedBaseSha": "1c72423a3b68fc0879ddcd72d8334ecff7aa318d",
     "targetBranch": "main",
     "outcome": "The three Multi-System Docker images that run managed governance tests provide the git executable required during plugin activation.",
     "nonGoals": [
@@ -30,7 +30,7 @@
       "No changes to Arch, Alpine or the reusable Fedora base image.",
       "No secret access or direct merge outside the protected publication flow."
     ],
-    "complexity": "XS",
+    "complexity": "S",
     "estimatedMinutes": 20,
     "budgets": {
       "maxImplementationFiles": 3,
@@ -78,7 +78,7 @@
           "docker build -f docker/ubuntu/Dockerfile -t fixos-test:ticket-028-ubuntu .",
           "docker build -f docker/debian/Dockerfile -t fixos-test:ticket-028-debian ."
         ],
-        "evidence": "Pending exact candidate build."
+        "evidence": "Local builds of Fedora, Ubuntu and Debian candidate images completed successfully."
       },
       {
         "criterion": "AC-03",
@@ -86,7 +86,7 @@
           "./project/governance-check.sh --base origin/main --head HEAD --actor agent",
           "python -m pytest -q tests"
         ],
-        "evidence": "Pending implementation and exact-head validation."
+        "evidence": "Pending exact-head validation after the current main base was adopted."
       }
     ]
   }
