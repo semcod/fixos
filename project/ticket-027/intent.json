@@ -2,7 +2,7 @@
   "schema": "new-project.intent/v3",
   "ticket": "ticket-027",
   "summary": "Adopt current Wellmanifest governance and terminal receipt policy",
-  "workstream": "integration",
+  "workstream": "governance",
   "classification": {
     "kind": "SERVICE",
     "priority": "P2",
@@ -19,6 +19,7 @@
     ".governance/policy_dsl_check.py",
     ".governance/policy-dsl.lock.json",
     "pyproject.toml",
+    "CONTRIBUTING.md",
     "AGENTS.md",
     "VERSION",
     "CHANGELOG.md",
@@ -50,10 +51,10 @@
       "No ticket closure commit or carrier-only closure PR.",
       "No secret access, GitHub merge or external provider mutation outside the protected publication path."
     ],
-    "complexity": "S",
-    "estimatedMinutes": 25,
+    "complexity": "M",
+    "estimatedMinutes": 40,
     "budgets": {
-      "maxImplementationFiles": 5,
+      "maxImplementationFiles": 9,
       "maxAffectedComponents": 2,
       "maxPublicInterfaceChanges": 0,
       "maxRuntimeDependencies": 0
@@ -77,7 +78,8 @@
             ".gitignore",
             ".subactor/**",
             ".github/copilot-instructions.md",
-            "pyproject.toml"
+            "pyproject.toml",
+            "CONTRIBUTING.md"
           ]
         }
       ],

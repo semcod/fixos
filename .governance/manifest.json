@@ -41,9 +41,10 @@
         "ownedPaths": [
           ".governance/**",
           ".gitignore",
-          "AGENTS.md",
-          "README.md",
-          "TODO.md",
+        "AGENTS.md",
+        "README.md",
+        "CONTRIBUTING.md",
+        "TODO.md",
           "CHANGELOG.md",
           ".env.example",
           "goal.yaml",
