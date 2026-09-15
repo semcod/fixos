@@ -50,9 +50,9 @@ To be completed after reading human-owned input and the ticket preprompt.
 - New authority remains required for destructive action, secret access, new
   external coordination, material objective expansion and trusted merge.
 
-## Closure candidate
+## Publication candidate
 
 - Refreshed `delivery.acceptedBaseSha` to integrated `main` `979022dc` after
   the target moved through PR #52.
-- Set the ticket metadata to `DONE / DONE` for this governance closure
-  candidate; final status depends on protected exact-head merge.
+- Keep the ticket metadata at `IN_PROGRESS / PUBLICATION` through exact-head
+  review and trusted merge, then close it from the integrated default branch.

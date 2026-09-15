@@ -2,8 +2,8 @@
 
 - **ID**: ticket-023
 - **Owner**: unresolved:human
-- **Status**: DONE
-- **Workflow state**: DONE
+- **Status**: IN_PROGRESS
+- **Workflow state**: PUBLICATION
 - **Created**: 2026-09-14
 
 ## Goal and scope
@@ -44,7 +44,7 @@ SESSION_EXECUTION_AUTHORIZATION: continue (human request received).
 - The accepted base was refreshed after the target branch moved; scope,
   architecture and non-goals were unchanged.
 
-## Publication evidence
+## Publication follow-up
 
 - Normalized the generated coverage report's 62 local worktree paths to stable
   `github.com/semcod/fixos/blob/main` source links.
