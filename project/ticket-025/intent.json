@@ -85,7 +85,7 @@
         "commands": [
           "python -m pytest -q tests/unit/test_cleanup_safety.py tests/unit/test_cleanup_cmd.py tests/unit/test_service_cleanup.py tests/unit/test_service_scanner.py tests/unit/test_cleanup_utils.py tests/unit/test_docker_network_cleanup.py"
         ],
-        "evidence": "Pending implementation."
+        "evidence": "9 new tests in tests/unit/test_cleanup_safety.py fail on base 5b765f5 and pass on the fix; the 85 existing cleanup tests still pass; ruff reports no issues. A read-only `fixos cleanup --list` on the developer host finished in 172 s instead of 564 s (filesystem cache may account for part of the gain), shows the Docker timeout warning and reports 16.30 GB safe instead of 99.63 GB."
       },
       {
         "criterion": "AC-02",
@@ -93,7 +93,7 @@
           "python -m pytest -q",
           "./project/governance-check.sh --base origin/main --head HEAD --actor agent"
         ],
-        "evidence": "Pending implementation."
+        "evidence": "Full suite: 601 passed, 5 skipped, 16 deselected, 4 failed; the 4 failures are typo-detection tests in tests/unit/test_ask_and_nl_group.py that fail identically on the base commit (click 8.3.2 lacks click.exceptions.NoSuchCommand). Governance gate: GOV-PASS for base origin/main and head HEAD."
       }
     ]
   }

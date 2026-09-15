@@ -3,7 +3,7 @@
 - **ID**: ticket-025
 - **Owner**: unresolved:human
 - **Status**: IN_PROGRESS
-- **Workflow state**: EDIT
+- **Workflow state**: VALIDATION
 - **Created**: 2026-09-15
 
 ## Goal and scope
@@ -33,13 +33,16 @@ network flows, no new CLI option and no real deletion during validation.
 
 ## Acceptance criteria
 
-- [ ] AC-01: Focused tests prove that interactive `--dry-run` never executes a
+- [x] AC-01: Focused tests prove that interactive `--dry-run` never executes a
   cleanup, logs no longer cover `~/.local/state`, Discord/Slack commands split
   into only absolute paths, gcloud cleanup does not revoke credentials, a
   non-zero `du` total is used, and a failed `docker system df` runs once and
   appears as a plan warning.
 - [ ] AC-02: The full test suite and the governance gate pass for the exact
-  head.
+  head. Governance passes; the suite has 601 passed and 4 failures in
+  `tests/unit/test_ask_and_nl_group.py` that also fail on the base commit
+  (click 8.3.2 has no `click.exceptions.NoSuchCommand`) and are outside this
+  ticket. Publication (push and PR) awaits the user's decision.
 
 ## Participants
 

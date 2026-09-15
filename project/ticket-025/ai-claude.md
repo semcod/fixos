@@ -26,6 +26,24 @@ for the scope in `README.md` and `intent.json`.
 
 - Initialized the bounded ticket and recorded SESSION_EXECUTION_AUTHORIZATION
   from the request to execute this work.
+- `fixos/cli/cleanup_cmd.py`: `_run_interactive_cleanup`,
+  `_execute_safe_cleanup` and `_execute_individual_cleanup` accept `dry_run`;
+  a simulation prints the planned command and estimate instead of "Zwolniono"
+  and skips the protected-data confirmation because nothing runs. The summary
+  prints plan warnings, including when no service is above the threshold.
+- `fixos/diagnostics/service_scanner.py`: logs scan only `~/.cache/log`; `du`
+  totals are kept when `du` exits non-zero; a failed `docker system df` is
+  cached per scanner (retried only with `refresh=True`) and recorded in
+  `scan_warnings` for timeouts and daemon errors.
+- `fixos/diagnostics/service_cleanup.py`: plan carries `warnings`; Discord and
+  Slack paths are shell-quoted; gcloud no longer revokes credentials; logs
+  cleanup and preview no longer touch `~/.local/state`.
+- `tests/unit/test_cleanup_safety.py`: 9 regression tests; all 9 fail on the
+  base code and pass after the change.
+- Out of scope, recorded for a later ticket: four typo-detection tests in
+  `tests/unit/test_ask_and_nl_group.py` fail on the base commit as well because
+  `fixos/cli/shared.py` raises `click.exceptions.NoSuchCommand`, which the
+  installed click 8.3.2 does not provide.
 
 ## Blockers
 
