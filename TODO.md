@@ -8,6 +8,11 @@ Ostatni przegląd: 2026-09-15.
 
 ## Aktywne
 
+- [ ] Dostarczyć [ticket-029](project/ticket-029/README.md): uzupełnić
+  `infrastructure.ownedPaths` o `docker/**`, zgodnie z lokalizacją obrazów
+  wymienioną w sekcji Docker manifestu. Stan: `IN_PROGRESS / EDIT`; zmiana
+  odblokowuje materialną naprawę obrazów w ticket-028.
+
 - [ ] Dostarczyć [ticket-023](project/ticket-023/README.md): usunąć lokalne
   ścieżki worktree z generowanego raportu coverage i opublikować stabilne linki
   źródłowe. Stan: `IN_PROGRESS / PUBLICATION`; PR #56 oczekuje na exact-head
