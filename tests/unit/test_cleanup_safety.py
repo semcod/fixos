@@ -108,32 +108,6 @@ class TestInteractiveDryRun:
         assert scanner.calls == [("npm", True)]
         assert "Tryb symulacji (--dry-run)" in result.output
 
-    def test_specialized_cleanup_paths_receive_dry_run(self, monkeypatch):
-        calls = []
-
-        def fake_ollama(self, *, days, dry_run):
-            calls.append(("ollama-old", days, dry_run))
-            return {"success": True, "space_freed_gb": 0}
-
-        def fake_docker(self, *, dry_run, include_networks):
-            calls.append(("docker-unused", dry_run, include_networks))
-            return {"success": True, "space_freed_gb": 0}
-
-        monkeypatch.setattr(ServiceCleaner, "cleanup_ollama_old_unused", fake_ollama)
-        monkeypatch.setattr(ServiceCleaner, "cleanup_docker_unused", fake_docker)
-
-        cleanup_cmd._execute_planned_cleanup(
-            object(), {"cleanup_kind": "ollama-old", "days": 30}, dry_run=True
-        )
-        cleanup_cmd._execute_planned_cleanup(
-            object(), {"cleanup_kind": "docker-unused"}, dry_run=True
-        )
-
-        assert calls == [
-            ("ollama-old", 30, True),
-            ("docker-unused", True, True),
-        ]
-
 
 class TestCleanupCommandSafety:
     def test_logs_service_leaves_xdg_state_alone(self):

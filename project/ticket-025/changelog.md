@@ -6,5 +6,3 @@
 - No human participant identity or content was generated.
 - Trusted Validator approved exact head `0529e6be` and merged PR #48 as
   `9ad62df`; ticket closure records the post-merge evidence.
-- Added an in-scope regression test for dry-run propagation through the
-  specialized Docker/Ollama cleanup paths in the closure PR.

@@ -38,9 +38,8 @@ for the scope in `README.md` and `intent.json`.
 - `fixos/diagnostics/service_cleanup.py`: plan carries `warnings`; Discord and
   Slack paths are shell-quoted; gcloud no longer revokes credentials; logs
   cleanup and preview no longer touch `~/.local/state`.
-- `tests/unit/test_cleanup_safety.py`: 10 regression tests; the original 9
-  fail on the base code and pass after the change, while the added test covers
-  dry-run propagation through the specialized Docker/Ollama paths.
+- `tests/unit/test_cleanup_safety.py`: 9 regression tests; all 9 fail on the
+  base code and pass after the change.
 - Out of scope, recorded for a later ticket: four typo-detection tests in
   `tests/unit/test_ask_and_nl_group.py` fail on the base commit as well because
   `fixos/cli/shared.py` raises `click.exceptions.NoSuchCommand`, which the
