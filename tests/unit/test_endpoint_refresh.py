@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import socket
 
+import pytest
+
 from fixos.config import FixOsConfig
 from fixos.endpoint_refresh import refresh_endpoint
 
@@ -125,6 +127,22 @@ def test_malformed_observation_is_ignored():
     )
     assert result.source == "dns"
     assert result.addresses == ("192.0.2.12",)
+
+
+def test_credentials_are_rejected_before_dns_and_never_cached():
+    observations = {}
+
+    with pytest.raises(ValueError, match="credentials"):
+        refresh_endpoint(
+            "llm:test",
+            "https://user:secret@api.example.test/v1",
+            observations=observations,
+            resolver=lambda *args, **kwargs: (_ for _ in ()).throw(
+                AssertionError("credential-bearing URL must not reach DNS")
+            ),
+        )
+
+    assert observations == {}
 
 
 def test_config_load_exposes_observation_and_can_be_disabled(monkeypatch):

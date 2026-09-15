@@ -8,6 +8,11 @@ Ostatni przegląd: 2026-09-15.
 
 ## Aktywne
 
+- [ ] Dostarczyć [ticket-026](project/ticket-026/README.md): utrwalić testem
+  kontrakt, który odrzuca URL-e endpointów zawierające poświadczenia przed
+  zapytaniem DNS i nie zapisuje ich w obserwacji procesu. Stan:
+  `IN_PROGRESS / EDIT`; zakres dokumentuje także plan dalszej optymalizacji.
+
 - [ ] Dostarczyć [ticket-029](project/ticket-029/README.md): uzupełnić
   `infrastructure.ownedPaths` o `docker/**`, zgodnie z lokalizacją obrazów
   wymienioną w sekcji Docker manifestu. Stan: `IN_PROGRESS / EDIT`; zmiana
