@@ -20,7 +20,8 @@ published local standard is 0.20.31.
 3. Run Goal's immutable adoption preflight and upgrade the managed package.
 4. Align the package lifecycle binding and pinned Policy DSL dependency required
    by the adopted host contract.
-5. Run governance, stack, drift and FixOS checks, then publish through OneDev
+5. Ensure the active pytest configuration loads the governance plugin.
+6. Run governance, stack, drift and FixOS checks, then publish through OneDev
    and the independent Validator for the exact material adoption head.
 
 ## Blockers

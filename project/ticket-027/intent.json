@@ -19,6 +19,7 @@
     ".governance/policy_dsl_check.py",
     ".governance/policy-dsl.lock.json",
     "pyproject.toml",
+    "pytest.ini",
     "CONTRIBUTING.md",
     "AGENTS.md",
     "VERSION",
@@ -79,7 +80,8 @@
             ".subactor/**",
             ".github/copilot-instructions.md",
             "pyproject.toml",
-            "CONTRIBUTING.md"
+            "CONTRIBUTING.md",
+            "pytest.ini"
           ]
         }
       ],

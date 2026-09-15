@@ -26,9 +26,11 @@ outside the accepted scope.
 - [x] AC-02: Goal upgrades the managed governance package to new-project 0.20.31,
   tracks `.subactor/manifest.json` and `.github/copilot-instructions.md`, and
   records the exact source revision in `pyproject.toml`.
-- [ ] AC-03: Managed governance, drift, stack and FixOS checks pass on the exact
+- [x] AC-03: The active `pytest.ini` loads the managed governance plugin instead
+  of silently overriding the lifecycle binding declared in `pyproject.toml`.
+- [ ] AC-04: Managed governance, drift, stack and FixOS checks pass on the exact
   candidate head; no application runtime or dependency path changes.
-- [ ] AC-04: The protected Validator verifies the exact material adoption PR and
+- [ ] AC-05: The protected Validator verifies the exact material adoption PR and
   publishes the external terminal merge receipt; no closure PR is created.
 
 ## Participants
