@@ -1,0 +1,74 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-030",
+  "summary": "Adopt Git ancestry for ticket activity resolution",
+  "workstream": "governance",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P1",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-030/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    ".governance/ticket-activity.override.json"
+  ],
+  "forbiddenPaths": ["project/ticket-*/user-*.md"],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "eaa6893026145f7df84781ae4d7e91e84e9dd797",
+    "targetBranch": "main",
+    "outcome": "FixOS resolves merged ticket activity from Git ancestry while retaining active status for unmerged ticket branches, allowing goal -a to pass on the integrated main tree.",
+    "nonGoals": [
+      "No change to ticket README lifecycle status or external terminal receipts.",
+      "No change to application code, tests, runtime dependencies or ticket allocation rules.",
+      "No secret access, direct merge or external mutation outside protected delivery."
+    ],
+    "complexity": "XS",
+    "estimatedMinutes": 10,
+    "budgets": {
+      "maxImplementationFiles": 1,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Use the target-owned ticket-activity override to select the managed resolver's git-ancestry fallback when external terminal receipts are absent.",
+      "components": [
+        {
+          "name": "ticket-activity-resolution",
+          "paths": [".governance/ticket-activity.override.json"]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {"impact": "none", "states": [], "evidence": []},
+      "rollback": "Remove the target-owned override and return to status projection from the external terminal receipt registry."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "python3 .governance/ticket_activity.py --root . validate"
+        ],
+        "evidence": "The override parses against the pinned target schema and selects git-ancestry."
+      },
+      {
+        "criterion": "AC-03",
+        "commands": [
+          "./project/governance-check.sh --base origin/main --head HEAD --actor agent",
+          "goal -a",
+          "python3 -m pytest -q tests"
+        ],
+        "evidence": "Managed governance passes; the local Python 3.13 baseline reports 611 passed, 5 skipped and 16 deselected, with four pre-existing Click 8.3 compatibility failures outside this ticket. Fresh-main Goal validation remains a publication acceptance check."
+      }
+    ]
+  }
+}
