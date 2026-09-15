@@ -1,0 +1,100 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-025",
+  "summary": "Make fixos cleanup safe: honor dry-run, truthful sizes, quoted commands",
+  "workstream": "application",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P1",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-025/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/cli/cleanup_cmd.py",
+    "fixos/diagnostics/service_cleanup.py",
+    "fixos/diagnostics/service_scanner.py",
+    "tests/unit/test_cleanup_safety.py",
+    "tests/unit/test_service_cleanup.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md",
+    ".env",
+    "fixos/config.py",
+    "fixos/endpoint_refresh.py",
+    "pyproject.toml"
+  ],
+  "stacks": [
+    "python"
+  ],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "d73bf65377897ad9e9c89ee225d8e79ad0ad2d5c",
+    "targetBranch": "main",
+    "outcome": "fixos cleanup never deletes in --dry-run, reports only space its commands can reclaim, never runs shell-split rm arguments or credential revocation, and reports Docker measurement failures instead of silently dropping Docker while scanning faster.",
+    "nonGoals": [
+      "No change to Docker, Ollama, orphaned-project or network cleanup flows.",
+      "No new CLI option, output schema removal or runtime dependency.",
+      "No real deletion on the developer machine during validation."
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 25,
+    "budgets": {
+      "maxImplementationFiles": 5,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Thread dry_run through the interactive executors; drop the XDG state directory from the logs service because it holds application state, not disposable logs; quote multi-word cache paths and remove gcloud credential revocation from the cache command; accept du totals printed with a non-zero exit; cache a failed docker system df for the scan and expose it as a plan warning shown by the CLI.",
+      "components": [
+        {
+          "name": "cleanup-cli",
+          "paths": [
+            "fixos/cli/cleanup_cmd.py",
+            "tests/unit/test_cleanup_safety.py"
+          ]
+        },
+        {
+          "name": "service-diagnostics",
+          "paths": [
+            "fixos/diagnostics/service_cleanup.py",
+            "fixos/diagnostics/service_scanner.py",
+            "tests/unit/test_service_cleanup.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the implementation commit; cleanup commands, scan paths and interactive execution return to the previous behavior."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python -m pytest -q tests/unit/test_cleanup_safety.py tests/unit/test_cleanup_cmd.py tests/unit/test_service_cleanup.py tests/unit/test_service_scanner.py tests/unit/test_cleanup_utils.py tests/unit/test_docker_network_cleanup.py"
+        ],
+        "evidence": "9 new tests in tests/unit/test_cleanup_safety.py fail on base 5b765f5 and pass on the fix; the 85 existing cleanup tests still pass; ruff reports no issues. A read-only `fixos cleanup --list` on the developer host finished in 172 s instead of 564 s (filesystem cache may account for part of the gain), shows the Docker timeout warning and reports 16.30 GB safe instead of 99.63 GB."
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "python -m pytest -q",
+          "./project/governance-check.sh --base origin/main --head HEAD --actor agent"
+        ],
+        "evidence": "Full suite: 601 passed, 5 skipped, 16 deselected, 4 failed; the 4 failures are typo-detection tests in tests/unit/test_ask_and_nl_group.py that fail identically on the base commit (click 8.3.2 lacks click.exceptions.NoSuchCommand). Governance gate: GOV-PASS for base origin/main and head HEAD."
+      }
+    ]
+  }
+}

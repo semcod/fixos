@@ -43,6 +43,8 @@ def _display_cleanup_summary(plan: dict, threshold: int) -> None:
     """Display cleanup plan summary header."""
     click.echo(click.style(f"\nSkanowanie usług (próg: {threshold} MB)...", fg="cyan"))
     click.echo(click.style(f"{'═' * 60}", fg="cyan"))
+    for warning in plan.get("warnings", []):
+        click.echo(click.style(f"⚠️  {warning}", fg="yellow", bold=True))
 
     if plan["services_found"] == 0:
         click.echo(click.style("\nNie znaleziono usług powyżej progu.", fg="green"))
@@ -180,13 +182,28 @@ def _execute_planned_cleanup(scanner, svc: dict, *, dry_run: bool = False) -> di
     )
 
 
-def _execute_safe_cleanup(services: list, scanner) -> float:
+def _display_dry_run_result(result: dict) -> None:
+    """Show what a simulated planned cleanup would do."""
+    if not result["success"]:
+        click.echo(click.style(f"  Błąd: {_error_message(result)}", fg="red"))
+        return
+    click.echo(click.style("  Symulacja — nic nie usunięto.", fg="cyan"))
+    for line in (result.get("output") or "").strip().splitlines()[:4]:
+        click.echo(f"    {line}")
+    estimate = float(result.get("space_freed_gb", 0) or 0)
+    if estimate > 0:
+        click.echo(f"    Szacowane maksimum do odzyskania: {estimate:.2f} GB")
+
+
+def _execute_safe_cleanup(services: list, scanner, dry_run: bool = False) -> float:
     """Execute cleanup for safe-to-remove services. Returns total space freed in GB."""
     total_freed = 0.0
     for svc in services:
         click.echo(f"Czyszczenie {svc.get('name') or svc['service_type']}...")
-        result = _execute_planned_cleanup(scanner, svc, dry_run=False)
-        if result["success"]:
+        result = _execute_planned_cleanup(scanner, svc, dry_run=dry_run)
+        if dry_run:
+            _display_dry_run_result(result)
+        elif result["success"]:
             freed = float(result.get("space_freed_gb", 0) or 0)
             total_freed += freed
             if freed > 0:
@@ -217,7 +234,7 @@ def _execute_safe_cleanup(services: list, scanner) -> float:
         if network_result:
             _display_docker_network_result(
                 network_result,
-                dry_run=False,
+                dry_run=dry_run,
                 title="  Docker — osierocone sieci",
             )
     return total_freed
@@ -1149,12 +1166,14 @@ def _select_individual_services(services: list) -> list:
     return selected
 
 
-def _execute_individual_cleanup(services: list, scanner) -> float:
+def _execute_individual_cleanup(
+    services: list, scanner, dry_run: bool = False
+) -> float:
     """Execute hand-picked entries with an extra gate for protected data."""
     total_freed = 0.0
     for svc in services:
         risk = svc.get("risk_level", "review")
-        if risk == "dangerous":
+        if risk == "dangerous" and not dry_run:
             click.echo(
                 click.style(
                     f"⚠️  {svc['name']} zawiera dane chronione lub mieszane. "
@@ -1171,8 +1190,10 @@ def _execute_individual_cleanup(services: list, scanner) -> float:
                 continue
 
         click.echo(f"Czyszczenie {svc['name']}...")
-        result = _execute_planned_cleanup(scanner, svc, dry_run=False)
-        if result["success"]:
+        result = _execute_planned_cleanup(scanner, svc, dry_run=dry_run)
+        if dry_run:
+            _display_dry_run_result(result)
+        elif result["success"]:
             freed = float(result.get("space_freed_gb", 0))
             total_freed += freed
             click.echo(click.style(f"  Zwolniono {freed:.2f} GB", fg="green"))
@@ -1182,15 +1203,25 @@ def _execute_individual_cleanup(services: list, scanner) -> float:
         if network_result:
             _display_docker_network_result(
                 network_result,
-                dry_run=False,
+                dry_run=dry_run,
                 title="  Docker — osierocone sieci",
             )
     return total_freed
 
 
-def _run_interactive_cleanup(plan: dict, list_only: bool, scanner) -> None:
+def _run_interactive_cleanup(
+    plan: dict, list_only: bool, scanner, dry_run: bool = False
+) -> None:
     """Offer interactive safe cleanup and display unsafe services."""
     if not list_only and plan["services"]:
+        if dry_run:
+            click.echo(
+                click.style(
+                    "Tryb symulacji (--dry-run): wybrane pozycje nie zostaną usunięte.",
+                    fg="cyan",
+                    bold=True,
+                )
+            )
         if plan["safe_to_cleanup"]:
             mode, selected = _select_safe_services(plan["safe_to_cleanup"])
         else:
@@ -1198,20 +1229,21 @@ def _run_interactive_cleanup(plan: dict, list_only: bool, scanner) -> None:
         if mode == "individual":
             selected = _select_individual_services(plan["services"])
             if selected:
-                _execute_individual_cleanup(selected, scanner)
+                _execute_individual_cleanup(selected, scanner, dry_run=dry_run)
             else:
                 click.echo(click.style("Pominięto czyszczenie.", fg="yellow"))
             return
         if selected:
-            _execute_safe_cleanup(selected, scanner)
-            click.echo()
-            click.echo(
-                click.style(
-                    "Uwaga: listy poniżej pochodzą ze skanu sprzed czyszczenia — "
-                    "uruchom ponownie `fixos cleanup --list`, by zobaczyć aktualny stan.",
-                    fg="cyan",
+            _execute_safe_cleanup(selected, scanner, dry_run=dry_run)
+            if not dry_run:
+                click.echo()
+                click.echo(
+                    click.style(
+                        "Uwaga: listy poniżej pochodzą ze skanu sprzed czyszczenia — "
+                        "uruchom ponownie `fixos cleanup --list`, by zobaczyć aktualny stan.",
+                        fg="cyan",
+                    )
                 )
-            )
         elif mode == "none":
             click.echo(click.style("Pominięto czyszczenie.", fg="yellow"))
     if plan["requires_review"] and not list_only:
@@ -1627,4 +1659,4 @@ def cleanup_services(
     for svc in plan["services"]:
         _display_service_item(svc)
 
-    _run_interactive_cleanup(plan, list_only, scanner)
+    _run_interactive_cleanup(plan, list_only, scanner, dry_run=dry_run)

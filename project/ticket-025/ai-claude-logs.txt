@@ -1,0 +1,14 @@
+2026-09-15 fixos cleanup --list (base, installed from primary checkout): exit 0, 564 s, 19 services, safe 99.63 GB incl. "Logs" 83.34 GB (~/.local/state).
+2026-09-15 find ~/.cache/log ~/.local/state -name '*.log' -mtime +7: 484 files, 0.02 GB.
+2026-09-15 profile (base): docker system df TIMEOUT 90 s x3; du ~/.local/state rc=1 63.8 s + os.walk fallback = 82.6 s.
+2026-09-15 docker system df (manual): 4 min 31 s; images 139.3 GB (99.52 GB reclaimable), volumes 175.9 GB, build cache 33.57 GB.
+2026-09-15 mocked CLI (base): `cleanup --dry-run` choice [1] passed dry_run=False to cleanup.
+2026-09-15 pytest tests/unit/test_cleanup_safety.py on base code: 9 failed; on fix: 9 passed.
+2026-09-15 pytest cleanup suites (5 existing files): 85 passed on fix.
+2026-09-15 ruff check (4 changed files): All checks passed.
+2026-09-15 pytest -q (full, on fix): 601 passed, 5 skipped, 16 deselected, 4 failed (test_ask_and_nl_group.py; identical on base).
+2026-09-15 governance-check --base origin/main --head HEAD --actor agent: GOV-PASS.
+2026-09-15 fixos cleanup --list (fix, read-only): exit 0, 172 s, Docker timeout warning shown, safe 16.30 GB, no Logs entry.
+2026-09-15 sandbox e2e (throwaway HOME, -t 1 -s slack,discord,gh,bazel,gcloud,logs, docker/journalctl/gcloud replaced by recording stubs), base code: --dry-run with answer [1] removed cache files, ./Cache and ./Worker in the working directory and ~/.local/state/agent/old.log, and called `gcloud auth application-default revoke`; "Code Cache"/"Service Worker" stayed; docker system df called twice.
+2026-09-15 sandbox e2e, fix: --dry-run removed nothing and printed the simulation notice for all 6 entries; the real run removed every selected cache including "Code Cache"/"Service Worker", kept the gcloud credential file, ~/.local/state/agent/old.log, ./Cache and ./Worker, never called gcloud, called docker system df once and showed the Docker warning.
+2026-09-15 PR #48 CI on 5e60a8b: governance remote lifecycle, test 3.10/3.11/3.12, alpine/debian/fedora/ubuntu passed; arch pending at the time of this entry.
