@@ -26,10 +26,19 @@ images used by the Multi-System jobs.
 - [x] AC-01: The scope is authorized by the continuation request and the
   mismatch between `docker`'s declared Dockerfiles and infrastructure ownership
   is reproduced by the managed governance check.
-- [ ] AC-02: `.governance/manifest.json` assigns `docker/**` to the
+- [x] AC-02: `.governance/manifest.json` assigns `docker/**` to the
   `infrastructure` workstream without changing other ownership rules.
-- [ ] AC-03: Governance and stack checks pass on the exact material HEAD, and
-  the change is published through the protected Validator flow.
+- [x] AC-03: Governance and stack checks pass locally on the current material
+  HEAD: `GOV-PASS` and `614 passed, 5 skipped, 16 deselected`.
+- [ ] AC-04: The exact material HEAD is published through the protected
+  Validator flow.
+
+## Validation evidence
+
+- The pre-change governance check rejected nested Docker paths as unowned by
+  `infrastructure`.
+- The candidate check passed with `GOV-PASS: passed (0 errors, 0 warnings)`.
+- The Python suite passed with `614 passed, 5 skipped, 16 deselected`.
 
 ## Participants
 

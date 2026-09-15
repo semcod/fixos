@@ -17,10 +17,10 @@
   "forbiddenPaths": ["project/ticket-*/user-*.md"],
   "stacks": [],
   "dependsOn": [],
-  "conflictsWith": [],
+  "conflictsWith": ["ticket-027"],
   "integrationTicket": null,
   "delivery": {
-    "acceptedBaseSha": "fd093e00ed6a3d0aba883a148cf958b3f080729e",
+    "acceptedBaseSha": "10145ad7a017aaf84c4268d2bb857962e872c5ea",
     "targetBranch": "main",
     "outcome": "Governance recognizes nested docker assets as owned by the infrastructure workstream.",
     "nonGoals": [
@@ -28,7 +28,7 @@
       "No change to the meaning of existing workstream ownership outside docker/**.",
       "No secret access or direct merge outside the protected publication flow."
     ],
-    "complexity": "XS",
+    "complexity": "S",
     "estimatedMinutes": 15,
     "budgets": {
       "maxImplementationFiles": 2,
@@ -70,7 +70,7 @@
           "python -m json.tool .governance/manifest.json",
           "python -c \"import json; m=json.load(open('.governance/manifest.json')); assert 'docker/**' in m['coordination']['workstreams']['infrastructure']['ownedPaths']\""
         ],
-        "evidence": "Pending exact candidate validation."
+        "evidence": "The candidate manifest parses and the infrastructure list contains docker/**."
       },
       {
         "criterion": "AC-03",
@@ -78,7 +78,7 @@
           "./project/governance-check.sh --base origin/main --head HEAD --actor agent",
           "python -m pytest -q tests"
         ],
-        "evidence": "Pending exact-head publication."
+        "evidence": "Governance passed with 0 errors and 0 warnings; pytest passed with 614 passed, 5 skipped and 16 deselected."
       }
     ]
   }
