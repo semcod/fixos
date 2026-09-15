@@ -61,7 +61,7 @@
       },
       "rollback": "Revert the three package-list additions; no data migration is required."
     },
-    "runtimeDependencies": ["git (test-image system package)"],
+    "runtimeDependencies": [],
     "validation": [
       {
         "criterion": "AC-01",
