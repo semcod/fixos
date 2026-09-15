@@ -26,7 +26,7 @@ Ostatni przegląd: 2026-09-15.
 - [ ] Dostarczyć [ticket-027](project/ticket-027/README.md): zaktualizować
   zarządzany standard Wellmanifest/new-project do opublikowanej rewizji 0.20.31,
   śledzić wymagane pliki hosta, związać parser Policy DSL i używać zewnętrznego
-  merge receipt jako końca lifecycle. Stan: `IN_PROGRESS / EDIT`.
+  merge receipt jako końca lifecycle. Stan: `IN_PROGRESS / PUBLICATION`.
 
 - [ ] Dostarczyć [ticket-025](project/ticket-025/README.md): uczynić
   `fixos cleanup` bezpiecznym — respektować `--dry-run` w trybie
