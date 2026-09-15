@@ -43,3 +43,11 @@ SESSION_EXECUTION_AUTHORIZATION: continue (human request received).
   remained untouched and source links target the stable `main` branch.
 - The accepted base was refreshed after the target branch moved; scope,
   architecture and non-goals were unchanged.
+
+## Publication follow-up
+
+- Normalized the generated coverage report's 62 local worktree paths to stable
+  `github.com/semcod/fixos/blob/main` source links.
+- The closure is based on integrated `main` at `979022dc698fa95c5ebb6d5e4eeb6abad4def547`.
+- This branch remains the exact-head candidate until protected Validator review
+  and merge; the integrated default branch is the source of final DONE evidence.

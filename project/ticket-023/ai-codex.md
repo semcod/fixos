@@ -26,6 +26,8 @@ To be completed after reading human-owned input and the ticket preprompt.
   architecture remain unchanged.
 - Preserved stable `main` source links and left manually maintained
   documentation outside the ticket unchanged.
+- Corrected 62 generated coverage entries that leaked the disposable local
+  worktree path; each now links to the corresponding stable `main` source line.
 
 ## Validation
 
@@ -47,3 +49,10 @@ To be completed after reading human-owned input and the ticket preprompt.
 - None inside the recorded intent; proceed without a second confirmation.
 - New authority remains required for destructive action, secret access, new
   external coordination, material objective expansion and trusted merge.
+
+## Publication candidate
+
+- Refreshed `delivery.acceptedBaseSha` to integrated `main` `979022dc` after
+  the target moved through PR #52.
+- Keep the ticket metadata at `IN_PROGRESS / PUBLICATION` through exact-head
+  review and trusted merge, then close it from the integrated default branch.
