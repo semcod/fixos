@@ -32,7 +32,7 @@
   "conflictsWith": [],
   "integrationTicket": null,
   "delivery": {
-    "acceptedBaseSha": "d73bf65377897ad9e9c89ee225d8e79ad0ad2d5c",
+    "acceptedBaseSha": "3cb07b71eb11312471b1fbd353d9290f59262ccd",
     "targetBranch": "main",
     "outcome": "fixos cleanup never deletes in --dry-run, reports only space its commands can reclaim, never runs shell-split rm arguments or credential revocation, and reports Docker measurement failures instead of silently dropping Docker while scanning faster.",
     "nonGoals": [
@@ -85,7 +85,7 @@
         "commands": [
           "python -m pytest -q tests/unit/test_cleanup_safety.py tests/unit/test_cleanup_cmd.py tests/unit/test_service_cleanup.py tests/unit/test_service_scanner.py tests/unit/test_cleanup_utils.py tests/unit/test_docker_network_cleanup.py"
         ],
-        "evidence": "9 new tests in tests/unit/test_cleanup_safety.py fail on base 5b765f5 and pass on the fix; the 85 existing cleanup tests still pass; ruff reports no issues. A read-only `fixos cleanup --list` on the developer host finished in 172 s instead of 564 s (filesystem cache may account for part of the gain), shows the Docker timeout warning and reports 16.30 GB safe instead of 99.63 GB."
+        "evidence": "10 focused tests in tests/unit/test_cleanup_safety.py pass, including fail-closed handling for incomplete dry-run results; the existing cleanup tests still pass and ruff reports no issues. A read-only `fixos cleanup --list` on the developer host finished in 172 s instead of 564 s (filesystem cache may account for part of the gain), shows the Docker timeout warning and reports 16.30 GB safe instead of 99.63 GB."
       },
       {
         "criterion": "AC-02",
