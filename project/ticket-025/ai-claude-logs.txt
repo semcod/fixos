@@ -9,3 +9,6 @@
 2026-09-15 pytest -q (full, on fix): 601 passed, 5 skipped, 16 deselected, 4 failed (test_ask_and_nl_group.py; identical on base).
 2026-09-15 governance-check --base origin/main --head HEAD --actor agent: GOV-PASS.
 2026-09-15 fixos cleanup --list (fix, read-only): exit 0, 172 s, Docker timeout warning shown, safe 16.30 GB, no Logs entry.
+2026-09-15 sandbox e2e (throwaway HOME, -t 1 -s slack,discord,gh,bazel,gcloud,logs, docker/journalctl/gcloud replaced by recording stubs), base code: --dry-run with answer [1] removed cache files, ./Cache and ./Worker in the working directory and ~/.local/state/agent/old.log, and called `gcloud auth application-default revoke`; "Code Cache"/"Service Worker" stayed; docker system df called twice.
+2026-09-15 sandbox e2e, fix: --dry-run removed nothing and printed the simulation notice for all 6 entries; the real run removed every selected cache including "Code Cache"/"Service Worker", kept the gcloud credential file, ~/.local/state/agent/old.log, ./Cache and ./Worker, never called gcloud, called docker system df once and showed the Docker warning.
+2026-09-15 PR #48 CI on 5e60a8b: governance remote lifecycle, test 3.10/3.11/3.12, alpine/debian/fedora/ubuntu passed; arch pending at the time of this entry.
