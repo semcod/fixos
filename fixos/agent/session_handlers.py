@@ -31,6 +31,7 @@ from .session_core import (
     CmdResult,
     DiagnosticChoice,
     RemediationAction,
+    package_cleanup_guard,
     select_recommended_actions,
 )
 
@@ -450,6 +451,18 @@ def run_single_command(cmd: str, comment: str) -> CmdResult:
     """Run a command with full transparency and safety checks."""
     cmd = deanonymize(cmd)
     cmd = elevate_cmd(cmd)
+
+    package_guard = package_cleanup_guard(cmd)
+    if package_guard:
+        io.print_blocked_command(cmd, package_guard)
+        return CmdResult(
+            cmd=cmd,
+            comment=comment,
+            ok=False,
+            stdout="",
+            stderr=f"Zablokowano: {package_guard}",
+            returncode=-98,
+        )
 
     # Check for dangerous commands
     danger = is_dangerous(cmd)

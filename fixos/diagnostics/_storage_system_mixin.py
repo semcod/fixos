@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import re
+import shlex
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -17,6 +18,50 @@ from fixos.constants import (
     MIN_DEBUGINFO_MB,
     MIN_ORPHANED_PACKAGES,
 )
+
+
+_PACKAGE_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9+_.:@%~-]*$")
+_PACKAGE_OUTPUT_HEADINGS = {
+    "available",
+    "command",
+    "dependencies",
+    "error",
+    "failed",
+    "found",
+    "installed",
+    "last",
+    "matches",
+    "metadata",
+    "n/a",
+    "no",
+    "nothing",
+    "package",
+    "removing",
+    "warning",
+}
+
+
+def _observed_package_names(output: str, *, limit: int = 30) -> list[str]:
+    """Extract bounded, literal package names from read-only command output."""
+    names: list[str] = []
+    for raw_line in output.splitlines():
+        stripped = raw_line.strip()
+        candidate = stripped.split(maxsplit=1)[0] if stripped else ""
+        if not candidate or candidate.lower().rstrip(":.,") in _PACKAGE_OUTPUT_HEADINGS:
+            continue
+        if _PACKAGE_NAME_RE.fullmatch(candidate) is None or candidate in names:
+            continue
+        names.append(candidate)
+        if len(names) >= limit:
+            break
+    return names
+
+
+def _exact_dnf_remove_command(package_names: list[str]) -> str:
+    """Build a DNF command whose target set is fixed by the diagnostic scan."""
+    return "sudo dnf remove -y -- " + " ".join(
+        shlex.quote(package_name) for package_name in package_names
+    )
 
 
 class _SystemAnalyzerMixin:
@@ -54,7 +99,7 @@ class _SystemAnalyzerMixin:
         if not output:
             return
 
-        kernels = output.strip().split("\n")
+        kernels = _observed_package_names(output)
         if len(kernels) <= 2:
             return  # Keep at least 2 kernels
 
@@ -74,10 +119,10 @@ class _SystemAnalyzerMixin:
                     path="/boot",
                     size_bytes=estimated_size,
                     category="packages",
-                    risk="low",
-                    cleanup_command="sudo dnf remove --oldinstallonly",
+                    risk="medium",
+                    cleanup_command=_exact_dnf_remove_command(old_kernels),
                     description=f"Masz {len(kernels)} kerneli, używasz {current_version}. "
-                    f"Bezpiecznie usuń {len(old_kernels)} starych.",
+                    f"Kandydaci do usunięcia (po podglądzie): {', '.join(old_kernels)}.",
                 )
             )
 
@@ -133,26 +178,26 @@ class _SystemAnalyzerMixin:
         """Analyze orphaned packages and debug symbols"""
         output = self._run_command(["dnf", "repoquery", "--installed", "*debuginfo*"])
         if output and output.strip():
-            debug_packages = output.strip().split("\n")
+            debug_packages = _observed_package_names(output)
             estimated_size = len(debug_packages) * 500 * 1024 * 1024
 
-            if estimated_size > MIN_DEBUGINFO_MB * 1024 * 1024:
+            if debug_packages and estimated_size > MIN_DEBUGINFO_MB * 1024 * 1024:
                 self.items.append(
                     StorageItem(
                         name=f"Debug symbols ({len(debug_packages)})",
                         path="/usr/lib/debug",
                         size_bytes=estimated_size,
                         category="packages",
-                        risk="low",
-                        cleanup_command="sudo dnf remove '*debuginfo*'",
+                        risk="medium",
+                        cleanup_command=_exact_dnf_remove_command(debug_packages),
                         description=f"Pakiety debuginfo zajmują ~{StorageItem._format_size(estimated_size)}. "
-                        "Usuń jeśli nie rozwijasz aplikacji.",
+                        f"Dokładne cele (po podglądzie): {', '.join(debug_packages)}.",
                     )
                 )
 
         output = self._run_command(["package-cleanup", "--leaves"])
         if output and output.strip():
-            orphaned = output.strip().split("\n")
+            orphaned = _observed_package_names(output)
             if len(orphaned) > MIN_ORPHANED_PACKAGES:
                 estimated_size = len(orphaned) * 50 * 1024 * 1024
 
@@ -162,10 +207,11 @@ class _SystemAnalyzerMixin:
                         path="/var/lib/rpm",
                         size_bytes=estimated_size,
                         category="packages",
-                        risk="low",
-                        cleanup_command="sudo dnf remove $(package-cleanup --leaves)",
+                        risk="medium",
+                        cleanup_command=_exact_dnf_remove_command(orphaned),
                         description=f"Osierocone pakiety (leaves): {len(orphaned)}. "
-                        "Biblioteki nie wymagane przez żaden pakiet.",
+                        "Biblioteki nie wymagane przez żaden pakiet. "
+                        f"Dokładne cele (po podglądzie): {', '.join(orphaned)}.",
                     )
                 )
 
@@ -208,7 +254,7 @@ class _SystemAnalyzerMixin:
                     path="/var/cache",
                     size_bytes=other_size,
                     category="system_cache",
-                    risk="low",
+                    risk="medium",
                     cleanup_command="sudo rm -rf /var/cache/*",
                     description=f"Cache systemowe (poza DNF) zajmują "
                     f"{StorageItem._format_size(other_size)}.",

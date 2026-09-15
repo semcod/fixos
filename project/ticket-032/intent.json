@@ -1,0 +1,69 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-032",
+  "summary": "Bezpieczny triage literowek i package cleanup",
+  "workstream": "application",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P1",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-032/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/cli/ask_cmd.py",
+    "fixos/agent/session_core.py",
+    "fixos/agent/session_handlers.py",
+    "fixos/diagnostics/_storage_system_mixin.py",
+    "tests/unit/test_ask_and_nl_group.py",
+    "tests/unit/test_core.py",
+    "tests/unit/test_storage_analyzer.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "c7025773cd8f5e7943cd8165d4285e9135197f50",
+    "targetBranch": "main",
+    "outcome": "Package cleanup plans and diagnostics use bounded exact targets, while broad autoremove, wildcard and shell-expansion removal commands fail closed before execution.",
+    "nonGoals": [
+      "No package cleanup or other destructive system operation runs on the developer host.",
+      "No new runtime dependency, dependency manifest, public CLI option or output schema change.",
+      "No automatic package removal, rollback claim or bypass of human confirmation.",
+      "No changes to unrelated cleanup services, Docker, Flatpak or release configuration."
+    ],
+    "complexity": "M",
+    "estimatedMinutes": 45,
+    "budgets": {
+      "maxImplementationFiles": 9,
+      "maxAffectedComponents": 3,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Centralize bounded package-cleanup classification in the HITL core, reject unbounded commands in both plan parsing and the final execution guard, and build DNF removal commands only from validated literal names returned by read-only diagnostics.",
+      "components": [
+        {"name": "hitl-package-policy", "paths": ["project/ticket-032/**", "fixos/agent/session_core.py", "fixos/agent/session_handlers.py", "tests/unit/test_core.py"]},
+        {"name": "natural-language-cli", "paths": ["fixos/cli/ask_cmd.py", "tests/unit/test_ask_and_nl_group.py"]},
+        {"name": "package-diagnostics", "paths": ["fixos/diagnostics/_storage_system_mixin.py", "tests/unit/test_storage_analyzer.py"]}
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {"impact": "none", "states": [], "evidence": []},
+      "rollback": "Revert the bounded package policy and exact-target diagnostic changes; no host-side package state is modified by this ticket."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {"criterion": "AC-02", "commands": ["python -m pytest -q tests/unit/test_ask_and_nl_group.py tests/unit/test_core.py"], "evidence": "ticket-032/ai-codex.md"},
+      {"criterion": "AC-03", "commands": ["python -m pytest -q tests/unit/test_storage_analyzer.py"], "evidence": "ticket-032/ai-codex.md"},
+      {"criterion": "AC-04", "commands": ["python -m pytest -q", "./project/governance-check.sh --base origin/main --head HEAD --actor agent"], "evidence": "ticket-032/ai-codex.md"}
+    ]
+  }
+}

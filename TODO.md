@@ -8,6 +8,10 @@ Ostatni przegląd: 2026-09-15.
 
 ## Aktywne
 
+- [ ] Dostarczyć [ticket-032](project/ticket-032/README.md): bezpieczny triage
+  literówek i pakietów przez dokładny inventory, dry-run i potwierdzenie przed
+  usuwaniem. Stan: `IN_PROGRESS / EDIT`.
+
 - [ ] Dostarczyć [ticket-030](project/ticket-030/README.md): włączyć dla FixOS
   zarządzaną projekcję aktywności ticketów z historii Git, aby `goal -a` nie
   traktował zintegrowanych ticketów jako aktywnych przy braku zewnętrznego

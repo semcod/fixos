@@ -6,6 +6,46 @@ import click
 import yaml
 import subprocess
 
+from fixos.agent.session_core import package_cleanup_guard
+
+
+_PACKAGE_TERMS = (
+    "pakiet",
+    "package",
+    "packages",
+    "autoremove",
+    "debuginfo",
+    "dnf",
+    "apt",
+    "rpm",
+    "pacman",
+)
+_PACKAGE_ACTION_TERMS = (
+    "usun",
+    "usuń",
+    "remove",
+    "delete",
+    "clean",
+    "wyczysc",
+    "wyczyść",
+    "sprawdz",
+    "sprawdź",
+    "pokaz",
+    "pokaż",
+    "list",
+    "lista",
+    "przejrzyj",
+    "triage",
+)
+_PACKAGE_TRIAGE_COMMAND = ("fixos", ["cleanup", "--full", "--dry-run", "--json"])
+
+
+def _is_package_triage_request(prompt_lower: str) -> bool:
+    """Recognize package cleanup/review requests without authorizing removal."""
+    return any(term in prompt_lower for term in _PACKAGE_TERMS) and any(
+        term in prompt_lower for term in _PACKAGE_ACTION_TERMS
+    )
+
 
 @click.command("ask")
 @click.argument("prompt")
@@ -48,6 +88,12 @@ def _match_heuristic_command(prompt_lower: str) -> object | None:
         kw in prompt_lower
         for kw in ["bezpieczenstwo", "bezpieczeństwo", "security", "firewall", "porty"]
     )
+
+    # Package cleanup is always an inventory-only JSON dry-run. This branch is
+    # intentionally before Docker routing so an ambiguous "pakiety docker"
+    # request cannot become a container-removal command.
+    if _is_package_triage_request(prompt_lower):
+        return _PACKAGE_TRIAGE_COMMAND
 
     # 1. Docker-specific actions
     if is_docker:
@@ -136,6 +182,22 @@ def _build_output_dict(
 def _execute_heuristic_command(cmd_str: str, prompt: str, dry_run: bool, cfg) -> None:
     """Execute a heuristic-matched command and output result."""
 
+    package_guard = package_cleanup_guard(cmd_str)
+    if package_guard:
+        output = _build_output_dict(
+            status="dry_run" if dry_run else "blocked",
+            prompt=prompt,
+            source="heuristics",
+            command=cmd_str,
+            reason=package_guard,
+            message=(
+                "Czyszczenie pakietów wymaga listy dokładnych celów, podglądu "
+                "transakcji i osobnego potwierdzenia; operacja zbiorcza została zablokowana."
+            ),
+        )
+        click.echo(yaml.dump(output, default_flow_style=False, allow_unicode=True))
+        return
+
     if dry_run:
         output = _build_output_dict(
             status="dry_run",
@@ -204,6 +266,7 @@ Przykłady:
 - "sprawdź sieć" → ip addr
 - "napraw dźwięk" → fixos fix --modules audio
 - "diagnostyka" → fixos scan
+- "usuń pakiety" → fixos cleanup --full --dry-run --json
 """
         resp = llm.chat([{"role": "user", "content": llm_prompt}], max_tokens=200)
         cmd_str = resp.strip().split("\n")[0].strip()
@@ -215,6 +278,23 @@ Przykłady:
                 "reason": "llm_empty_response",
                 "message": "LLM nie zwrócił komendy",
             }
+            click.echo(yaml.dump(output, default_flow_style=False, allow_unicode=True))
+            return
+
+        package_guard = package_cleanup_guard(cmd_str)
+        if package_guard:
+            output = _build_output_dict(
+                status="dry_run" if dry_run else "blocked",
+                prompt=prompt,
+                source="llm",
+                command=cmd_str,
+                reason=package_guard,
+                message=(
+                    "Zablokowano zbiorcze czyszczenie pakietów. Najpierw wymagane są "
+                    "dokładne cele ze skanu, podgląd transakcji i jawne potwierdzenie."
+                ),
+                llm=llm_provider,
+            )
             click.echo(yaml.dump(output, default_flow_style=False, allow_unicode=True))
             return
 
