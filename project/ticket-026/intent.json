@@ -1,0 +1,50 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-026",
+  "summary": "Harden endpoint observation contract and publish optimization plan",
+  "workstream": "application",
+  "classification": {
+    "kind": "FEATURE",
+    "priority": "P2",
+    "origin": "health"
+  },
+  "allowedPaths": ["project/ticket-026/**", "TODO.md", "project/TICKETS.md", "tests/unit/test_endpoint_refresh.py"],
+  "forbiddenPaths": ["project/ticket-*/user-*.md"],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "a1ac475d79fdae86bef7bbb10cdabadd84340f7a",
+    "targetBranch": "main",
+    "outcome": "The endpoint observation contract rejects credential-bearing URLs before DNS and does not retain credentials in process-local observations while publishing the bounded optimization plan.",
+    "nonGoals": [
+      "No change to endpoint runtime behavior beyond the existing ticket-024 contract.",
+      "No secret access or persistent endpoint cache.",
+      "No external DNS, GitHub or provider mutation outside protected delivery."
+    ],
+    "complexity": "XS",
+    "estimatedMinutes": 15,
+    "budgets": {
+      "maxImplementationFiles": 1,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Keep the existing endpoint parser as the credential boundary and lock its no-DNS/no-cache behavior with a focused regression test.",
+      "components": [{"name": "endpoint-observation-contract", "paths": ["tests/unit/test_endpoint_refresh.py"]}],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {"impact": "none", "states": [], "evidence": []},
+      "rollback": "Revert the focused regression test and bounded plan documentation."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {"criterion": "AC-02", "commands": ["python -m pytest -q tests/unit/test_endpoint_refresh.py", "ruff check tests/unit/test_endpoint_refresh.py"], "evidence": "8 focused tests passed; Ruff passed."},
+      {"criterion": "AC-03", "commands": ["./project/governance-check.sh --base origin/main --head HEAD --actor agent"], "evidence": "Pending protected delivery."}
+    ]
+  }
+}
