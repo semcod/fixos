@@ -1,6 +1,6 @@
 """Regression tests for exact package cleanup targets in storage analysis."""
 
-from fixos.diagnostics.storage_analyzer import StorageAnalyzer
+from fixos.diagnostics.storage_analyzer import StorageAnalyzer  # noqa: I001
 from fixos.diagnostics._storage_system_mixin import (
     _exact_dnf_remove_command,
     _observed_package_names,

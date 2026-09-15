@@ -2,12 +2,13 @@
 Natural language command (ask) for fixOS CLI
 """
 
+import subprocess
+from contextlib import suppress
+
 import click
 import yaml
-import subprocess
 
 from fixos.agent.session_core import package_cleanup_guard
-
 
 _PACKAGE_TERMS = (
     "pakiet",
@@ -210,7 +211,9 @@ def _execute_heuristic_command(cmd_str: str, prompt: str, dry_run: bool, cfg) ->
         return
 
     try:
-        result = subprocess.run(cmd_str, capture_output=True, text=True, shell=True)
+        result = subprocess.run(
+            cmd_str, capture_output=True, text=True, shell=True, check=False
+        )
 
         output = _build_output_dict(
             status="success" if result.returncode == 0 else "failed",
@@ -226,12 +229,10 @@ def _execute_heuristic_command(cmd_str: str, prompt: str, dry_run: bool, cfg) ->
 
         # Optional LLM validation
         if cfg.api_key and result.returncode == 0:
-            try:
+            with suppress(Exception):
                 _validate_result_with_llm(prompt, cmd_str, result, cfg)
-            except Exception:
-                pass  # Ignore validation errors
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         output = _build_output_dict(
             status="error",
             prompt=prompt,
@@ -395,7 +396,9 @@ Przykłady:
                 return
 
         # Execute the generated command
-        result = subprocess.run(cmd_str, capture_output=True, text=True, shell=True)
+        result = subprocess.run(
+            cmd_str, capture_output=True, text=True, shell=True, check=False
+        )
         output = _build_output_dict(
             status="success" if result.returncode == 0 else "failed",
             prompt=prompt,
@@ -411,7 +414,7 @@ Przykłady:
         # Validate result
         _validate_result_with_llm(prompt, cmd_str, result, cfg)
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         output = {
             "status": "error",
             "reason": "llm_error",
@@ -503,7 +506,7 @@ Przykłady:
 
         # Execute check command
         check_result = subprocess.run(
-            check_cmd, capture_output=True, text=True, shell=True
+            check_cmd, capture_output=True, text=True, shell=True, check=False
         )
 
         # Now assess the result
@@ -531,10 +534,7 @@ validation:
         # Try to parse YAML from response
         try:
             yaml_start = resp.find("---")
-            if yaml_start >= 0:
-                yaml_content = resp[yaml_start:]
-            else:
-                yaml_content = resp
+            yaml_content = resp[yaml_start:] if yaml_start >= 0 else resp
 
             validation = yaml.safe_load(yaml_content)
             if validation and "validation" in validation:
@@ -552,7 +552,7 @@ validation:
                     )
                 )
                 return
-        except Exception:
+        except Exception:  # noqa: BLE001, S110
             pass
 
         # Fallback: show check command info
@@ -572,5 +572,5 @@ validation:
                 allow_unicode=True,
             )
         )
-    except Exception:
+    except Exception:  # noqa: BLE001, S110
         pass

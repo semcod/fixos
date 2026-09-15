@@ -7,7 +7,6 @@ import hashlib
 import json
 import re
 from difflib import get_close_matches
-from typing import TYPE_CHECKING, Tuple
 
 from ..constants import (
     CLEANUP_TIMEOUT_ESTIMATE,
@@ -15,17 +14,17 @@ from ..constants import (
     FAST_COMMAND_TIMEOUT,
     LONG_COMMAND_TIMEOUT,
     MAX_ANON_PREVIEW_LENGTH,
-    MAX_STDERR_PREVIEW_LENGTH,
     MAX_DIRECT_CMD_PREVIEW_LENGTH,
+    MAX_STDERR_PREVIEW_LENGTH,
 )
 from ..platform_utils import (
+    elevate_cmd,
     is_dangerous,
     is_interactive_blocker,
-    elevate_cmd,
     run_command,
 )
 from ..utils.anonymizer import anonymize, deanonymize
-from ..utils.web_search import search_all, format_results_for_llm
+from ..utils.web_search import format_results_for_llm, search_all
 from . import session_io as io
 from .session_core import (
     CmdResult,
@@ -34,9 +33,6 @@ from .session_core import (
     package_cleanup_guard,
     select_recommended_actions,
 )
-
-if TYPE_CHECKING:
-    pass
 
 
 def _resolve_command_timeout(cmd: str) -> int:
@@ -527,7 +523,7 @@ def run_single_command(cmd: str, comment: str) -> CmdResult:
 
 def parse_user_input(
     user_in: str, fixes: list, messages: list, executed: list, serpapi_key: str | None
-) -> Tuple[bool, bool]:
+) -> tuple[bool, bool]:
     """
     Parse user input and execute appropriate handler.
 

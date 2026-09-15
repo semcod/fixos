@@ -3,15 +3,16 @@ Unit tests for NaturalLanguageGroup typo detection and ask_cmd heuristic matchin
 """
 
 from unittest.mock import MagicMock, patch
+
 import pytest
 from click.testing import CliRunner, _NamedTextIOWrapper
 
-from fixos.cli.main import cli
+from fixos.agent.session_core import package_cleanup_guard
 from fixos.cli.ask_cmd import (
     _execute_with_llm,
     _match_heuristic_command,
 )
-from fixos.agent.session_core import package_cleanup_guard
+from fixos.cli.main import cli
 
 
 @pytest.fixture

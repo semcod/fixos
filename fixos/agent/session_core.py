@@ -7,8 +7,8 @@ import json
 import re
 import shlex
 import time
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
-from typing import Callable, Iterator, List, Tuple
 
 from ..constants import (
     MAX_SUMMARY_LENGTH,
@@ -281,11 +281,8 @@ def _is_diagnostic_only_command(cmd: str) -> bool:
     # Split by common shell delimiters to check each part
     parts = re.split(r"\s*(?:&&|\|\||;|\|)\s*", cmd)
 
-    # If any part of a compound command looks like a repair, the whole thing is actionable
-    for part in parts:
-        if not _is_part_diagnostic_only(part):
-            return False
-    return True
+    # If any part of a compound command looks like a repair, the whole thing is actionable.
+    return all(_is_part_diagnostic_only(part) for part in parts)
 
 
 def _is_part_diagnostic_only(part: str) -> bool:
@@ -295,13 +292,12 @@ def _is_part_diagnostic_only(part: str) -> bool:
         normalized = normalized[5:].strip()
 
     # Special case: diagnostic tools used for cleanup/repair
-    if normalized.startswith("journalctl"):
-        if (
-            "--vacuum-" in normalized
-            or "--flush" in normalized
-            or "--rotate" in normalized
-        ):
-            return False
+    if normalized.startswith("journalctl") and (
+        "--vacuum-" in normalized
+        or "--flush" in normalized
+        or "--rotate" in normalized
+    ):
+        return False
 
     if normalized.startswith("find ") and re.search(
         r"(?:\s-delete\b|\s-exec(?:dir)?\s+(?:rm|shred)\b)", normalized
@@ -356,9 +352,9 @@ def _extract_co_robi(text: str) -> str:
     return m.group(1).strip() if m else ""
 
 
-def _pattern_strict_bold(reply: str) -> List[Tuple[str, str]]:
+def _pattern_strict_bold(reply: str) -> list[tuple[str, str]]:
     """Pattern 1: **Komenda:** `command` (strict: bold + backticks)."""
-    fixes: List[Tuple[str, str]] = []
+    fixes: list[tuple[str, str]] = []
     for m in re.finditer(
         r"\*\*Komenda:\*\*\s*`([^`]+)`(?:[^\n]*?\*\*Co robi:\*\*\s*(.+?))?(?=\n|$)",
         reply,
@@ -370,9 +366,9 @@ def _pattern_strict_bold(reply: str) -> List[Tuple[str, str]]:
     return fixes
 
 
-def _pattern_backticks(reply: str) -> List[Tuple[str, str]]:
+def _pattern_backticks(reply: str) -> list[tuple[str, str]]:
     """Pattern 2: Komenda: `command` (backticks, optional bold)."""
-    fixes: List[Tuple[str, str]] = []
+    fixes: list[tuple[str, str]] = []
     for m in re.finditer(
         r"\*{0,2}Komenda:\*{0,2}\s*`([^`]+)`",
         reply,
@@ -384,9 +380,9 @@ def _pattern_backticks(reply: str) -> List[Tuple[str, str]]:
     return fixes
 
 
-def _pattern_no_backticks(reply: str) -> List[Tuple[str, str]]:
+def _pattern_no_backticks(reply: str) -> list[tuple[str, str]]:
     """Pattern 3: Komenda: command (no backticks — until next section)."""
-    fixes: List[Tuple[str, str]] = []
+    fixes: list[tuple[str, str]] = []
     for m in re.finditer(
         r"\*{0,2}Komenda:\*{0,2}\s*"
         r"(.+?)"
@@ -400,9 +396,9 @@ def _pattern_no_backticks(reply: str) -> List[Tuple[str, str]]:
     return fixes
 
 
-def _pattern_fallbacks(reply: str) -> List[Tuple[str, str]]:
+def _pattern_fallbacks(reply: str) -> list[tuple[str, str]]:
     """Fallback patterns requiring an explicit repair marker."""
-    fixes: List[Tuple[str, str]] = []
+    fixes: list[tuple[str, str]] = []
     for m in re.finditer(r"→\s*Fix:\s*`([^`]+)`", reply, re.IGNORECASE):
         fixes.append((m.group(1).strip(), ""))
     if not fixes:
@@ -418,13 +414,13 @@ def _pattern_fallbacks(reply: str) -> List[Tuple[str, str]]:
     return fixes
 
 
-def _deduplicate(fixes: List[Tuple[str, str]]) -> List[Tuple[str, str]]:
+def _deduplicate(fixes: list[tuple[str, str]]) -> list[tuple[str, str]]:
     """Remove diagnostic-only commands and deduplicate."""
     filtered = [
         (cmd, comment) for cmd, comment in fixes if not _is_diagnostic_only_command(cmd)
     ]
     seen: set[str] = set()
-    unique: List[Tuple[str, str]] = []
+    unique: list[tuple[str, str]] = []
     for cmd, comment in filtered:
         if cmd not in seen:
             seen.add(cmd)
@@ -432,7 +428,7 @@ def _deduplicate(fixes: List[Tuple[str, str]]) -> List[Tuple[str, str]]:
     return unique
 
 
-def extract_fixes(reply: str) -> List[Tuple[str, str]]:
+def extract_fixes(reply: str) -> list[tuple[str, str]]:
     """Extract (command, comment) pairs from LLM reply."""
     fixes = (
         _pattern_strict_bold(reply)

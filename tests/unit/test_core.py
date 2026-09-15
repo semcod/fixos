@@ -104,7 +104,7 @@ class TestConfig:
     def test_summary_masks_key(self):
         from fixos.config import FixOsConfig
 
-        cfg = FixOsConfig(**{"api_key": "testAIzaSyABCDEFGHIJKLMNOPQRSTUVWXYZ12345"})
+        cfg = FixOsConfig(api_key="testAIzaSyABCDEFGHIJKLMNOPQRSTUVWXYZ12345")
         summary = cfg.summary()
         assert "testAIza" in summary
         assert "ABCDEFGHIJKLMNOPQRSTUVWXYZ12345" not in summary
@@ -121,14 +121,14 @@ class TestAnonymizer:
     def test_non_string_input(self):
         from fixos.utils.anonymizer import anonymize
 
-        anon, report = anonymize({"key": "value"})
+        anon, _report = anonymize({"key": "value"})
         assert isinstance(anon, str)
 
     def test_no_sensitive_data(self):
         from fixos.utils.anonymizer import anonymize
 
         data = "systemctl status pipewire -- Active: running"
-        anon, report = anonymize(data)
+        _anon, report = anonymize(data)
         # Brak IP ani ścieżek → brak lub minimalne zastąpienia
         sensitive_replacements = {
             k: v

@@ -10,15 +10,14 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from fixos.diagnostics.storage_analyzer import StorageItem
 
-from fixos.diagnostics.storage_analyzer import StorageItem
 from fixos.constants import (
-    MIN_DNF_CACHE_MB,
-    MIN_JOURNAL_LOG_MB,
     MIN_COREDUMP_MB,
     MIN_DEBUGINFO_MB,
+    MIN_DNF_CACHE_MB,
+    MIN_JOURNAL_LOG_MB,
     MIN_ORPHANED_PACKAGES,
 )
-
+from fixos.diagnostics.storage_analyzer import StorageItem
 
 _PACKAGE_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9+_.:@%~-]*$")
 _PACKAGE_OUTPUT_HEADINGS = {
