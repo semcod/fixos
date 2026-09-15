@@ -13,6 +13,7 @@ RUN dnf install -y \
     pipewire \
     wireplumber \
     findutils \
+    git \
     which \
     udev \
     dbus \

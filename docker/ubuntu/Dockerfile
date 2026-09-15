@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y \
     pipewire \
     wireplumber \
     findutils \
+    git \
     lsof \
     dbus \
     udev \
