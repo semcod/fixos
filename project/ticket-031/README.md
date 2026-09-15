@@ -1,0 +1,31 @@
+# Ticket 031: Fast CI preflight, failure taxonomy and actionable summary
+
+- **ID**: ticket-031
+- **Owner**: unresolved:human
+- **Status**: IN_PROGRESS
+- **Workflow state**: EDIT
+- **Created**: 2026-09-15
+
+## Goal and scope
+
+Usprawnić chroniony workflow CI przez szybki preflight, fail-closed obsługę
+błędów oraz jednoznaczne podsumowanie przy porażce. Zakres obejmuje wyłącznie
+`.github/workflows/ci.yml`; istniejąca macierz Python pozostaje zachowana, a
+preflight ma dostarczyć szybką informację przed pełnymi testami.
+
+## Acceptance criteria
+
+- [x] AC-01: Zakres jest autoryzowany poleceniem użytkownika `wykonaj`.
+- [ ] AC-02: Preflight kończy się przed pełną macierzą i sprawdza checkout,
+  instalację, kompilację oraz kolekcję testów.
+- [ ] AC-03: Błędy są klasyfikowane jako `CHECKOUT`, `DEPENDENCY`, `TEST`,
+  `LINT` albo `INFRASTRUCTURE`, a job summary wskazuje klasę i następny krok.
+- [ ] AC-04: Workflow nie maskuje błędów przez `|| true`, zachowuje macierz
+  Python 3.10/3.11/3.12 i przechodzi walidację governance.
+
+## Participants
+
+- Human participant: unresolved; no user-* file was created by this script.
+- Agent participant: [ai-codex.md](ai-codex.md)
+
+SESSION_EXECUTION_AUTHORIZATION: `wykonaj` from the human owner.
