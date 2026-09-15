@@ -8,12 +8,20 @@ Ostatni przegląd: 2026-09-15.
 
 ## Aktywne
 
+- [ ] Dostarczyć [ticket-023](project/ticket-023/README.md): odświeżyć
+  generowane strony API, modułów, grafu zależności i pokrycia po zmianach
+  ticketów 024 i 025. Stan: `IN_PROGRESS / PUBLICATION` po regeneracji na bazie
+  `9ad62df...`; przygotowany osobny PR do exact-head review i scalenia przez
+  Validator.
+
 - [ ] Dostarczyć [ticket-025](project/ticket-025/README.md): uczynić
   `fixos cleanup` bezpiecznym — respektować `--dry-run` w trybie
   interaktywnym, raportować tylko realnie odzyskiwalne miejsce, cytować ścieżki
   w komendach `rm`, nie unieważniać poświadczeń gcloud i ostrzegać, gdy pomiar
-  Dockera się nie powiedzie. Stan: `IN_PROGRESS / PUBLICATION`; PR #48, 9 nowych
-  testów regresji i całe CI przechodzą; scalenie na polecenie właściciela.
+  Dockera się nie powiedzie. Stan: `IN_PROGRESS / PUBLICATION`; implementacja
+  scalona jako PR #48 do `9ad62df...`, a PR #52 niesie domknięcie procesu i
+  oczekuje na ponowną materialną ścieżkę Validatora po rozwiązaniu blokady
+  ticketu 023.
 
 - [x] Dostarczyć [ticket-024](project/ticket-024/README.md): automatycznie
   obserwować DNS-backed endpoint providera przy ładowaniu konfiguracji i
