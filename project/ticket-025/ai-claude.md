@@ -74,8 +74,3 @@ for the scope in `README.md` and `intent.json`.
 - None inside the recorded intent; proceed without a second confirmation.
 - New authority remains required for destructive action, secret access, new
   external coordination, material objective expansion and trusted merge.
-
-- Governance-only closure was created from integrated `main` after PR #52.
-  It records exact head `233a46bcb2b73ebbbea34d2fe27b08d42d2e035b`, protected
-  merge `979022dc698fa95c5ebb6d5e4eeb6abad4def547`, successful post-merge
-  lifecycle evidence and the deleted merged branch.

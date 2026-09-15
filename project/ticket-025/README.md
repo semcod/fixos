@@ -2,8 +2,8 @@
 
 - **ID**: ticket-025
 - **Owner**: unresolved:human
-- **Status**: DONE
-- **Workflow state**: DONE
+- **Status**: IN_PROGRESS
+- **Workflow state**: PUBLICATION
 - **Created**: 2026-09-15
 
 ## Goal and scope
@@ -49,13 +49,11 @@ Trusted Validator App review approved exact head `0529e6be` after
 `onedev/local-verify=SUCCESS` and merged PR #48 into `main` as `9ad62df`.
 The remote ticket branch was deleted by the repository merge policy.
 
-## Publication evidence
+## Publication follow-up
 
-The material implementation and regression test were merged through protected
-Validator review as PR #52: exact head `233a46bcb2b73ebbbea34d2fe27b08d42d2e035b`,
-merge commit `979022dc698fa95c5ebb6d5e4eeb6abad4def547`. GitHub deleted the
-merged remote branch under `delete_branch_on_merge=true`. Post-merge governance
-and lifecycle checks passed on `main`.
+The closure branch carries one material regression test for incomplete dry-run
+results. The ticket remains `IN_PROGRESS / PUBLICATION` until this exact-head
+branch receives protected review and merge.
 
 ## Participants
 
