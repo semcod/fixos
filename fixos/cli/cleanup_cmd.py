@@ -187,6 +187,14 @@ def _display_dry_run_result(result: dict) -> None:
     if not result.get("success", False):
         click.echo(click.style(f"  Błąd: {_error_message(result)}", fg="red"))
         return
+    if "space_freed_gb" not in result:
+        click.echo(
+            click.style(
+                "  Błąd: niekompletny wynik symulacji (brak estymaty odzyskanego miejsca)",
+                fg="red",
+            )
+        )
+        return
     click.echo(click.style("  Symulacja — nic nie usunięto.", fg="cyan"))
     for line in (result.get("output") or "").strip().splitlines()[:4]:
         click.echo(f"    {line}")
