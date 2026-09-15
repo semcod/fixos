@@ -44,6 +44,12 @@ for the scope in `README.md` and `intent.json`.
   `tests/unit/test_ask_and_nl_group.py` fail on the base commit as well because
   `fixos/cli/shared.py` raises `click.exceptions.NoSuchCommand`, which the
   installed click 8.3.2 does not provide.
+- Published PR #48 after the user answered "tak i przetestuj"; CI passed on
+  `c102c04`. On 2026-09-15 the user instructed "kontynuuj, wypchnij, scal".
+  `main` has no branch protection or ruleset, the PR is mergeable, and earlier
+  tickets (#42, #37) were merged by the repository owner without a review, so
+  the owner's explicit instruction is recorded as the merge decision. This note
+  is an audit trail, not a protected approval.
 
 ## Blockers
 

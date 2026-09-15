@@ -12,9 +12,8 @@ Ostatni przegląd: 2026-09-15.
   `fixos cleanup` bezpiecznym — respektować `--dry-run` w trybie
   interaktywnym, raportować tylko realnie odzyskiwalne miejsce, cytować ścieżki
   w komendach `rm`, nie unieważniać poświadczeń gcloud i ostrzegać, gdy pomiar
-  Dockera się nie powiedzie. Stan: `IN_PROGRESS / VALIDATION`; 9 nowych
-  testów regresji przechodzi, governance przechodzi; publikacja czeka na
-  decyzję.
+  Dockera się nie powiedzie. Stan: `IN_PROGRESS / PUBLICATION`; PR #48, 9 nowych
+  testów regresji i całe CI przechodzą; scalenie na polecenie właściciela.
 
 - [x] Dostarczyć [ticket-018](project/ticket-018/README.md): udokumentować
   stan i pozostałe prace autonomizacji oraz lokalnego Registry. Stan:

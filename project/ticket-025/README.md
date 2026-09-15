@@ -3,7 +3,7 @@
 - **ID**: ticket-025
 - **Owner**: unresolved:human
 - **Status**: IN_PROGRESS
-- **Workflow state**: VALIDATION
+- **Workflow state**: PUBLICATION
 - **Created**: 2026-09-15
 
 ## Goal and scope
@@ -38,11 +38,12 @@ network flows, no new CLI option and no real deletion during validation.
   into only absolute paths, gcloud cleanup does not revoke credentials, a
   non-zero `du` total is used, and a failed `docker system df` runs once and
   appears as a plan warning.
-- [ ] AC-02: The full test suite and the governance gate pass for the exact
-  head. Governance passes; the suite has 601 passed and 4 failures in
+- [x] AC-02: The full test suite and the governance gate pass for the exact
+  head. PR #48 CI (governance, Python 3.10/3.11/3.12 and five distribution
+  containers) passed. Locally the suite has 4 failures in
   `tests/unit/test_ask_and_nl_group.py` that also fail on the base commit
-  (click 8.3.2 has no `click.exceptions.NoSuchCommand`) and are outside this
-  ticket. Publication (push and PR) awaits the user's decision.
+  because the local click 8.3.2 has no `click.exceptions.NoSuchCommand`; they
+  are outside this ticket.
 
 ## Participants
 
