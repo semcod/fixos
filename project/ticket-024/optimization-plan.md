@@ -213,8 +213,8 @@ Zależności lokalne są zapisane w Planfile: `STARTER-129` następuje po
 
 `subactor/report` i `wellmanifest/ssot` nie miały repozytoryjnego katalogu
 `.planfile`. Planfile opublikował ich issues poprawnie, ale zapisał lokalne
-rekordy odpowiednio w nadrzędnym magazynie `subactor/.planfile` i w
-`/home/tom/.planfile`. Przed kolejną pracą należy utworzyć repozytoryjne
+rekordy odpowiednio w nadrzędnym magazynie `subactor/.planfile` i w magazynie
+Planfile poziomu użytkownika. Przed kolejną pracą należy utworzyć repozytoryjne
 magazyny, przeprowadzić migrację/import bez zmiany external issue IDs i dopiero
 potem włączyć automatyczny sync. Nie wolno tworzyć nowych issues tylko po to,
 by skopiować te rekordy.
