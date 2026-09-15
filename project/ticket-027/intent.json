@@ -41,10 +41,10 @@
   ],
   "stacks": [],
   "dependsOn": [],
-  "conflictsWith": [],
+  "conflictsWith": ["ticket-029"],
   "integrationTicket": null,
   "delivery": {
-      "acceptedBaseSha": "fd093e00ed6a3d0aba883a148cf958b3f080729e",
+      "acceptedBaseSha": "1c72423a3b68fc0879ddcd72d8334ecff7aa318d",
     "targetBranch": "main",
     "outcome": "FixOS adopts the current published Wellmanifest/new-project governance package, tracks its host contract and Policy DSL dependency, binds Python packaging to the gate, and aligns terminal publication with protected external merge receipts.",
     "nonGoals": [
