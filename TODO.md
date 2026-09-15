@@ -4,15 +4,16 @@ Aktualna, ręcznie zweryfikowana lista zadań projektu. Zakończone pozycje są
 przenoszone do sekcji `Unreleased` w [CHANGELOG.md](CHANGELOG.md), zamiast
 pozostawać tutaj jako rosnąca lista zaznaczonych pól.
 
-Ostatni przegląd: 2026-07-23.
+Ostatni przegląd: 2026-09-15.
 
 ## Aktywne
 
 - [ ] Dostarczyć [ticket-024](project/ticket-024/README.md): automatycznie
   obserwować DNS-backed endpoint providera przy ładowaniu konfiguracji i
   sygnalizować zmianę adresu bez zapisywania sekretów ani trwałego cache'u.
-  Stan: `IN_PROGRESS / VALIDATION`; focused tests i governance przechodzą,
-  pełny suite zachowuje dwa znane błędy globalnego entrypointu.
+  Stan: `IN_PROGRESS / EDIT`; focused tests przechodzą, governance pozostaje
+  zablokowane przez historyczny `GOV-INTENT-003`; pełny suite przechodzi:
+  `603 passed, 5 skipped, 16 deselected`.
 
 - [x] Dostarczyć [ticket-018](project/ticket-018/README.md): udokumentować
   stan i pozostałe prace autonomizacji oraz lokalnego Registry. Stan:

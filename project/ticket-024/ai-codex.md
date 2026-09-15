@@ -34,14 +34,18 @@ the configured hostname with a raw IP.
   configured hostname for the LLM client.
 - Added seven focused regression tests covering changed addresses, freshness,
   stale observations, IP literals and custom URL compatibility.
-- Focused tests and governance pass. Full suite: `601 passed, 5 skipped, 2
-  failed`; the two failures are the pre-existing global-entrypoint import
-  defect in `tests/e2e/test_multi_system.py` (the global `miniconda3/bin/fixos`
-  entrypoint cannot import the checkout package).
+- Focused tests pass. Governance is currently blocked by the historical
+  `GOV-INTENT-003` finding because `intent.json` was not committed before the
+  first implementation commit. The current full suite passes: `603 passed, 5
+  skipped, 16 deselected`.
+- Replaced the duplicated cross-repository optimization document with a bounded
+  pointer to the canonical indexed document in `subactor/docs`, and corrected
+  the ticket evidence so it does not claim a passing governance gate.
 
 ## Blockers
 
-- No blocker inside the recorded intent; the known global entrypoint failures
-  are unrelated to this ticket and do not affect the project interpreter.
+- The recorded intent is implemented, but closure is blocked by the historical
+  `GOV-INTENT-003` finding. There is no current test regression in the full
+  suite.
 - New authority remains required for destructive action, secret access, new
   external coordination, material objective expansion and trusted merge.
