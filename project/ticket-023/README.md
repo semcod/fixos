@@ -3,7 +3,7 @@
 - **ID**: ticket-023
 - **Owner**: unresolved:human
 - **Status**: IN_PROGRESS
-- **Workflow state**: EDIT
+- **Workflow state**: PUBLICATION
 - **Created**: 2026-09-14
 
 ## Goal and scope
@@ -31,3 +31,15 @@ Operacja dotyczy stabilności dokumentacji i spójności artefaktów.
 - Agent participant: [ai-codex.md](ai-codex.md)
 
 SESSION_EXECUTION_AUTHORIZATION: continue (human request received).
+
+## Delivery evidence
+
+- Regenerated the four scoped pages from the refreshed `main` base
+  `9ad62dff53cebab3e49e343db182013e41a1445a` with the local `code2docs`
+  analyzers.
+- The generated pages now describe 188 modules, 938 functions and 110
+  classes after the integrated ticket-024 and ticket-025 changes.
+- Only the four allowed generated pages changed; manually maintained pages
+  remained untouched and source links target the stable `main` branch.
+- The accepted base was refreshed after the target branch moved; scope,
+  architecture and non-goals were unchanged.

@@ -21,3 +21,13 @@
   porażki dotyczą środowiska (`bin/fixos` nie widzi
   modułu `fixos` przy użyciu globalnego entrypointu), bez związku z modyfikacją
   dokumentacji.
+
+## [0.3.0] - 2026-09-15
+
+- Odświeżono cztery strony generowane po scaleniu ticketów 024 i 025 na bazie
+  `9ad62dff...`; wynik obejmuje 188 modułów, 938 funkcji i 110 klas.
+- Zmieniono wyłącznie `docs/api.md`, `docs/modules.md`,
+  `docs/dependency-graph.md` i `docs/coverage.md`; linki źródłowe wskazują
+  stabilny `main`.
+- Odświeżono `acceptedBaseSha` po zmianie gałęzi docelowej; zakres i
+  architektura ticketu pozostały bez zmian.

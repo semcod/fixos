@@ -1,6 +1,6 @@
 # fixos — Module Reference
 
-> 188 modules | 929 functions | 109 classes
+> 188 modules | 938 functions | 110 classes
 
 ## Module Overview
 
@@ -25,7 +25,7 @@
 | `fixos.cli._cleanup_system` | 603 | 17 | 0 | 6.7 | Full-system storage analysis and cleanup CLI handlers. | [source](https://github.com/semcod/fixos/blob/main/fixos/cli/_cleanup_system.py) |
 | `fixos.cli._cleanup_utils` | 128 | 6 | 0 | 5.2 | Shared utilities for cleanup CLI commands. | [source](https://github.com/semcod/fixos/blob/main/fixos/cli/_cleanup_utils.py) |
 | `fixos.cli.ask_cmd` | 496 | 8 | 0 | 10.2 | Natural language command (ask) for fixOS CLI | [source](https://github.com/semcod/fixos/blob/main/fixos/cli/ask_cmd.py) |
-| `fixos.cli.cleanup_cmd` | 1630 | 29 | 0 | 11.2 | Cleanup command for fixOS CLI - service data cleanup with de | [source](https://github.com/semcod/fixos/blob/main/fixos/cli/cleanup_cmd.py) |
+| `fixos.cli.cleanup_cmd` | 1662 | 30 | 0 | 11.2 | Cleanup command for fixOS CLI - service data cleanup with de | [source](https://github.com/semcod/fixos/blob/main/fixos/cli/cleanup_cmd.py) |
 | `fixos.cli.config_cmd` | 274 | 11 | 0 | 4.4 | Config management commands for fixOS CLI | [source](https://github.com/semcod/fixos/blob/main/fixos/cli/config_cmd.py) |
 | `fixos.cli.features_cmd` | 188 | 8 | 0 | 4.8 | Features CLI command for fixOS. | [source](https://github.com/semcod/fixos/blob/main/fixos/cli/features_cmd.py) |
 | `fixos.cli.fix_cmd` | 416 | 6 | 0 | 7.7 | Fix command for fixOS CLI - diagnostics and repair session w | [source](https://github.com/semcod/fixos/blob/main/fixos/cli/fix_cmd.py) |
@@ -46,7 +46,7 @@
 | `fixos.cli.shell_cmd` | 199 | 4 | 0 | 5.0 | Interactive shell (REPL) and menu for fixOS CLI. | [source](https://github.com/semcod/fixos/blob/main/fixos/cli/shell_cmd.py) |
 | `fixos.cli.token_cmd` | 141 | 4 | 0 | 3.2 | Token management commands for fixOS CLI | [source](https://github.com/semcod/fixos/blob/main/fixos/cli/token_cmd.py) |
 | `fixos.cli.watch_cmd` | 67 | 1 | 0 | 2.0 | Watch daemon command for fixOS CLI | [source](https://github.com/semcod/fixos/blob/main/fixos/cli/watch_cmd.py) |
-| `fixos.config` | 462 | 5 | 1 | 6.5 | Zarządzanie konfiguracją fixos. | [source](https://github.com/semcod/fixos/blob/main/fixos/config.py) |
+| `fixos.config` | 530 | 7 | 1 | 5.9 | Zarządzanie konfiguracją fixos. | [source](https://github.com/semcod/fixos/blob/main/fixos/config.py) |
 | `fixos.config_interactive` | 153 | 5 | 0 | 6.4 | Interactive provider setup module. | [source](https://github.com/semcod/fixos/blob/main/fixos/config_interactive.py) |
 | `fixos.diagnostics._flatpak_analysis_mixin` | 319 | 0 | 1 | 7.3 | Analysis methods for FlatpakAnalyzer (load refs, find unused | [source](https://github.com/semcod/fixos/blob/main/fixos/diagnostics/_flatpak_analysis_mixin.py) |
 | `fixos.diagnostics._flatpak_execution_mixin` | 240 | 0 | 1 | 5.4 | Cleanup execution methods for FlatpakAnalyzer. | [source](https://github.com/semcod/fixos/blob/main/fixos/diagnostics/_flatpak_execution_mixin.py) |
@@ -76,12 +76,13 @@
 | `fixos.diagnostics.process_chains` | 594 | 6 | 6 | 7.0 | Evidence-led diagnostics for fresh process chains. | [source](https://github.com/semcod/fixos/blob/main/fixos/diagnostics/process_chains.py) |
 | `fixos.diagnostics.project_scanner` | 258 | 9 | 1 | 5.0 | Developer Project Scanner for fixOS. | [source](https://github.com/semcod/fixos/blob/main/fixos/diagnostics/project_scanner.py) |
 | `fixos.diagnostics.quick_snapshot` | 845 | 20 | 1 | 7.3 | Fast, local system snapshot used before the full fixOS analy | [source](https://github.com/semcod/fixos/blob/main/fixos/diagnostics/quick_snapshot.py) |
-| `fixos.diagnostics.service_cleanup` | 1608 | 0 | 1 | 7.2 | Service Cleanup for fixOS | [source](https://github.com/semcod/fixos/blob/main/fixos/diagnostics/service_cleanup.py) |
+| `fixos.diagnostics.service_cleanup` | 1609 | 0 | 1 | 7.3 | Service Cleanup for fixOS | [source](https://github.com/semcod/fixos/blob/main/fixos/diagnostics/service_cleanup.py) |
 | `fixos.diagnostics.service_details` | 249 | 0 | 1 | 5.4 | Service Details Provider for fixOS | [source](https://github.com/semcod/fixos/blob/main/fixos/diagnostics/service_details.py) |
-| `fixos.diagnostics.service_scanner` | 673 | 1 | 4 | 4.6 | Service Data Scanner for fixOS | [source](https://github.com/semcod/fixos/blob/main/fixos/diagnostics/service_scanner.py) |
+| `fixos.diagnostics.service_scanner` | 701 | 1 | 4 | 4.7 | Service Data Scanner for fixOS | [source](https://github.com/semcod/fixos/blob/main/fixos/diagnostics/service_scanner.py) |
 | `fixos.diagnostics.storage_analyzer` | 287 | 0 | 2 | 3.9 | Storage Analyzer for FixOS - comprehensive disk space analys | [source](https://github.com/semcod/fixos/blob/main/fixos/diagnostics/storage_analyzer.py) |
 | `fixos.diagnostics.system_checks` | 114 | 2 | 0 | 7.0 | System diagnostics aggregator. | [source](https://github.com/semcod/fixos/blob/main/fixos/diagnostics/system_checks.py) |
 | `fixos.diagnostics.utils` | 12 | 1 | 0 | 3.0 | Shared utilities for diagnostic modules. | [source](https://github.com/semcod/fixos/blob/main/fixos/diagnostics/utils.py) |
+| `fixos.endpoint_refresh` | 200 | 5 | 1 | 9.8 | Safe, DNS-backed observation of configured service endpoints | [source](https://github.com/semcod/fixos/blob/main/fixos/endpoint_refresh.py) |
 | `fixos.features` | 273 | 0 | 2 | 5.0 | System detection module for fixOS features. | [source](https://github.com/semcod/fixos/blob/main/fixos/features/__init__.py) |
 | `fixos.features.auditor` | 128 | 0 | 2 | 5.0 | Feature auditor - compares system state with desired profile | [source](https://github.com/semcod/fixos/blob/main/fixos/features/auditor.py) |
 | `fixos.features.catalog` | 128 | 0 | 3 | 3.0 | Package catalog - loads and manages package database from YA | [source](https://github.com/semcod/fixos/blob/main/fixos/features/catalog.py) |
@@ -283,7 +284,7 @@ Natural language command (ask) for fixOS CLI
 
 Cleanup command for fixOS CLI - service data cleanup with detailed flatpak support.
 
-- `cleanup_services(threshold, services, json_output, cleanup, docker_old, docker_all, docker_networks, docker_stale_services, orphaned_projects, pin_orphan_project, unpin_orphan_project, list_orphan_pins, process_hours, ollama_old, days, dry_run, list_only, full_analysis)` — Skanuje i czyści dane usług przekraczające próg. [source](https://github.com/semcod/fixos/blob/main/fixos/cli/cleanup_cmd.py#L1384)
+- `cleanup_services(threshold, services, json_output, cleanup, docker_old, docker_all, docker_networks, docker_stale_services, orphaned_projects, pin_orphan_project, unpin_orphan_project, list_orphan_pins, process_hours, ollama_old, days, dry_run, list_only, full_analysis)` — Skanuje i czyści dane usług przekraczające próg. [source](https://github.com/semcod/fixos/blob/main/fixos/cli/cleanup_cmd.py#L1416)
 
 ### `fixos.cli.config_cmd` [source](https://github.com/semcod/fixos/blob/main/fixos/cli/config_cmd.py)
 
@@ -462,17 +463,17 @@ Watch daemon command for fixOS CLI
 
 Zarządzanie konfiguracją fixos.
 
-**`FixOsConfig`** [source](https://github.com/semcod/fixos/blob/main/fixos/config.py#L179)
+**`FixOsConfig`** [source](https://github.com/semcod/fixos/blob/main/fixos/config.py#L199)
 
 | Method | Args | Returns | CC |
 |--------|------|---------|----|
-| `load` | `cls` | `—` | 18 |
+| `load` | `cls` | `—` | 21 |
 | `validate` | `` | `—` | 4 |
 | `summary` | `` | `—` | 6 |
 
-- `detect_provider_from_key(key)` — Wykrywa provider na podstawie prefiksu klucza API. [source](https://github.com/semcod/fixos/blob/main/fixos/config.py#L429)
-- `get_providers_list()` — Zwraca listę providerów jako listę słowników. [source](https://github.com/semcod/fixos/blob/main/fixos/config.py#L448)
-- `interactive_provider_setup()` — Interaktywny wybór providera gdy brak konfiguracji. [source](https://github.com/semcod/fixos/blob/main/fixos/config.py#L437)
+- `detect_provider_from_key(key)` — Wykrywa provider na podstawie prefiksu klucza API. [source](https://github.com/semcod/fixos/blob/main/fixos/config.py#L497)
+- `get_providers_list()` — Zwraca listę providerów jako listę słowników. [source](https://github.com/semcod/fixos/blob/main/fixos/config.py#L516)
+- `interactive_provider_setup()` — Interaktywny wybór providera gdy brak konfiguracji. [source](https://github.com/semcod/fixos/blob/main/fixos/config.py#L505)
 
 ### `fixos.config_interactive` [source](https://github.com/semcod/fixos/blob/main/fixos/config_interactive.py)
 
@@ -783,7 +784,7 @@ Service Cleanup for fixOS
 | `cleanup_docker_networks` | `days, dry_run` | `—` | 1 |
 | `cleanup_docker_old_unused` | `days, dry_run` | `—` | 15 |
 | `build_safe_age_actions` | `selected_services` | `—` | 30 |
-| `get_cleanup_plan` | `selected_services` | `—` | 20 |
+| `get_cleanup_plan` | `selected_services` | `—` | 21 |
 | `cleanup_service` | `service_type, dry_run, planned_service` | `—` | 17 |
 | `get_risk_level` | `service_type, path` | `—` | 21 |
 | `is_safe_cleanup` | `service_type, path` | `—` | 1 |
@@ -827,7 +828,7 @@ Service Data Scanner for fixOS
 **`ServiceType`** (Enum) [source](https://github.com/semcod/fixos/blob/main/fixos/diagnostics/service_scanner.py#L26)
 : Service types that can be scanned and cleaned.
 
-- `main()` — Test the service data scanner. [source](https://github.com/semcod/fixos/blob/main/fixos/diagnostics/service_scanner.py#L665)
+- `main()` — Test the service data scanner. [source](https://github.com/semcod/fixos/blob/main/fixos/diagnostics/service_scanner.py#L693)
 
 ### `fixos.diagnostics.storage_analyzer` [source](https://github.com/semcod/fixos/blob/main/fixos/diagnostics/storage_analyzer.py)
 
@@ -859,6 +860,15 @@ System diagnostics aggregator.
 Shared utilities for diagnostic modules.
 
 - `format_size(size_bytes)` — Format bytes to human-readable string (B/KB/MB/GB/TB/PB). [source](https://github.com/semcod/fixos/blob/main/fixos/diagnostics/utils.py#L6)
+
+### `fixos.endpoint_refresh` [source](https://github.com/semcod/fixos/blob/main/fixos/endpoint_refresh.py)
+
+Safe, DNS-backed observation of configured service endpoints.
+
+**`EndpointStatus`** [source](https://github.com/semcod/fixos/blob/main/fixos/endpoint_refresh.py#L26)
+: Permission-safe result of one endpoint observation.
+
+- `refresh_endpoint(name, url)` — Observe one endpoint and retain the last good result on DNS failure. [source](https://github.com/semcod/fixos/blob/main/fixos/endpoint_refresh.py#L100)
 
 ### `fixos.features` [source](https://github.com/semcod/fixos/blob/main/fixos/features/__init__.py)
 
