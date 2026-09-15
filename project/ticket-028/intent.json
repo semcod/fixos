@@ -1,0 +1,93 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-028",
+  "summary": "Install git in Docker test images for managed governance",
+  "workstream": "infrastructure",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P1",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-028/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "docker/fedora/Dockerfile",
+    "docker/ubuntu/Dockerfile",
+    "docker/debian/Dockerfile"
+  ],
+  "forbiddenPaths": ["project/ticket-*/user-*.md"],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "979022dc698fa95c5ebb6d5e4eeb6abad4def547",
+    "targetBranch": "main",
+    "outcome": "The three Multi-System Docker images that run managed governance tests provide the git executable required during plugin activation.",
+    "nonGoals": [
+      "No application source, Python dependency, workflow or runtime behavior changes.",
+      "No changes to Arch, Alpine or the reusable Fedora base image.",
+      "No secret access or direct merge outside the protected publication flow."
+    ],
+    "complexity": "XS",
+    "estimatedMinutes": 20,
+    "budgets": {
+      "maxImplementationFiles": 3,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Install the distribution-native git package in each of the three Dockerfiles consumed by the failing Multi-System jobs, before pip installs FixOS. Keep the workflow and unrelated images unchanged.",
+      "components": [
+        {
+          "name": "multi-system-test-images",
+          "paths": [
+            "docker/fedora/Dockerfile",
+            "docker/ubuntu/Dockerfile",
+            "docker/debian/Dockerfile"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the three package-list additions; no data migration is required."
+    },
+    "runtimeDependencies": ["git (test-image system package)"],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "sed -n '1,180p' .github/workflows/multi-system-tests.yml",
+          "rg -n 'docker/(fedora|ubuntu|debian)/Dockerfile|test-(fedora|ubuntu|debian)' .github/workflows/multi-system-tests.yml docker/docker-compose.multi-system.yml"
+        ],
+        "evidence": "The failing jobs build exactly the three scoped Dockerfiles."
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "docker build -f docker/fedora/Dockerfile -t fixos-test:ticket-028-fedora .",
+          "docker build -f docker/ubuntu/Dockerfile -t fixos-test:ticket-028-ubuntu .",
+          "docker build -f docker/debian/Dockerfile -t fixos-test:ticket-028-debian ."
+        ],
+        "evidence": "Pending exact candidate build."
+      },
+      {
+        "criterion": "AC-03",
+        "commands": [
+          "./project/governance-check.sh --base origin/main --head HEAD --actor agent",
+          "python -m pytest -q tests"
+        ],
+        "evidence": "Pending implementation and exact-head validation."
+      }
+    ]
+  }
+}
