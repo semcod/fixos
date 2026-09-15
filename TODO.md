@@ -17,6 +17,11 @@ Ostatni przegląd: 2026-09-15.
   ścieżki worktree z generowanego raportu coverage i opublikować stabilne linki
   źródłowe. Stan: `IN_PROGRESS / PUBLICATION`; PR #56 oczekuje na exact-head
   review i scalenie przez chroniony Validator.
+- [ ] Dostarczyć [ticket-028](project/ticket-028/README.md): uzupełnić obrazy
+  Fedora, Ubuntu i Debian używane przez testy Multi-System o systemowy pakiet
+  `git`, wymagany przez aktywację zarządzanej bramki governance. Stan:
+  `IN_PROGRESS / EDIT`; zakres ograniczony do trzech Dockerfile i potwierdzony
+  przez awarię CI w PR #57.
 
 - [ ] Dostarczyć [ticket-025](project/ticket-025/README.md): uczynić
   `fixos cleanup` bezpiecznym — respektować `--dry-run` w trybie
