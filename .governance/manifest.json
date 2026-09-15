@@ -50,7 +50,11 @@
           "project.sh",
           "project.bat",
           "project/**",
-          "scripts/runtime.sh"
+          "scripts/runtime.sh",
+          ".subactor/**",
+          ".github/copilot-instructions.md",
+          "VERSION",
+          "wellmanifest_governance.py"
         ]
       },
       "infrastructure": {

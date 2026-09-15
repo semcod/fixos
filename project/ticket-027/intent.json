@@ -80,9 +80,7 @@
       ],
       "responsibilityChanges": false,
       "interfaceChanges": [],
-      "dataChanges": [
-        "Adoption lock and tracked host manifest advance to the published standard revision."
-      ],
+      "dataChanges": [],
       "ui": {
         "impact": "none",
         "states": [],
