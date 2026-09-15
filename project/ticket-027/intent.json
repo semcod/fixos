@@ -1,0 +1,118 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-027",
+  "summary": "Adopt current Wellmanifest governance and terminal receipt policy",
+  "workstream": "governance",
+  "classification": {
+    "kind": "SERVICE",
+    "priority": "P2",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-027/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    ".gitignore",
+    ".subactor/.gitignore",
+    ".subactor/manifest.json",
+    ".github/copilot-instructions.md",
+    "AGENTS.md",
+    "VERSION",
+    "CHANGELOG.md",
+    "README.md",
+    "project/**",
+    "project.sh",
+    "project.bat",
+    ".governance/**",
+    "wellmanifest_governance.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md",
+    ".env",
+    "fixos/**",
+    "tests/**",
+    "pyproject.toml",
+    "docs/**",
+    ".github/workflows/**"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "979022dc698fa95c5ebb6d5e4eeb6abad4def547",
+    "targetBranch": "main",
+    "outcome": "FixOS adopts the current published Wellmanifest/new-project governance package, tracks its host manifest and copilot instructions, and aligns terminal publication with protected external merge receipts.",
+    "nonGoals": [
+      "No change to FixOS runtime behavior, dependencies or application tests.",
+      "No ticket closure commit or carrier-only closure PR.",
+      "No secret access, GitHub merge or external provider mutation outside the protected publication path."
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 25,
+    "budgets": {
+      "maxImplementationFiles": 5,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Use Goal governance adoption against the immutable published Wellmanifest/new-project revision; make only the standard-required ignore exceptions before installing managed artifacts and keep all application paths outside scope.",
+      "components": [
+        {
+          "name": "managed-governance",
+          "paths": [
+            ".governance/**",
+            "AGENTS.md",
+            "project/**",
+            "VERSION"
+          ]
+        },
+        {
+          "name": "host-continuity-contract",
+          "paths": [
+            ".gitignore",
+            ".subactor/**",
+            ".github/copilot-instructions.md"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [
+        "Adoption lock and tracked host manifest advance to the published standard revision."
+      ],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the adoption commit and restore the previous pinned governance package after preserving the adoption receipt."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "goal governance adopt --latest --target-root . --check"
+        ],
+        "evidence": "Preflight must enumerate only the bounded adoption plan and no ignored managed target."
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "goal governance adopt --latest --target-root . --upgrade"
+        ],
+        "evidence": "Pending material adoption commit."
+      },
+      {
+        "criterion": "AC-03",
+        "commands": [
+          "./project/governance-check.sh --base origin/main --head HEAD --actor agent"
+        ],
+        "evidence": "Pending exact-head publication."
+      }
+    ]
+  }
+}

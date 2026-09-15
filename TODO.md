@@ -23,6 +23,11 @@ Ostatni przegląd: 2026-09-15.
   `IN_PROGRESS / EDIT`; zakres ograniczony do trzech Dockerfile i potwierdzony
   przez awarię CI w PR #57.
 
+- [ ] Dostarczyć [ticket-027](project/ticket-027/README.md): zaktualizować
+  zarządzany standard Wellmanifest/new-project do opublikowanej rewizji 0.20.31,
+  śledzić wymagane pliki hosta i używać zewnętrznego merge receipt jako końca
+  lifecycle. Stan: `IN_PROGRESS / EDIT`.
+
 - [ ] Dostarczyć [ticket-025](project/ticket-025/README.md): uczynić
   `fixos cleanup` bezpiecznym — respektować `--dry-run` w trybie
   interaktywnym, raportować tylko realnie odzyskiwalne miejsce, cytować ścieżki
