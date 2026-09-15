@@ -27,6 +27,10 @@ htmlcov/
 !.env.example
 !fixos.conf.example
 
+# Managed Wellmanifest host instructions
+!.github/copilot-instructions.md
+!.subactor/manifest.json
+
 # IDE
 .idea/
 .vscode/
