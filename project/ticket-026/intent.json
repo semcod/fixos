@@ -23,7 +23,7 @@
       "No secret access or persistent endpoint cache.",
       "No external DNS, GitHub or provider mutation outside protected delivery."
     ],
-    "complexity": "XS",
+    "complexity": "S",
     "estimatedMinutes": 15,
     "budgets": {
       "maxImplementationFiles": 1,
