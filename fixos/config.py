@@ -12,6 +12,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional
 
+from .endpoint_refresh import (
+    DEFAULT_REFRESH_INTERVAL,
+    EndpointStatus,
+    refresh_endpoint,
+)
+
 CONSTANT_4 = 4
 CONSTANT_8 = 8
 CONSTANT_12 = 12
@@ -175,6 +181,20 @@ def _load_env_files():
     return None
 
 
+def _env_bool(name: str, default: bool) -> bool:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() not in {"0", "false", "no", "off"}
+
+
+def _env_int(name: str, default: int) -> int:
+    try:
+        return max(0, int(os.environ.get(name, str(default))))
+    except ValueError:
+        return default
+
+
 @dataclass
 class FixOsConfig:
     # Provider
@@ -200,6 +220,11 @@ class FixOsConfig:
     save_reports: bool = False
     reports_dir: Path = field(default_factory=lambda: Path("/tmp/fixos-reports"))
 
+    # Endpoint observation (derived operational data; never a credential)
+    endpoint_refresh_enabled: bool = True
+    endpoint_refresh_interval: int = DEFAULT_REFRESH_INTERVAL
+    endpoint_status: Optional[EndpointStatus] = None
+
     # Internals (ustawiane przez _load)
     env_file_loaded: Optional[str] = None
 
@@ -214,6 +239,7 @@ class FixOsConfig:
         agent_mode: Optional[str] = None,
         session_timeout: Optional[int] = None,
         show_anonymized_data: Optional[bool] = None,
+        refresh_endpoints: Optional[bool] = None,
     ) -> "FixOsConfig":
         """Tworzy konfigurację z połączonych źródeł."""
         env_file = _load_env_files()
@@ -262,6 +288,33 @@ class FixOsConfig:
         # Base URL
         url_env_key = f"{cfg.provider.upper()}_BASE_URL"
         cfg.base_url = base_url or os.environ.get(url_env_key) or pdef["base_url"]
+
+        cfg.endpoint_refresh_enabled = (
+            refresh_endpoints
+            if refresh_endpoints is not None
+            else _env_bool("FIXOS_ENDPOINT_REFRESH", True)
+        )
+        cfg.endpoint_refresh_interval = _env_int(
+            "FIXOS_ENDPOINT_REFRESH_INTERVAL", DEFAULT_REFRESH_INTERVAL
+        )
+        if cfg.endpoint_refresh_enabled:
+            try:
+                cfg.endpoint_status = refresh_endpoint(
+                    f"llm:{cfg.provider}",
+                    cfg.base_url,
+                    interval=cfg.endpoint_refresh_interval,
+                )
+            except ValueError as exc:
+                # Preserve the historical behavior for a custom/malformed URL:
+                # config loading remains usable and the problem is visible.
+                cfg.endpoint_status = EndpointStatus(
+                    name=f"llm:{cfg.provider}",
+                    hostname="",
+                    port=None,
+                    addresses=(),
+                    source="error",
+                    error=f"{type(exc).__name__}: {exc}",
+                )
 
         # Agent mode
         cfg.agent_mode = (agent_mode or os.environ.get("AGENT_MODE", "hitl")).lower()
@@ -325,8 +378,23 @@ class FixOsConfig:
             f"  Tryb      : {mode_icon} {self.agent_mode}\n"
             f"  Timeout   : {self.session_timeout}s\n"
             f"  Web search: {'✅' if self.enable_web_search else '❌'}\n"
-            f"  .env plik : {self.env_file_loaded or 'nie znaleziono'}"
+            f"  .env plik : {self.env_file_loaded or 'nie znaleziono'}\n"
+            f"  Endpoint  : {self._endpoint_summary()}"
         )
+
+    def _endpoint_summary(self) -> str:
+        """Render endpoint observation without exposing credentials."""
+        status = self.endpoint_status
+        if not self.endpoint_refresh_enabled:
+            return "odświeżanie wyłączone"
+        if status is None:
+            return "brak obserwacji"
+        suffix = " (stary snapshot)" if status.stale else ""
+        if status.changed:
+            suffix += " — zmiana adresu wykryta"
+        if status.error:
+            suffix += f" — {status.error}"
+        return f"{status.hostname} → {status.address_text}{suffix}"
 
 
 KEY_PREFIXES: list[tuple[str, str]] = [

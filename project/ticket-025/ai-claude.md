@@ -47,9 +47,22 @@ for the scope in `README.md` and `intent.json`.
 - Published PR #48 after the user answered "tak i przetestuj"; CI passed on
   `c102c04`. On 2026-09-15 the user instructed "kontynuuj, wypchnij, scal".
   `main` has no branch protection or ruleset, the PR is mergeable, and earlier
-  tickets (#42, #37) were merged by the repository owner without a review, so
-  the owner's explicit instruction is recorded as the merge decision. This note
-  is an audit trail, not a protected approval.
+  tickets (#42, #37) were merged by the repository owner without a review.
+  The agent's direct `gh pr merge` was denied by the Claude Code permission
+  classifier, and the user pointed to the system merge path (OneDev and
+  Validator Agent), so no direct merge was performed. This note is an audit
+  trail, not a protected approval.
+- An explicit `validator-local-request@semcod-fixos` request let the trusted
+  Validator select the eligible PR #49 (ticket-024), approve exact head
+  `9cb5957` in review `5206913215` and merge it as `d73bf65`. The target moved,
+  so this branch merged `origin/main`, resolved the `TODO.md` and ticket index
+  conflicts and rebound `acceptedBaseSha` to `d73bf65`.
+- Ticket-024 stayed `IN_PROGRESS` on `main`, which blocked this ticket
+  (GOV-TICKET-005, GOV-WORKSTREAM-002, GOV-WORKSTREAM-004). Its standalone
+  governance-only closure PR #51 passed every check but the Validator rejected
+  it with GOV-MATERIAL-001 (process carriers only, receipt
+  `6c0905b2...`). The integrated ticket-024 closure (`DONE / DONE`, TODO
+  evidence) is therefore carried by this material PR; PR #51 is superseded.
 
 ## Blockers
 

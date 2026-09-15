@@ -32,7 +32,7 @@
   "conflictsWith": [],
   "integrationTicket": null,
   "delivery": {
-    "acceptedBaseSha": "5b765f5197dcc27374f1568a33e76d19aec4ecb3",
+    "acceptedBaseSha": "d73bf65377897ad9e9c89ee225d8e79ad0ad2d5c",
     "targetBranch": "main",
     "outcome": "fixos cleanup never deletes in --dry-run, reports only space its commands can reclaim, never runs shell-split rm arguments or credential revocation, and reports Docker measurement failures instead of silently dropping Docker while scanning faster.",
     "nonGoals": [

@@ -15,6 +15,13 @@ Ostatni przegląd: 2026-09-15.
   Dockera się nie powiedzie. Stan: `IN_PROGRESS / PUBLICATION`; PR #48, 9 nowych
   testów regresji i całe CI przechodzą; scalenie na polecenie właściciela.
 
+- [x] Dostarczyć [ticket-024](project/ticket-024/README.md): automatycznie
+  obserwować DNS-backed endpoint providera przy ładowaniu konfiguracji i
+  sygnalizować zmianę adresu bez zapisywania sekretów ani trwałego cache'u.
+  Stan: `DONE / DONE`; chroniony Validator zatwierdził dokładny HEAD
+  `9cb5957...` w review `5206913215`, scalił PR #49 jako `d73bf65...`
+  i usunął zdalną gałąź ticketu.
+
 - [x] Dostarczyć [ticket-018](project/ticket-018/README.md): udokumentować
   stan i pozostałe prace autonomizacji oraz lokalnego Registry. Stan:
   `DONE / DONE`; exact HEAD `771da39...` scalony do `main`, testy i governance
