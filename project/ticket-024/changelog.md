@@ -24,3 +24,10 @@
 - Revalidated the corrected history and recorded the current host suite result
   (`597 passed, 5 skipped, 6 failed, 16 deselected`); no endpoint-refresh test
   failed.
+
+## [0.3.2] - 2026-09-15
+
+- Revalidated the reconciled history with governance passing and the current
+  full suite result (`603 passed, 5 skipped, 16 deselected`).
+- Recorded the canonical cross-repository plan in `subactor/docs` and kept this
+  ticket limited to implementation intent and evidence.

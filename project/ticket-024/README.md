@@ -18,16 +18,22 @@ Rozwiązanie nie zapisuje cache'u endpointów ani sekretów na dysku. Zakres nie
 automatycznego przełączania na niezweryfikowane adresy IP ani aktywnego
 health-checku usługi.
 
+## Canonical documentation
+
+The cross-repository optimization plan is maintained in
+`subactor/docs:architecture/refactoring/git-publication-throughput.md` and
+indexed by that repository. This ticket contains only bounded implementation
+intent and evidence; it is not a second canonical plan. Repository-local
+reports remain in their owning repository, while organization-wide reports use
+`subactor/docs` with a `wellmanifest/report` evidence sidecar when applicable.
+
 ## Acceptance criteria
 
 - [x] AC-01: Scope is approved by the user's execution request (`kontynuuj`).
 - [x] AC-02: Resolver and process-local cache tests pass; transient DNS failure is fail-open
   for the existing configured endpoint and no secret is persisted.
 - [x] AC-03: Managed governance check passes and the endpoint-refresh tests
-  pass. The current host suite is `597 passed, 5 skipped, 6 failed, 16
-  deselected`; all six failures are pre-existing environment/dependency
-  failures outside endpoint refresh (two global-entrypoint import failures and
-  four Click typo-handling failures).
+  pass. The current host suite is `603 passed, 5 skipped, 16 deselected`.
 
 ## Participants
 

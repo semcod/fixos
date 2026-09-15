@@ -27,7 +27,8 @@ the configured hostname with a raw IP.
 
 - The bounded intent and execution authorization are committed before source
   changes.
-- Implementation remains pending until this plan has been reviewed.
+- The implementation commit follows the plan and intent commit; the reconciled
+  history is ready for protected review.
 
 ## Authority boundary
 
@@ -41,6 +42,6 @@ the configured hostname with a raw IP.
   configured hostname for the LLM client.
 - Added seven focused regression tests covering changed addresses, freshness,
   stale observations, IP literals and custom URL compatibility.
-- Focused tests, Ruff and compileall pass. The full suite reports `597 passed,
-  5 skipped, 6 failed, 16 deselected`; the six failures reproduce on the
-  preserved original branch and are unrelated to endpoint refresh.
+- Focused tests, Ruff and compileall pass. The current full suite reports
+  `603 passed, 5 skipped, 16 deselected`; no endpoint-refresh regression is
+  present.
