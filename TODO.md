@@ -8,6 +8,12 @@ Ostatni przegląd: 2026-09-15.
 
 ## Aktywne
 
+- [ ] Dostarczyć [ticket-030](project/ticket-030/README.md): włączyć dla FixOS
+  zarządzaną projekcję aktywności ticketów z historii Git, aby `goal -a` nie
+  traktował zintegrowanych ticketów jako aktywnych przy braku zewnętrznego
+  terminal receipt. Stan: `IN_PROGRESS / EDIT`; zakres ograniczony do
+  `.governance/ticket-activity.override.json`.
+
 - [ ] Dostarczyć [ticket-026](project/ticket-026/README.md): utrwalić testem
   kontrakt, który odrzuca URL-e endpointów zawierające poświadczenia przed
   zapytaniem DNS i nie zapisuje ich w obserwacji procesu. Stan:
