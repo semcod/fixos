@@ -24,6 +24,11 @@ not contain a Git checkout. Those jobs explicitly disable the pytest lifecycle
 plugin; the dedicated governance job remains the enforcement point for the
 repository gate.
 
+The managed governance package contains intentional validator patterns that
+the target Ruff gate reports when the package is adopted. The host contract
+therefore records file-specific Ruff exceptions for those managed validators;
+application Python remains subject to the normal lint rules.
+
 ## Acceptance criteria
 
 - [x] AC-01: The read-only adoption preflight identifies the published immutable
