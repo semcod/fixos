@@ -1,0 +1,85 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-029",
+  "summary": "Declare nested Docker paths as infrastructure-owned",
+  "workstream": "governance",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P1",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-029/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    ".governance/manifest.json"
+  ],
+  "forbiddenPaths": ["project/ticket-*/user-*.md"],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": ["ticket-027"],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "10145ad7a017aaf84c4268d2bb857962e872c5ea",
+    "targetBranch": "main",
+    "outcome": "Governance recognizes nested docker assets as owned by the infrastructure workstream.",
+    "nonGoals": [
+      "No Dockerfile, workflow, application, test or dependency changes.",
+      "No change to the meaning of existing workstream ownership outside docker/**.",
+      "No secret access or direct merge outside the protected publication flow."
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 15,
+    "budgets": {
+      "maxImplementationFiles": 2,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Extend only the infrastructure owned-path list with docker/**, matching the Dockerfile locations already enumerated by the manifest's docker section.",
+      "components": [
+        {
+          "name": "governance-workstream-contract",
+          "paths": [".governance/manifest.json"]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Remove the docker/** ownership pattern from the infrastructure workstream."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "./project/governance-check.sh --base origin/main --head HEAD --actor agent"
+        ],
+        "evidence": "The pre-change contract rejects nested Docker paths as unowned when claimed by infrastructure."
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "python -m json.tool .governance/manifest.json",
+          "python -c \"import json; m=json.load(open('.governance/manifest.json')); assert 'docker/**' in m['coordination']['workstreams']['infrastructure']['ownedPaths']\""
+        ],
+        "evidence": "The candidate manifest parses and the infrastructure list contains docker/**."
+      },
+      {
+        "criterion": "AC-03",
+        "commands": [
+          "./project/governance-check.sh --base origin/main --head HEAD --actor agent",
+          "python -m pytest -q tests"
+        ],
+        "evidence": "Governance passed with 0 errors and 0 warnings; pytest passed with 614 passed, 5 skipped and 16 deselected."
+      }
+    ]
+  }
+}

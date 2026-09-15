@@ -58,6 +58,7 @@
           "Dockerfile*",
           "compose*.yml",
           "compose*.yaml",
+          "docker/**",
           "infra/**",
           ".github/**"
         ]
