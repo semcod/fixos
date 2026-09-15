@@ -6,31 +6,157 @@ on:
   pull_request:
     branches: [main, master]
 
+permissions:
+  contents: read
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONUNBUFFERED: "1"
+
 jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.10", "3.11", "3.12"]
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        id: checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python ${{ matrix.python-version }}
+        id: setup
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install dependencies
+      - name: Preflight / install dependencies
+        id: dependencies
+        shell: bash
         run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev]" || pip install -e . || pip install -r requirements.txt || true
+          if ! python -m pip install --upgrade pip; then
+            echo "failure_class=DEPENDENCY" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          if ! python -m pip install -r requirements-dev.txt; then
+            echo "failure_class=DEPENDENCY" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          if ! python -m pip install -e .; then
+            echo "failure_class=DEPENDENCY" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+      - name: Preflight / compile source and tests
+        id: compile
+        shell: bash
+        run: |
+          if ! python -m compileall -q fixos tests; then
+            echo "failure_class=LINT" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+      - name: Preflight / collect tests
+        id: collect
+        shell: bash
+        run: |
+          if ! python -m pytest --collect-only -q; then
+            echo "failure_class=TEST" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
 
       - name: Run tests
-        run: |
-          python -m pytest tests/ -v --tb=short
+        id: tests
+        run: python -m pytest tests/ -v --tb=short
 
-      - name: Lint
+      - name: Lint changed Python files
+        id: lint
+        if: matrix.python-version == '3.12'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        shell: bash
         run: |
-          pip install flake8 || true
-          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics || true
+          if [[ "$BASE_SHA" =~ ^0+$ ]]; then
+            mapfile -d '' changed_python < <(git ls-files -z -- '*.py')
+          else
+            if ! git cat-file -e "$BASE_SHA^{commit}"; then
+              echo "failure_class=INFRASTRUCTURE" >> "$GITHUB_OUTPUT"
+              echo "The pull request base commit is unavailable in the checkout." >&2
+              exit 1
+            fi
+            mapfile -d '' changed_python < <(git diff --name-only -z "$BASE_SHA"...HEAD -- '*.py')
+          fi
+          if ((${#changed_python[@]} == 0)); then
+            echo "No Python files changed; lint is not applicable."
+            exit 0
+          fi
+          python -m ruff check "${changed_python[@]}"
+
+      - name: Write actionable summary
+        id: summary
+        if: always()
+        env:
+          CHECKOUT_RESULT: ${{ steps.checkout.outcome }}
+          SETUP_RESULT: ${{ steps.setup.outcome }}
+          DEPENDENCIES_RESULT: ${{ steps.dependencies.outcome }}
+          COMPILE_RESULT: ${{ steps.compile.outcome }}
+          COLLECT_RESULT: ${{ steps.collect.outcome }}
+          TEST_RESULT: ${{ steps.tests.outcome }}
+          LINT_RESULT: ${{ steps.lint.outcome }}
+          LINT_CLASS: ${{ steps.lint.outputs.failure_class }}
+        shell: bash
+        run: |
+          failure_class=NONE
+          next_step="No action required."
+          if [[ "$CHECKOUT_RESULT" != "success" ]]; then
+            failure_class=CHECKOUT
+            next_step="Inspect repository checkout and ref availability."
+          elif [[ "$SETUP_RESULT" != "success" ]]; then
+            failure_class=INFRASTRUCTURE
+            next_step="Inspect the runner and the requested Python toolchain."
+          elif [[ "$DEPENDENCIES_RESULT" != "success" ]]; then
+            failure_class=DEPENDENCY
+            next_step="Inspect package constraints and dependency installation logs."
+          elif [[ "$COMPILE_RESULT" != "success" ]]; then
+            failure_class=LINT
+            next_step="Run compileall or the changed-file lint locally."
+          elif [[ "$COLLECT_RESULT" != "success" ]]; then
+            failure_class=TEST
+            next_step="Run pytest collection locally and inspect import/test discovery errors."
+          elif [[ "$TEST_RESULT" != "success" ]]; then
+            failure_class=TEST
+            next_step="Run the failing Python matrix test locally with --tb=short."
+          elif [[ "$LINT_RESULT" != "success" && "$LINT_RESULT" != "skipped" ]]; then
+            failure_class="${LINT_CLASS:-LINT}"
+            next_step="Inspect the changed-file lint or checkout base revision locally."
+          fi
+
+          {
+            echo "## CI result / Python ${{ matrix.python-version }}"
+            echo ""
+            echo "| Stage | Result |"
+            echo "| --- | --- |"
+            echo "| Checkout | $CHECKOUT_RESULT |"
+            echo "| Python setup | $SETUP_RESULT |"
+            echo "| Dependencies | $DEPENDENCIES_RESULT |"
+            echo "| Compilation | $COMPILE_RESULT |"
+            echo "| Test collection | $COLLECT_RESULT |"
+            echo "| Test suite | $TEST_RESULT |"
+            echo "| Changed-file lint | $LINT_RESULT |"
+            echo ""
+            echo "**Failure class:** \`$failure_class\`"
+            echo "**Next step:** $next_step"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "failure_class=$failure_class" >> "$GITHUB_OUTPUT"
+
+      - name: Enforce CI result
+        if: always()
+        shell: bash
+        run: |
+          if [[ "${{ steps.summary.outputs.failure_class }}" != "NONE" ]]; then
+            exit 1
+          fi

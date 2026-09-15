@@ -14,6 +14,10 @@ Ostatni przegląd: 2026-09-15.
   terminal receipt. Stan: `IN_PROGRESS / EDIT`; zakres ograniczony do
   `.governance/ticket-activity.override.json`.
 
+- [ ] Dostarczyć [ticket-031](project/ticket-031/README.md): przyspieszyć CI
+  przez szybki preflight, fail-closed failure taxonomy i actionable summary.
+  Stan: `IN_PROGRESS / EDIT`; zachować macierz Python i nie maskować błędów.
+
 - [ ] Dostarczyć [ticket-026](project/ticket-026/README.md): utrwalić testem
   kontrakt, który odrzuca URL-e endpointów zawierające poświadczenia przed
   zapytaniem DNS i nie zapisuje ich w obserwacji procesu. Stan:

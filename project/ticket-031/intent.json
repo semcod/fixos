@@ -1,0 +1,52 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-031",
+  "summary": "Fast CI preflight, failure taxonomy and actionable summary",
+  "workstream": "infrastructure",
+  "classification": {
+    "kind": "FEATURE",
+    "priority": "P1",
+    "origin": "requested"
+  },
+  "allowedPaths": ["project/ticket-031/**", "TODO.md", "project/TICKETS.md", ".github/workflows/ci.yml"],
+  "forbiddenPaths": ["project/ticket-*/user-*.md", "pyproject.toml", "uv.lock", "VERSION", "CHANGELOG.md", ".env", "**/*secret*"],
+  "stacks": ["python"],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "5c11558169fae5503a9868d5c5767d9a70368d0f",
+    "targetBranch": "main",
+    "outcome": "The CI workflow reports fast, typed failure classes and an actionable summary while preserving the Python matrix and failing closed on setup, test and lint errors.",
+    "nonGoals": [
+      "No new runtime dependency or package metadata change",
+      "No changes to the multi-system Docker workflow",
+      "No automatic retry, merge or suppression of a failed check",
+      "No new public CLI or application behavior"
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 25,
+    "budgets": {
+      "maxImplementationFiles": 1,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Add one fast preflight phase before tests in each matrix runner; use an always-run summary with stable failure taxonomy and preserve the existing Python matrix without changing the protected check declaration.",
+      "components": [{"name": "ci-preflight-and-summary", "paths": [".github/workflows/ci.yml"]}],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {"impact": "multi-state", "states": ["success", "error"], "evidence": ["job summary"]},
+      "rollback": "Revert the single workflow file and ticket metadata."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {"criterion": "AC-02", "commands": ["python -c 'import yaml; yaml.safe_load(open(\".github/workflows/ci.yml\"))'"], "evidence": "ticket-031/ai-codex-logs.txt"},
+      {"criterion": "AC-03", "commands": ["./project/governance-check.sh --base origin/main --head HEAD --actor agent"], "evidence": "ticket-031/ai-codex-logs.txt"},
+      {"criterion": "AC-04", "commands": ["python -m pytest -q", "./project/governance-check.sh"], "evidence": "ticket-031/ai-codex-logs.txt"}
+    ]
+  }
+}
