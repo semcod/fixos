@@ -4,9 +4,15 @@ Aktualna, ręcznie zweryfikowana lista zadań projektu. Zakończone pozycje są
 przenoszone do sekcji `Unreleased` w [CHANGELOG.md](CHANGELOG.md), zamiast
 pozostawać tutaj jako rosnąca lista zaznaczonych pól.
 
-Ostatni przegląd: 2026-07-23.
+Ostatni przegląd: 2026-09-15.
 
 ## Aktywne
+
+- [ ] Dostarczyć [ticket-025](project/ticket-025/README.md): uczynić
+  `fixos cleanup` bezpiecznym — respektować `--dry-run` w trybie
+  interaktywnym, raportować tylko realnie odzyskiwalne miejsce, cytować ścieżki
+  w komendach `rm`, nie unieważniać poświadczeń gcloud i ostrzegać, gdy pomiar
+  Dockera się nie powiedzie. Stan: `IN_PROGRESS / EDIT`.
 
 - [x] Dostarczyć [ticket-018](project/ticket-018/README.md): udokumentować
   stan i pozostałe prace autonomizacji oraz lokalnego Registry. Stan:
