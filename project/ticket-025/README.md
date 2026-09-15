@@ -2,8 +2,8 @@
 
 - **ID**: ticket-025
 - **Owner**: unresolved:human
-- **Status**: DONE
-- **Workflow state**: DONE
+- **Status**: IN_PROGRESS
+- **Workflow state**: PUBLICATION
 - **Created**: 2026-09-15
 
 ## Goal and scope
@@ -48,6 +48,12 @@ network flows, no new CLI option and no real deletion during validation.
 Trusted Validator App review approved exact head `0529e6be` after
 `onedev/local-verify=SUCCESS` and merged PR #48 into `main` as `9ad62df`.
 The remote ticket branch was deleted by the repository merge policy.
+
+## Publication follow-up
+
+The closure branch carries one material regression test for incomplete dry-run
+results. The ticket remains `IN_PROGRESS / PUBLICATION` until this exact-head
+branch receives protected review and merge.
 
 ## Participants
 

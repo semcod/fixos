@@ -184,7 +184,7 @@ def _execute_planned_cleanup(scanner, svc: dict, *, dry_run: bool = False) -> di
 
 def _display_dry_run_result(result: dict) -> None:
     """Show what a simulated planned cleanup would do."""
-    if not result["success"]:
+    if not result.get("success", False):
         click.echo(click.style(f"  Błąd: {_error_message(result)}", fg="red"))
         return
     click.echo(click.style("  Symulacja — nic nie usunięto.", fg="cyan"))

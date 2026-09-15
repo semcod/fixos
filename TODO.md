@@ -8,13 +8,13 @@ Ostatni przegląd: 2026-09-15.
 
 ## Aktywne
 
-- [x] Dostarczyć [ticket-025](project/ticket-025/README.md): uczynić
+- [ ] Dostarczyć [ticket-025](project/ticket-025/README.md): uczynić
   `fixos cleanup` bezpiecznym — respektować `--dry-run` w trybie
   interaktywnym, raportować tylko realnie odzyskiwalne miejsce, cytować ścieżki
   w komendach `rm`, nie unieważniać poświadczeń gcloud i ostrzegać, gdy pomiar
-  Dockera się nie powiedzie. Stan: `DONE / DONE`; trusted Validator zatwierdził
-  exact HEAD `0529e6b...` i scalił PR #48 jako `9ad62df...`; OneDev, governance,
-  CI i pełny suite przeszły.
+  Dockera się nie powiedzie. Stan: `IN_PROGRESS / PUBLICATION`; implementacja
+  PR #48 jest scalona, a ten branch dodaje materialny regression test przed
+  zamknięciem ticketu przez chroniony Validator.
 
 - [x] Dostarczyć [ticket-024](project/ticket-024/README.md): automatycznie
   obserwować DNS-backed endpoint providera przy ładowaniu konfiguracji i
