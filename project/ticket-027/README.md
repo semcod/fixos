@@ -19,6 +19,11 @@ the pinned Policy DSL parser required by the current host contract. Application
 source, runtime dependencies, tests, secrets and provider configuration remain
 outside the accepted scope.
 
+The existing multi-system Docker workflow runs product tests in images that do
+not contain a Git checkout. Those jobs explicitly disable the pytest lifecycle
+plugin; the dedicated governance job remains the enforcement point for the
+repository gate.
+
 ## Acceptance criteria
 
 - [x] AC-01: The read-only adoption preflight identifies the published immutable

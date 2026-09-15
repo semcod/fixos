@@ -55,6 +55,7 @@
           "scripts/runtime.sh",
           ".subactor/**",
           ".github/copilot-instructions.md",
+          ".github/workflows/multi-system-tests.yml",
           "VERSION",
           "wellmanifest_governance.py"
         ]

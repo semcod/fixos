@@ -16,6 +16,7 @@
     ".subactor/.gitignore",
     ".subactor/manifest.json",
     ".github/copilot-instructions.md",
+    ".github/workflows/multi-system-tests.yml",
     ".governance/policy_dsl_check.py",
     ".governance/policy-dsl.lock.json",
     "pyproject.toml",
@@ -36,15 +37,14 @@
     ".env",
     "fixos/**",
     "tests/**",
-    "docs/**",
-    ".github/workflows/**"
+    "docs/**"
   ],
   "stacks": [],
   "dependsOn": [],
   "conflictsWith": [],
   "integrationTicket": null,
   "delivery": {
-    "acceptedBaseSha": "979022dc698fa95c5ebb6d5e4eeb6abad4def547",
+      "acceptedBaseSha": "fd093e00ed6a3d0aba883a148cf958b3f080729e",
     "targetBranch": "main",
     "outcome": "FixOS adopts the current published Wellmanifest/new-project governance package, tracks its host contract and Policy DSL dependency, binds Python packaging to the gate, and aligns terminal publication with protected external merge receipts.",
     "nonGoals": [
@@ -52,11 +52,11 @@
       "No ticket closure commit or carrier-only closure PR.",
       "No secret access, GitHub merge or external provider mutation outside the protected publication path."
     ],
-    "complexity": "M",
-    "estimatedMinutes": 40,
+    "complexity": "L",
+    "estimatedMinutes": 50,
     "budgets": {
-      "maxImplementationFiles": 9,
-      "maxAffectedComponents": 2,
+      "maxImplementationFiles": 15,
+      "maxAffectedComponents": 3,
       "maxPublicInterfaceChanges": 0,
       "maxRuntimeDependencies": 0
     },
@@ -79,6 +79,7 @@
             ".gitignore",
             ".subactor/**",
             ".github/copilot-instructions.md",
+            ".github/workflows/multi-system-tests.yml",
             "pyproject.toml",
             "CONTRIBUTING.md",
             "pytest.ini"
