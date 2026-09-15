@@ -108,6 +108,17 @@ class TestInteractiveDryRun:
         assert scanner.calls == [("npm", True)]
         assert "Tryb symulacji (--dry-run)" in result.output
 
+    def test_incomplete_dry_run_result_fails_closed(self):
+        @click.command()
+        def command():
+            cleanup_cmd._display_dry_run_result({})
+
+        result = CliRunner().invoke(command)
+
+        assert result.exit_code == 0, result.output
+        assert "Błąd: nieznany błąd" in result.output
+        assert "Symulacja" not in result.output
+
 
 class TestCleanupCommandSafety:
     def test_logs_service_leaves_xdg_state_alone(self):
