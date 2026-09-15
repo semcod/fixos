@@ -2,7 +2,7 @@
   "schema": "new-project.intent/v3",
   "ticket": "ticket-027",
   "summary": "Adopt current Wellmanifest governance and terminal receipt policy",
-  "workstream": "governance",
+  "workstream": "integration",
   "classification": {
     "kind": "SERVICE",
     "priority": "P2",
@@ -16,6 +16,9 @@
     ".subactor/.gitignore",
     ".subactor/manifest.json",
     ".github/copilot-instructions.md",
+    ".governance/policy_dsl_check.py",
+    ".governance/policy-dsl.lock.json",
+    "pyproject.toml",
     "AGENTS.md",
     "VERSION",
     "CHANGELOG.md",
@@ -31,7 +34,6 @@
     ".env",
     "fixos/**",
     "tests/**",
-    "pyproject.toml",
     "docs/**",
     ".github/workflows/**"
   ],
@@ -42,7 +44,7 @@
   "delivery": {
     "acceptedBaseSha": "979022dc698fa95c5ebb6d5e4eeb6abad4def547",
     "targetBranch": "main",
-    "outcome": "FixOS adopts the current published Wellmanifest/new-project governance package, tracks its host manifest and copilot instructions, and aligns terminal publication with protected external merge receipts.",
+    "outcome": "FixOS adopts the current published Wellmanifest/new-project governance package, tracks its host contract and Policy DSL dependency, binds Python packaging to the gate, and aligns terminal publication with protected external merge receipts.",
     "nonGoals": [
       "No change to FixOS runtime behavior, dependencies or application tests.",
       "No ticket closure commit or carrier-only closure PR.",
@@ -58,7 +60,7 @@
     },
     "architecture": {
       "status": "accepted",
-      "decision": "Use Goal governance adoption against the immutable published Wellmanifest/new-project revision; make only the standard-required ignore exceptions before installing managed artifacts and keep all application paths outside scope.",
+      "decision": "Use Goal governance adoption against the immutable published Wellmanifest/new-project revision; make only the standard-required ignore exceptions before installing managed artifacts, bind the existing Python package lifecycle to the gate, and keep all application paths outside scope.",
       "components": [
         {
           "name": "managed-governance",
@@ -74,7 +76,8 @@
           "paths": [
             ".gitignore",
             ".subactor/**",
-            ".github/copilot-instructions.md"
+            ".github/copilot-instructions.md",
+            "pyproject.toml"
           ]
         }
       ],
@@ -89,27 +92,33 @@
       "rollback": "Revert the adoption commit and restore the previous pinned governance package after preserving the adoption receipt."
     },
     "runtimeDependencies": [],
+    "standardAdoption": {
+      "sourceRepository": "wellmanifest/new-project",
+      "fromRevision": "4e6ba5ec15873346446d67d8787f17f68f57f81e",
+      "toRevision": "2b016654cff1a1ccef2c0d6126a9c2550ae6b37a"
+    },
     "validation": [
       {
         "criterion": "AC-01",
         "commands": [
-          "goal governance adopt --latest --target-root . --check"
+          "goal governance adopt --latest --target-root . --check",
+          "python .governance/agent_host_check.py --root . --actor ci --format text"
         ],
-        "evidence": "Preflight must enumerate only the bounded adoption plan and no ignored managed target."
+        "evidence": "Preflight is clean and the adopted host contract validates the tracked host files and package lifecycle."
       },
       {
         "criterion": "AC-02",
         "commands": [
           "goal governance adopt --latest --target-root . --upgrade"
         ],
-        "evidence": "Pending material adoption commit."
+        "evidence": "Goal installed the immutable 0.20.31 package; policy DSL files and packaging metadata are included in the material adoption change."
       },
       {
         "criterion": "AC-03",
         "commands": [
           "./project/governance-check.sh --base origin/main --head HEAD --actor agent"
         ],
-        "evidence": "Pending exact-head publication."
+        "evidence": "Pending exact-head publication after local stack, governance and application checks."
       }
     ]
   }

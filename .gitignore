@@ -64,3 +64,12 @@ Thumbs.db
 !.github/copilot-instructions.md
 !.subactor/
 !.subactor/manifest.json
+
+# Repository-local worktrees and operational state
+/.worktrees/
+/.subactor/leases/
+/.subactor/sessions/
+/.subactor/recovery/
+/.subactor/receipts/
+/.subactor/cache/
+/.subactor/snapshots/
