@@ -183,3 +183,38 @@ Szczegółowe zadania publikuję jako osobne tickety z zależnościami:
 Tickety są propozycjami implementacyjnymi; ich status pozostaje `open` do
 kwalifikacji przez właściciela repozytorium i nie nadaje automatycznie grantu
 na mutacje produkcyjne.
+
+## Rejestr publikacji Planfile — 2026-09-15
+
+Publikacja została wykonana przez Planfile. Każdy wpis ma status `open`; link
+GitHub jest dowodem utworzenia issue, nie dowodem implementacji ani zgody na
+merge.
+
+| Punkt | Planfile | Repozytorium / issue |
+|---|---|---|
+| P1 (istniejący zakres ticket-024) | `PLF-002` | [semcod/fixos#45](https://github.com/semcod/fixos/issues/45) |
+| P2 | `STARTER-004` | [subactor/core#483](https://github.com/subactor/core/issues/483) |
+| P3 | `STARTER-003` | [subactor/platform#625](https://github.com/subactor/platform/issues/625) |
+| P4 | `PLF-010` | [wellmanifest/ssot#2](https://github.com/wellmanifest/ssot/issues/2) |
+| P5 | `STARTER-128` | [subactor/report#8](https://github.com/subactor/report/issues/8) |
+| P6 | `PLF-068` | [semcod/planfile#94](https://github.com/semcod/planfile/issues/94) |
+| P7 | `STARTER-023` | [semcod/goal#163](https://github.com/semcod/goal/issues/163) |
+| P8 | `STARTER-604` | [semcod/koru#179](https://github.com/semcod/koru/issues/179) |
+| P9 | `VA-003` | [subactor/validator-agent#505](https://github.com/subactor/validator-agent/issues/505) |
+| P10 | `PLF-003` | [semcod/fixos#47](https://github.com/semcod/fixos/issues/47) |
+| P11 | `STARTER-129` | [subactor/report#9](https://github.com/subactor/report/issues/9) |
+| P12 | `PLF-069` | [semcod/planfile#95](https://github.com/semcod/planfile/issues/95) |
+
+Zależności lokalne są zapisane w Planfile: `STARTER-129` następuje po
+`STARTER-128`, a `PLF-069` po `PLF-068`. P1 pozostaje związany z aktywnym
+`ticket-024`, więc nie utworzono drugiego, równoległego ticketu.
+
+### Uwaga o magazynie Planfile
+
+`subactor/report` i `wellmanifest/ssot` nie miały repozytoryjnego katalogu
+`.planfile`. Planfile opublikował ich issues poprawnie, ale zapisał lokalne
+rekordy odpowiednio w nadrzędnym magazynie `subactor/.planfile` i w
+`/home/tom/.planfile`. Przed kolejną pracą należy utworzyć repozytoryjne
+magazyny, przeprowadzić migrację/import bez zmiany external issue IDs i dopiero
+potem włączyć automatyczny sync. Nie wolno tworzyć nowych issues tylko po to,
+by skopiować te rekordy.
