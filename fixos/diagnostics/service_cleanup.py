@@ -770,6 +770,7 @@ class ServiceCleaner:
             "safe_to_cleanup": safe_to_cleanup,
             "requires_review": [self._service_to_dict(s) for s in review_services],
             "dangerous": [self._service_to_dict(s) for s in dangerous_services],
+            "warnings": list(getattr(self.scanner, "scan_warnings", None) or []),
         }
 
         return plan
@@ -1423,7 +1424,7 @@ class ServiceCleaner:
             ),
             # Cloud/ML
             ServiceType.AWS: "rm -rf ~/.aws/sso/cache ~/.aws/cli/cache",
-            ServiceType.GCLOUD: "gcloud auth application-default revoke 2>/dev/null; rm -rf ~/.config/gcloud/logs ~/.cache/gcloud",
+            ServiceType.GCLOUD: "rm -rf ~/.config/gcloud/logs ~/.cache/gcloud",
             ServiceType.AZURE: "rm -rf ~/.azure/telemetry ~/.azure/logs",
             # IaC
             ServiceType.TERRAFORM: "rm -rf ~/.terraform.d/plugin-cache",
@@ -1434,7 +1435,7 @@ class ServiceCleaner:
             # Other
             ServiceType.THUMBNAILS: "rm -rf ~/.cache/thumbnails/* ~/.thumbnails/*",
             ServiceType.TRASH: "rm -rf ~/.local/share/Trash/* ~/.Trash/*",
-            ServiceType.LOGS: "find ~/.cache/log ~/.local/state -name '*.log' -mtime +7 -delete 2>/dev/null; journalctl --vacuum-time=7d 2>/dev/null || true",
+            ServiceType.LOGS: "find ~/.cache/log -name '*.log' -mtime +7 -delete 2>/dev/null; journalctl --vacuum-time=7d 2>/dev/null || true",
             ServiceType.NVIDIA: "rm -rf ~/.cache/nvidia ~/.nv/ComputeCache ~/.cache/mesa_shader_cache",
             ServiceType.UV: "uv cache clean",
             ServiceType.TORCH: "rm -rf ~/.cache/torch ~/.torch",
@@ -1444,8 +1445,8 @@ class ServiceCleaner:
             ServiceType.HELM: "helm cache cleanup 2>/dev/null || rm -rf ~/.cache/helm",
             ServiceType.STEAM: ServiceCleaner._steam_cleanup_command(path),
             ServiceType.BRAVE: ServiceCleaner._brave_cleanup_command(path),
-            ServiceType.DISCORD: "rm -rf ~/.config/discord/Cache ~/.config/discord/Code Cache ~/.config/discord/GPUCache",
-            ServiceType.SLACK: "rm -rf ~/.config/Slack/Cache ~/.config/Slack/Code Cache ~/.config/Slack/Service Worker",
+            ServiceType.DISCORD: "rm -rf ~/.config/discord/Cache ~/.config/discord/'Code Cache' ~/.config/discord/GPUCache",
+            ServiceType.SLACK: "rm -rf ~/.config/Slack/Cache ~/.config/Slack/'Code Cache' ~/.config/Slack/'Service Worker'",
             ServiceType.SPOTIFY: "rm -rf ~/.cache/spotify ~/.config/spotify/Data",
             ServiceType.BAZEL: "rm -rf ~/.cache/bazel",
             ServiceType.GH: "rm -rf ~/.cache/gh",
@@ -1585,7 +1586,7 @@ class ServiceCleaner:
             ServiceType.JUPYTER: "jupyter kernelspec list 2>/dev/null || du -sh ~/.local/share/jupyter",
             ServiceType.THUMBNAILS: "du -sh ~/.cache/thumbnails 2>/dev/null && find ~/.cache/thumbnails -type f | wc -l",
             ServiceType.TRASH: "du -sh ~/.local/share/Trash 2>/dev/null || du -sh ~/.Trash",
-            ServiceType.LOGS: "find ~/.cache/log ~/.local/state /var/log ~/.var/log 2>/dev/null -name '*.log' | wc -l && du -sh ~/.cache/log 2>/dev/null || du -sh /var/log 2>/dev/null",
+            ServiceType.LOGS: "find ~/.cache/log -name '*.log' -mtime +7 2>/dev/null | wc -l && du -sh ~/.cache/log 2>/dev/null",
             ServiceType.NVIDIA: "du -sh ~/.cache/nvidia ~/.nv/ComputeCache 2>/dev/null",
             ServiceType.UV: "uv cache dir 2>/dev/null || du -sh ~/.cache/uv",
             ServiceType.TORCH: "du -sh ~/.cache/torch 2>/dev/null",
