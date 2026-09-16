@@ -262,6 +262,25 @@ from fixos.cli.quick_cmd import quick
 from fixos.cli.jetbrains_cmd import jetbrains
 from fixos.cli.shell_cmd import shell_cmd
 
+
+
+@click.command("help")
+@click.argument("command", required=False)
+@click.pass_context
+def help_cmd(ctx, command) -> None:
+    """Pokaż pomoc: fixos help [KOMENDA]."""
+    root = ctx.find_root()
+    if not command:
+        click.echo(root.get_help())
+        return
+    target = root.command.get_command(root, command)
+    if target is None:
+        raise click.UsageError(f"Nieznana komenda: {command}", ctx=ctx)
+    with click.Context(target, info_name=command, parent=root) as sub:
+        click.echo(target.get_help(sub))
+
+
+cli.add_command(help_cmd)
 cli.add_command(shell_cmd, name="shell")
 cli.add_command(quick)
 cli.add_command(rollback)

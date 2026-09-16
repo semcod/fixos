@@ -10,7 +10,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Any
 
-from ..providers.llm import LLMClient, LLMError
+from ..providers.llm import LLMAuthError, LLMClient, LLMError
 from ..utils.anonymizer import anonymize, deanonymize, display_anonymized_preview
 from ..utils.web_search import search_all, format_results_for_llm
 from ..config import FixOsConfig
@@ -199,6 +199,11 @@ class AutonomousSession:
             return self.llm.chat(
                 self.messages, max_tokens=DEFAULT_TOKEN_LIMIT, temperature=0.1
             )
+        except LLMAuthError as e:
+            print(f"  ❌ LLM błąd: {e}")
+            print("  Sesja zakończona: popraw klucz API i uruchom ponownie.")
+            self.llm_auth_failed = True
+            return None
         except LLMError as e:
             print(f"  ❌ LLM błąd: {e}")
             return None
@@ -380,7 +385,8 @@ class AutonomousSession:
         # Query LLM
         reply = self._query_llm()
         if reply is None:
-            if not self._handle_llm_error():
+            # Retrying a rejected key only repeats the failure.
+            if getattr(self, "llm_auth_failed", False) or not self._handle_llm_error():
                 return False
             return True
 

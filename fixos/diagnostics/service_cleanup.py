@@ -17,6 +17,27 @@ from ..constants import (
     DEFAULT_COMMAND_TIMEOUT,
 )
 
+PRUNE_UNREFERENCED = "prune-unreferenced"
+# Match IDE executables exactly. JetBrains Toolbox (jetbrains-toolb) and its
+# daemon (jetbrainsd) run permanently and must not block cache cleanup.
+JETBRAINS_IDE_PROCESSES = (
+    "idea", "pycharm", "webstorm", "clion", "goland", "rider", "phpstorm",
+    "rubymine", "datagrip", "dataspell", "rustrover", "aqua", "studio",
+)
+JETBRAINS_CLEANUP_COMMAND = (
+    "if pgrep -x '" + "|".join(JETBRAINS_IDE_PROCESSES) + "' >/dev/null; "
+    "then echo 'Zamknij działające IDE JetBrains przed czyszczeniem cache' >&2; "
+    "exit 2; else find ~/.cache/JetBrains -mindepth 1 -maxdepth 1 "
+    "-exec rm -rf -- {} +; fi"
+)
+# `poetry cache clear --all pypi` exits 0 even when no cache has that name, so
+# clear every listed cache and remove only cache/artifacts, never virtualenvs.
+POETRY_CLEANUP_COMMAND = (
+    "for cache in $(poetry cache list 2>/dev/null); do "
+    "poetry cache clear --all --no-interaction \"$cache\" >/dev/null 2>&1 || true; done; "
+    "rm -rf -- ~/.cache/pypoetry/cache ~/.cache/pypoetry/artifacts"
+)
+
 # Unused Docker images older than this many days (``fixos cleanup --docker-old``).
 DEFAULT_DOCKER_OLD_UNUSED_DAYS = 30
 # Orphaned Docker networks are removed regardless of age during Docker cleanup
@@ -757,8 +778,23 @@ class ServiceCleaner:
             "total_size_gb": round(
                 total_size_gb + sum(item["size_gb"] for item in age_actions), 2
             ),
+            # Tool-managed prunes remove only unreferenced packages, so their
+            # scanned size is not a promise of reclaimable space.
             "safe_cleanup_gb": round(
-                sum(item["size_gb"] for item in safe_to_cleanup), 2
+                sum(
+                    item["size_gb"]
+                    for item in safe_to_cleanup
+                    if item.get("reclaim", "full") == "full"
+                ),
+                2,
+            ),
+            "safe_prune_gb": round(
+                sum(
+                    item["size_gb"]
+                    for item in safe_to_cleanup
+                    if item.get("reclaim") == PRUNE_UNREFERENCED
+                ),
+                2,
             ),
             "requires_review_gb": round(sum(s.size_gb for s in review_services), 2),
             "dangerous_gb": round(sum(s.size_gb for s in dangerous_services), 2),
@@ -933,10 +969,20 @@ class ServiceCleaner:
             "preview_command": service.preview_command,
             "safe_to_cleanup": service.safe_to_cleanup,
             "risk_level": service.risk_level,
+            "reclaim": ServiceCleaner.reclaim_kind(service.service_type),
             "impact": service.impact,
             "items_count": service.items_count,
             "details": service.details,
         }
+
+    @staticmethod
+    def reclaim_kind(service_type) -> str:
+        """``full`` when cleanup removes the scanned data, else a prune kind."""
+        from .service_scanner import ServiceType
+
+        if service_type in (ServiceType.PNPM, ServiceType.CONDA):
+            return PRUNE_UNREFERENCED
+        return "full"
 
     @staticmethod
     def get_risk_level(service_type, path: str | None = None) -> str:
@@ -1085,6 +1131,12 @@ class ServiceCleaner:
             ServiceType.PULUMI,
         }
         if service_type in safe_services:
+            return RiskLevel.SAFE.value
+
+        if service_type == ServiceType.JETBRAINS:
+            # Caches and indexes under ~/.cache/JetBrains and the per-IDE
+            # caches/index directories are rebuilt by the IDE on next start.
+            # Settings, plugins and projects live elsewhere.
             return RiskLevel.SAFE.value
 
         # Default: reinstallable apps / long-unused tool data / unclassified
@@ -1385,7 +1437,7 @@ class ServiceCleaner:
             # Python
             ServiceType.PIP: "pip cache purge || rm -rf ~/.cache/pip/*",
             ServiceType.CONDA: "conda clean --all -y",
-            ServiceType.POETRY: "poetry cache clear --all pypi || rm -rf ~/.cache/pypoetry",
+            ServiceType.POETRY: POETRY_CLEANUP_COMMAND,
             # Java
             ServiceType.GRADLE: "rm -rf ~/.gradle/caches ~/.gradle/daemon ~/.gradle/wrapper",
             ServiceType.MAVEN: "rm -rf ~/.m2/repository",
@@ -1416,12 +1468,7 @@ class ServiceCleaner:
             # IDEs
             ServiceType.VSCODE: "rm -rf ~/.config/Code/Cache ~/.config/Code/CachedData",
             ServiceType.CURSOR: "rm -rf ~/.config/Cursor/Cache ~/.config/Cursor/CachedData",
-            ServiceType.JETBRAINS: (
-                "if pgrep -f 'idea|pycharm|webstorm|jetbrains' >/dev/null; "
-                "then echo 'Zamknij wszystkie IDE JetBrains przed czyszczeniem' >&2; "
-                "exit 2; else find ~/.cache/JetBrains -mindepth 1 -maxdepth 1 "
-                "-exec rm -rf -- {} +; fi"
-            ),
+            ServiceType.JETBRAINS: JETBRAINS_CLEANUP_COMMAND,
             # Cloud/ML
             ServiceType.AWS: "rm -rf ~/.aws/sso/cache ~/.aws/cli/cache",
             ServiceType.GCLOUD: "rm -rf ~/.config/gcloud/logs ~/.cache/gcloud",
