@@ -429,7 +429,7 @@ class ServiceDataScanner:
                 details=details,
                 risk_level=risk_level,
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - one bad path must not abort the whole scan
             return ServiceDataInfo(
                 service_type=service_type,
                 name=service_type.value.title(),

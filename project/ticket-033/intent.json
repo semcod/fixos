@@ -33,7 +33,7 @@
   "conflictsWith": [],
   "integrationTicket": null,
   "delivery": {
-    "acceptedBaseSha": "a099482ce555baad5613315115f8bd194ff58b79",
+    "acceptedBaseSha": "b25f18601e9f37691502f77bb734dc475c3268e9",
     "targetBranch": "main",
     "outcome": "Disk cleanup promises only space its commands actually remove, clears Poetry and JetBrains caches it lists, keeps Docker reviewable when the daemon is slow, and fix sessions stop after an LLM authentication failure.",
     "nonGoals": [

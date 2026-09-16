@@ -227,7 +227,7 @@ def _print_quick_status() -> None:
         from fixos.diagnostics.quick_snapshot import collect_quick_snapshot
 
         render_quick_snapshot(collect_quick_snapshot(), compact=True)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - welcome banner must never crash the CLI
         click.echo(
             click.style(
                 f"Szybka analiza chwilowo niedostępna: {exc}",

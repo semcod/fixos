@@ -270,7 +270,7 @@ class AutonomousSession:
             return proc.returncode == 0, out[:MAX_OUTPUT_PREVIEW_LENGTH]
         except subprocess.TimeoutExpired:
             return False, f"[TIMEOUT {DEFAULT_COMMAND_TIMEOUT}s]"
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - report any command failure to the LLM loop
             return False, f"[WYJĄTEK: {e}]"
 
     def _handle_search(self, action_data: dict[str, Any]) -> bool:

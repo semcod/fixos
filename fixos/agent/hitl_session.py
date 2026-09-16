@@ -156,21 +156,21 @@ class HITLSession:
             low_conf
             and self.config.enable_web_search
             and self.web_search_count < self.MAX_WEB_SEARCHES
+            and io.ask_low_confidence_search()
         ):
-            if io.ask_low_confidence_search():
-                self.web_search_count += 1
-                topic = extract_search_topic(reply)
-                results = search_all(topic, self.config.serpapi_key)
-                if results:
-                    web_ctx = format_results_for_llm(results)
-                    io.console.print(web_ctx)
-                    self.messages.append(
-                        {
-                            "role": "user",
-                            "content": f"External sources:\n{web_ctx}\nUpdate analysis.",
-                        }
-                    )
-                    return True
+            self.web_search_count += 1
+            topic = extract_search_topic(reply)
+            results = search_all(topic, self.config.serpapi_key)
+            if results:
+                web_ctx = format_results_for_llm(results)
+                io.console.print(web_ctx)
+                self.messages.append(
+                    {
+                        "role": "user",
+                        "content": f"External sources:\n{web_ctx}\nUpdate analysis.",
+                    }
+                )
+            return True
         return False
 
     def _select_turn_choices(
@@ -284,9 +284,7 @@ class HITLSession:
         except LLMError as e:
             io.clear_thinking()
             io.print_llm_error(e)
-            if not self._handle_llm_error():
-                return False
-            return True
+            return self._handle_llm_error()
         io.clear_thinking()
 
         io.print_llm_reply(strip_remediation_plan(reply))

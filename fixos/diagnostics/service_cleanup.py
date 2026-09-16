@@ -241,8 +241,10 @@ class ServiceCleaner:
                 result["success"] = True
                 result["space_freed_gb"] = estimated_gb
                 lines = [
-                    f"[DRY RUN] Would remove {len(selected)} model(s) older than "
-                    f"{days_int} days:",
+                    (
+                        f"[DRY RUN] Would remove {len(selected)} model(s) older than "
+                        f"{days_int} days:"
+                    ),
                 ]
                 for model in result["models"]:
                     lines.append(
@@ -280,7 +282,7 @@ class ServiceCleaner:
             result["output"] = "\n".join(line for line in outputs if line)
             result["error"] = "\n".join(errors)
             result["space_freed_gb"] = round(freed_bytes / (1024**3), 3)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - stored in result["error"] for the caller to display
             result["error"] = str(exc)
 
         return result
@@ -348,7 +350,7 @@ class ServiceCleaner:
                 days=network_days,
                 dry_run=dry_run,
             )
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - stored in result["error"] for the caller to display
             network_result = {
                 "service": "docker-networks",
                 "dry_run": dry_run,
@@ -417,7 +419,7 @@ class ServiceCleaner:
                 build_cache_reclaimable = float(
                     (usage.get("Build Cache") or {}).get("reclaimable_gb", 0.0)
                 )
-        except Exception:
+        except Exception:  # noqa: BLE001, S110 - probe is best-effort; caller treats a miss as absent data
             pass
 
         estimated_gb = round(images_reclaimable + build_cache_reclaimable, 3)
@@ -467,7 +469,7 @@ class ServiceCleaner:
                     result["space_freed_gb"] = parsed
                 elif result["success"]:
                     result["space_freed_gb"] = 0
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - stored in result["error"] for the caller to display
             result["error"] = str(exc)
 
         return self._attach_orphan_network_cleanup(
@@ -536,7 +538,7 @@ class ServiceCleaner:
                     "upper bound = all reclaimable Images+Build Cache; "
                     f"until={hours}h usually frees less"
                 )
-        except Exception:
+        except Exception:  # noqa: BLE001, S110 - probe is best-effort; caller treats a miss as absent data
             pass
 
         if dry_run:
@@ -582,7 +584,7 @@ class ServiceCleaner:
             else:
                 parsed = self._parse_docker_reclaimed_gb(combined)
                 result["space_freed_gb"] = parsed if parsed is not None else 0
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - stored in result["error"] for the caller to display
             result["error"] = str(exc)
 
         return self._attach_orphan_network_cleanup(
@@ -617,7 +619,7 @@ class ServiceCleaner:
                     days=DEFAULT_OLLAMA_OLD_UNUSED_DAYS,
                     running=running,
                 )
-            except Exception:
+            except Exception:  # noqa: BLE001 - best-effort probe; falls back to "selected = []"
                 selected = []
             if selected:
                 size_bytes = sum(int(model["size_bytes"]) for model in selected)
@@ -671,13 +673,13 @@ class ServiceCleaner:
                     ) + float(
                         (usage.get("Build Cache") or {}).get("reclaimable_gb", 0.0)
                     )
-            except Exception:
+            except Exception:  # noqa: BLE001 - best-effort probe; falls back to "estimated_gb = 0.0"
                 estimated_gb = 0.0
 
             try:
                 network_preview = self.cleanup_docker_networks(dry_run=True)
                 network_candidates = network_preview.get("candidates") or []
-            except Exception:
+            except Exception:  # noqa: BLE001 - best-effort probe; falls back to "network_candidates = []"
                 network_candidates = []
 
             if estimated_gb > 0 or network_candidates:
@@ -930,7 +932,7 @@ class ServiceCleaner:
             result["initial_size_gb"] = initial_size
             result["remaining_size_gb"] = round(new_size_gb, 3)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - stored in result["error"] for the caller to display
             result["error"] = str(e)
 
         return result
@@ -1423,13 +1425,17 @@ class ServiceCleaner:
         if service_type in protected_without_bulk_cleanup:
             return ""
 
-        if service_type in (ServiceType.VSCODE, ServiceType.CURSOR):
-            if ServiceCleaner.get_risk_level(service_type, path) == "dangerous":
-                return ""
+        if service_type in (
+            ServiceType.VSCODE,
+            ServiceType.CURSOR,
+        ) and ServiceCleaner.get_risk_level(service_type, path) == "dangerous":
+            return ""
 
-        if service_type == ServiceType.STEAM:
-            if ServiceCleaner.get_risk_level(service_type, path) == "dangerous":
-                return ""
+        if (
+            service_type == ServiceType.STEAM
+            and ServiceCleaner.get_risk_level(service_type, path) == "dangerous"
+        ):
+            return ""
 
         commands = {
             # Containers

@@ -267,7 +267,7 @@ def _format_hint_line(hint: str) -> None:
     """Print a single cleanup hint line with appropriate styling."""
     if hint.startswith("  "):
         click.echo(click.style(hint, fg="cyan"))
-    elif hint.startswith("🔥") or hint.startswith("🐳") or hint.startswith("🤖"):
+    elif hint.startswith(("🔥", "🐳", "🤖")):
         click.echo(click.style(f"\n    {hint}", fg="yellow", bold=True))
     elif hint.startswith("💡"):
         click.echo(click.style(f"    {hint}", fg="green"))

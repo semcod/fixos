@@ -224,7 +224,7 @@ class LLMClient:
                 return content
             except _ModelUnusableResponseError:
                 raise
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - dispatches to _handle_api_error by SDK error type
                 self._handle_api_error(e, attempt)
 
         raise LLMError("Nie udało się uzyskać odpowiedzi po 3 próbach")
@@ -310,7 +310,7 @@ class LLMClient:
             cleaned = self._extract_json(raw)
             try:
                 return response_model.model_validate_json(cleaned)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - any parse failure retries the LLM call
                 if attempt < max_retries:
                     augmented.append({"role": "assistant", "content": raw})
                     augmented.append(

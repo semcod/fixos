@@ -63,7 +63,7 @@ class TestChromeCleanup:
 
         executed = {}
 
-        def fake_run(command, shell, capture_output, text, timeout):
+        def fake_run(command, shell, capture_output, text, timeout, check):
             executed["command"] = command
 
             class Result:
@@ -190,7 +190,7 @@ class TestRiskLevelClassification:
                 )
                 return sizes.pop(0)
 
-        def fake_run(command, shell, capture_output, text, timeout):
+        def fake_run(command, shell, capture_output, text, timeout, check):
             executed["command"] = command
             executed["timeout"] = timeout
 
@@ -255,7 +255,7 @@ class TestRiskLevelClassification:
                 return []
 
         cleaner = ServiceCleaner(FakeScanner())
-        monkeypatch.setattr(cleaner, "list_ollama_models", lambda: [])
+        monkeypatch.setattr(cleaner, "list_ollama_models", list)
         monkeypatch.setattr(cleaner, "list_running_ollama_models", lambda: set())
         monkeypatch.setattr(
             cleaner,
@@ -404,7 +404,7 @@ class TestOllamaOldUnused:
         )
         executed = []
 
-        def fake_run(cmd, capture_output, text, timeout):
+        def fake_run(cmd, capture_output, text, timeout, check):
             executed.append(cmd)
 
             class Result:
