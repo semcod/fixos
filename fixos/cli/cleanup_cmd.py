@@ -21,6 +21,7 @@ from fixos.diagnostics.orphaned_workloads import (
     DEFAULT_STALE_PROCESS_HOURS,
     OrphanedWorkloadCleaner,
 )
+from fixos.diagnostics.service_cleanup import PRUNE_UNREFERENCED
 from fixos.diagnostics.service_scanner import ServiceDataScanner
 from fixos.constants import DEFAULT_CLEANUP_THRESHOLD_MB
 from fixos.orphan_pins import OrphanProjectPinError, OrphanProjectPins
@@ -57,6 +58,14 @@ def _display_cleanup_summary(plan: dict, threshold: int) -> None:
             f"  Bezpieczne do usunięcia: {plan['safe_cleanup_gb']:.2f} GB", fg="green"
         )
     )
+    if plan.get("safe_prune_gb"):
+        click.echo(
+            click.style(
+                f"  Prune nieużywanych pakietów (pnpm/conda): skanowano "
+                f"{plan['safe_prune_gb']:.2f} GB, faktyczny odzysk znany po wykonaniu",
+                fg="green",
+            )
+        )
     click.echo(
         click.style(
             f"  Do rozważenia: {plan['requires_review_gb']:.2f} GB", fg="yellow"
@@ -221,6 +230,14 @@ def _execute_safe_cleanup(services: list, scanner, dry_run: bool = False) -> flo
                     click.style(
                         "  Czyszczenie obrazów/cache zakończone; wynik sieci poniżej.",
                         fg="green",
+                    )
+                )
+            elif svc.get("reclaim") == PRUNE_UNREFERENCED:
+                click.echo(
+                    click.style(
+                        "  Brak mierzalnej zmiany (0.00 GB) — prune usuwa tylko pakiety "
+                        "nieużywane przez projekty/środowiska; pozostałe są w użyciu.",
+                        fg="yellow",
                     )
                 )
             else:
@@ -1103,6 +1120,8 @@ def _cleanup_ollama_old_unused(
 
 
 def _size_str(svc: dict) -> str:
+    if (svc.get("details") or {}).get("size_unknown"):
+        return "rozmiar nieznany"
     return (
         f"{svc['size_gb']:.2f} GB"
         if svc["size_gb"] >= 1
@@ -1114,12 +1133,24 @@ def _select_safe_services(safe_services: list) -> tuple[str, list]:
     """Choose bulk-safe cleanup, full individual selection, or no cleanup."""
     click.echo(click.style("Bezpieczne do wyczyszczenia:", fg="green"))
     for svc in safe_services:
-        click.echo(f"  • {svc['name']}: {_size_str(svc)}")
-    safe_total = sum(s["size_gb"] for s in safe_services)
+        suffix = (
+            " (prune nieużywanych — odzysk znany po wykonaniu)"
+            if svc.get("reclaim") == PRUNE_UNREFERENCED
+            else ""
+        )
+        click.echo(f"  • {svc['name']}: {_size_str(svc)}{suffix}")
+    # Only data the command actually removes is a reclaim promise.
+    safe_total = sum(
+        s["size_gb"] for s in safe_services if s.get("reclaim", "full") == "full"
+    )
+    has_prune = any(s.get("reclaim") == PRUNE_UNREFERENCED for s in safe_services)
 
     click.echo()
     click.echo("Co wyczyścić?")
-    click.echo(f"  [1] Wszystkie bezpieczne (zwolni {safe_total:.2f} GB)")
+    click.echo(
+        f"  [1] Wszystkie bezpieczne (zwolni do {safe_total:.2f} GB"
+        + (" + prune nieużywanych pakietów)" if has_prune else ")")
+    )
     click.echo("  [2] Wybierz pojedyncze spośród wszystkich usług")
     click.echo("  [0] Nic — pomiń")
     choice = click.prompt(

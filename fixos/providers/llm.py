@@ -25,6 +25,12 @@ class LLMError(Exception):
     pass
 
 
+class LLMAuthError(LLMError):
+    """Odrzucone uwierzytelnienie; ponawianie z tym samym kluczem nic nie zmieni."""
+
+    pass
+
+
 class _ModelInvalidError(LLMError):
     """Internal: the configured model itself was rejected by the provider
     (e.g. "not a valid model ID") — advance to the next fallback model
@@ -136,7 +142,7 @@ class LLMClient:
             raise _ModelInvalidError(str(e)) from e
 
         if _type == "AuthenticationError":
-            raise LLMError(f"Błąd autoryzacji – sprawdź klucz API: {e}") from e
+            raise LLMAuthError(f"Błąd autoryzacji – sprawdź klucz API: {e}") from e
         if _type == "RateLimitError":
             wait = 10 * (attempt + 1)
             print(f"\n  ⚠️  Rate limit – czekam {wait}s...")

@@ -1,0 +1,152 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-033",
+  "summary": "Make disk cleanup effective and honest under critical disk pressure",
+  "workstream": "application",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P1",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-033/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/agent/autonomous_session.py",
+    "fixos/agent/hitl_session.py",
+    "fixos/cli/cleanup_cmd.py",
+    "fixos/cli/main.py",
+    "fixos/diagnostics/service_cleanup.py",
+    "fixos/diagnostics/service_scanner.py",
+    "fixos/providers/llm.py",
+    "tests/unit/test_cleanup_cmd.py",
+    "tests/unit/test_cleanup_effectiveness.py",
+    "tests/unit/test_cleanup_safety.py",
+    "tests/unit/test_llm_auth_stop.py",
+    "tests/unit/test_service_cleanup.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "a099482ce555baad5613315115f8bd194ff58b79",
+    "targetBranch": "main",
+    "outcome": "Disk cleanup promises only space its commands actually remove, clears Poetry and JetBrains caches it lists, keeps Docker reviewable when the daemon is slow, and fix sessions stop after an LLM authentication failure.",
+    "nonGoals": [
+      "No cleanup or destructive operation runs on the developer host during development or tests.",
+      "No new runtime dependency or dependency manifest change.",
+      "No change to protected Docker volumes, containers, AI models, VM disks or editor extensions classification.",
+      "No automatic cleanup without the existing interactive confirmation."
+    ],
+    "complexity": "M",
+    "estimatedMinutes": 60,
+    "budgets": {
+      "maxImplementationFiles": 9,
+      "maxAffectedComponents": 3,
+      "maxPublicInterfaceChanges": 1,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Classify reclaim semantics next to cleanup commands (full removal vs tool-managed prune), fix the Poetry and JetBrains commands at their single definition, return a size-unknown Docker entry when the daemon probe times out, and raise a typed non-retryable LLM authentication error that both session loops honor.",
+      "components": [
+        {
+          "name": "service-cleanup",
+          "paths": [
+            "project/ticket-033/**",
+            "fixos/diagnostics/service_cleanup.py",
+            "fixos/diagnostics/service_scanner.py",
+            "fixos/cli/cleanup_cmd.py",
+            "tests/unit/test_cleanup_effectiveness.py",
+            "tests/unit/test_service_cleanup.py",
+            "tests/unit/test_cleanup_cmd.py",
+            "tests/unit/test_cleanup_safety.py"
+          ]
+        },
+        {
+          "name": "llm-sessions",
+          "paths": [
+            "fixos/providers/llm.py",
+            "fixos/agent/hitl_session.py",
+            "fixos/agent/autonomous_session.py",
+            "tests/unit/test_llm_auth_stop.py"
+          ]
+        },
+        {
+          "name": "cli-entry",
+          "paths": [
+            "fixos/cli/main.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [
+        "new `fixos help [COMMAND]` command"
+      ],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the commit; cleanup commands, plan accounting, Docker scan fallback and LLM error handling return to their previous behavior without persistent state."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python -m pytest -q tests/unit/test_cleanup_effectiveness.py"
+        ],
+        "evidence": "ticket-033/README.md"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "python -m pytest -q tests/unit/test_cleanup_effectiveness.py"
+        ],
+        "evidence": "ticket-033/README.md"
+      },
+      {
+        "criterion": "AC-03",
+        "commands": [
+          "python -m pytest -q tests/unit/test_cleanup_effectiveness.py"
+        ],
+        "evidence": "ticket-033/README.md"
+      },
+      {
+        "criterion": "AC-04",
+        "commands": [
+          "python -m pytest -q tests/unit/test_cleanup_effectiveness.py"
+        ],
+        "evidence": "ticket-033/README.md"
+      },
+      {
+        "criterion": "AC-05",
+        "commands": [
+          "python -m pytest -q tests/unit/test_llm_auth_stop.py"
+        ],
+        "evidence": "ticket-033/README.md"
+      },
+      {
+        "criterion": "AC-06",
+        "commands": [
+          "python -m pytest -q tests/unit/test_llm_auth_stop.py"
+        ],
+        "evidence": "ticket-033/README.md"
+      },
+      {
+        "criterion": "AC-07",
+        "commands": [
+          "python -m pytest -q",
+          "./project/governance-check.sh --base origin/main --head HEAD --actor agent"
+        ],
+        "evidence": "ticket-033/README.md"
+      }
+    ]
+  }
+}

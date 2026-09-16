@@ -6,7 +6,7 @@ Interactive session where user approves each action.
 import time
 from typing import Dict, Any, List
 
-from ..providers.llm import LLMClient, LLMError
+from ..providers.llm import LLMAuthError, LLMClient, LLMError
 from ..utils.anonymizer import anonymize, deanonymize, display_anonymized_preview
 from ..utils.web_search import search_all, format_results_for_llm
 from ..config import FixOsConfig
@@ -272,6 +272,16 @@ class HITLSession:
                 temperature=0.2,
             )
             self.messages.append({"role": "assistant", "content": reply})
+        except LLMAuthError as e:
+            io.clear_thinking()
+            io.print_llm_error(e)
+            # The same key fails every retry; external search cannot fix it.
+            io.console.print(
+                "  [yellow]Sesja zakończona: popraw klucz (`fixos token set …` lub "
+                "plik .env) i uruchom ponownie. Bez LLM działa `fixos quick` "
+                "i `fixos cleanup`.[/yellow]"
+            )
+            return False
         except LLMError as e:
             io.clear_thinking()
             io.print_llm_error(e)

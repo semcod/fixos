@@ -162,7 +162,8 @@ class ServiceDataScanner:
             "~/miniconda3/envs/*/pkgs",
             "~/anaconda3/envs/*/pkgs",
         ],
-        ServiceType.POETRY: ["~/.cache/pypoetry"],
+        # Only package caches: ~/.cache/pypoetry/virtualenvs holds real environments.
+        ServiceType.POETRY: ["~/.cache/pypoetry/cache", "~/.cache/pypoetry/artifacts"],
         ServiceType.GRADLE: ["~/.gradle", "~/.cache/gradle"],
         ServiceType.MAVEN: ["~/.m2/repository"],
         ServiceType.CARGO: ["~/.cargo/registry", "~/.cargo/git"],
@@ -281,6 +282,7 @@ class ServiceDataScanner:
         self._cleaner = ServiceCleaner(self)
         self._docker_usage_cache: Optional[Dict[str, Any]] = None
         self._docker_usage_failed = False
+        self._docker_usage_timed_out = False
         self.scan_warnings: List[str] = []
 
     def scan_all_services(self) -> List[ServiceDataInfo]:
@@ -394,6 +396,8 @@ class ServiceDataScanner:
                 daemon_size_mb = self._get_docker_daemon_size_mb()
                 if daemon_size_mb and daemon_size_mb > size_mb:
                     size_mb = daemon_size_mb
+                if daemon_size_mb is None and self._docker_usage_timed_out:
+                    return self._docker_unknown_size_service(path)
 
             size_gb = size_mb / 1024
             if size_mb < self.threshold_mb:
@@ -504,6 +508,30 @@ class ServiceDataScanner:
                 return daemon_size
         return self._get_path_size_mb(path)
 
+    def _docker_unknown_size_service(self, path: str) -> ServiceDataInfo:
+        """Keep Docker reviewable when the daemon is too slow to size it.
+
+        On a full or busy disk ``docker system df`` can exceed its timeout,
+        which is exactly when Docker is most likely to hold reclaimable data.
+        The entry carries no size claim and only the bounded build-cache prune.
+        """
+        cleanup_command = ServiceCleaner.get_cleanup_command(ServiceType.DOCKER, path)
+        return ServiceDataInfo(
+            service_type=ServiceType.DOCKER,
+            name="Docker",
+            path=path,
+            size_mb=0.0,
+            size_gb=0.0,
+            description=ServiceCleaner.get_service_description(ServiceType.DOCKER),
+            can_cleanup=bool(cleanup_command),
+            cleanup_command=cleanup_command,
+            preview_command=ServiceCleaner.get_preview_command(ServiceType.DOCKER, path),
+            safe_to_cleanup=False,
+            impact="high",
+            details={"size_unknown": True, "reason": "docker_system_df_timeout"},
+            risk_level=ServiceCleaner.get_risk_level(ServiceType.DOCKER, path),
+        )
+
     def _get_docker_daemon_size_mb(self, *, refresh: bool = False) -> Optional[float]:
         """Total Docker disk usage as reported by the daemon itself."""
         usage = self._get_docker_daemon_usage(refresh=refresh)
@@ -532,6 +560,7 @@ class ServiceDataScanner:
 
         timeout_s = 90
         self._docker_usage_failed = True
+        self._docker_usage_timed_out = False
         try:
             result = subprocess.run(
                 ["docker", "system", "df", "--format", "{{json .}}"],
@@ -541,9 +570,11 @@ class ServiceDataScanner:
                 check=False,
             )
         except subprocess.TimeoutExpired:
+            self._docker_usage_timed_out = True
             self.scan_warnings.append(
                 f"Docker: `docker system df` nie odpowiedział w {timeout_s} s — "
-                "dane Dockera pominięto w raporcie. Sprawdź ręcznie: docker system df"
+                "rozmiar Dockera nieznany; ograniczony prune cache buildów nadal "
+                "jest dostępny do świadomego wyboru."
             )
             return None
         except OSError:
@@ -595,6 +626,7 @@ class ServiceDataScanner:
             "rows": rows,
         }
         self._docker_usage_failed = False
+        self._docker_usage_timed_out = False
         self._persist_docker_usage(self._docker_usage_cache)
         return self._docker_usage_cache
 
