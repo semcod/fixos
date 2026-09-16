@@ -241,26 +241,27 @@ def main() -> None:
     cli()
 
 
-# Register commands
-from fixos.cli.ask_cmd import ask
-from fixos.cli.cleanup_cmd import cleanup_services
-from fixos.cli.config_cmd import config
-from fixos.cli.features_cmd import features
-from fixos.cli.fix_cmd import fix
-from fixos.cli.history_cmd import history
-from fixos.cli.jetbrains_cmd import jetbrains
-from fixos.cli.orchestrate_cmd import orchestrate
-from fixos.cli.profile_cmd import profile
-from fixos.cli.projects_cmd import projects_cmd
-from fixos.cli.provider_cmd import llm_providers, providers, test_llm
-from fixos.cli.quick_cmd import quick
-from fixos.cli.quickfix_cmd import quickfix
-from fixos.cli.report_cmd import report
-from fixos.cli.rollback_cmd import rollback
-from fixos.cli.scan_cmd import scan
-from fixos.cli.shell_cmd import shell_cmd
-from fixos.cli.token_cmd import token
-from fixos.cli.watch_cmd import watch
+# Register commands. Placed after `cli` so each cli.add_command(...) call
+# below has something to attach to.
+from fixos.cli.ask_cmd import ask  # noqa: E402
+from fixos.cli.cleanup_cmd import cleanup_services  # noqa: E402
+from fixos.cli.config_cmd import config  # noqa: E402
+from fixos.cli.features_cmd import features  # noqa: E402
+from fixos.cli.fix_cmd import fix  # noqa: E402
+from fixos.cli.history_cmd import history  # noqa: E402
+from fixos.cli.jetbrains_cmd import jetbrains  # noqa: E402
+from fixos.cli.orchestrate_cmd import orchestrate  # noqa: E402
+from fixos.cli.profile_cmd import profile  # noqa: E402
+from fixos.cli.projects_cmd import projects_cmd  # noqa: E402
+from fixos.cli.provider_cmd import llm_providers, providers, test_llm  # noqa: E402
+from fixos.cli.quick_cmd import quick  # noqa: E402
+from fixos.cli.quickfix_cmd import quickfix  # noqa: E402
+from fixos.cli.report_cmd import report  # noqa: E402
+from fixos.cli.rollback_cmd import rollback  # noqa: E402
+from fixos.cli.scan_cmd import scan  # noqa: E402
+from fixos.cli.shell_cmd import shell_cmd  # noqa: E402
+from fixos.cli.token_cmd import token  # noqa: E402
+from fixos.cli.watch_cmd import watch  # noqa: E402
 
 
 @click.command("help")
