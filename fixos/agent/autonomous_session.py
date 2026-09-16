@@ -8,22 +8,21 @@ import signal
 import subprocess
 import time
 from dataclasses import dataclass, field
-from typing import Optional, List, Dict, Any
+from typing import Any
 
-from ..providers.llm import LLMAuthError, LLMClient, LLMError
-from ..utils.anonymizer import anonymize, deanonymize, display_anonymized_preview
-from ..utils.web_search import search_all, format_results_for_llm
 from ..config import FixOsConfig
-from ..utils.timeout import SessionTimeout
 from ..constants import (
-    UI_BORDER_WIDTH,
-    MAX_OUTPUT_PREVIEW_LENGTH,
     DEFAULT_COMMAND_TIMEOUT,
     DEFAULT_TOKEN_LIMIT,
     MAX_COMMAND_LENGTH,
+    MAX_OUTPUT_PREVIEW_LENGTH,
     MAX_SEARCH_QUERY_LENGTH,
+    UI_BORDER_WIDTH,
 )
-
+from ..providers.llm import LLMAuthError, LLMClient, LLMError
+from ..utils.anonymizer import anonymize, deanonymize, display_anonymized_preview
+from ..utils.timeout import SessionTimeout
+from ..utils.web_search import format_results_for_llm, search_all
 
 # Commands NEVER executed automatically
 FORBIDDEN_COMMANDS = [
@@ -81,8 +80,8 @@ Zasady:
 class FixAction:
     command: str
     reason: str
-    result: Optional[str] = None
-    success: Optional[bool] = None
+    result: str | None = None
+    success: bool | None = None
     timestamp: float = field(default_factory=time.time)
 
 
@@ -117,7 +116,7 @@ class AutonomousSession:
 
     def __init__(
         self,
-        diagnostics: Dict[str, Any],
+        diagnostics: dict[str, Any],
         config: FixOsConfig,
         show_data: bool = True,
         max_fixes: int = 10,
@@ -130,7 +129,7 @@ class AutonomousSession:
         self.report = AgentReport()
         self.fix_count = 0
         self.search_count = 0
-        self.messages: List[Dict[str, str]] = []
+        self.messages: list[dict[str, str]] = []
         self.start_time = time.time()
         self._setup_timeout()
 
@@ -193,7 +192,7 @@ class AutonomousSession:
         if self._get_remaining_time() <= 0:
             raise SessionTimeout()
 
-    def _query_llm(self) -> Optional[str]:
+    def _query_llm(self) -> str | None:
         """Query LLM and return reply."""
         try:
             return self.llm.chat(
@@ -220,7 +219,7 @@ class AutonomousSession:
                 return True
         return False
 
-    def _parse_action(self, reply: str) -> Optional[Dict[str, Any]]:
+    def _parse_action(self, reply: str) -> dict[str, Any] | None:
         """Parse JSON action from LLM reply."""
         import json
 
@@ -240,7 +239,7 @@ class AutonomousSession:
         except json.JSONDecodeError:
             return None
 
-    def _is_forbidden(self, cmd: str) -> Optional[str]:
+    def _is_forbidden(self, cmd: str) -> str | None:
         """Check if command is forbidden."""
         for pattern in FORBIDDEN_COMMANDS:
             if re.search(pattern, cmd, re.IGNORECASE):
@@ -265,6 +264,7 @@ class AutonomousSession:
                 capture_output=True,
                 text=True,
                 timeout=DEFAULT_COMMAND_TIMEOUT,
+                check=False,
             )
             out = proc.stdout.strip() or proc.stderr.strip() or "(brak outputu)"
             return proc.returncode == 0, out[:MAX_OUTPUT_PREVIEW_LENGTH]
@@ -273,7 +273,7 @@ class AutonomousSession:
         except Exception as e:
             return False, f"[WYJĄTEK: {e}]"
 
-    def _handle_search(self, action_data: Dict[str, Any]) -> bool:
+    def _handle_search(self, action_data: dict[str, Any]) -> bool:
         """Handle SEARCH action - perform web search."""
         query = action_data.get("search_query", "fedora fix")
         if self.search_count < self.MAX_SEARCHES:
@@ -306,7 +306,7 @@ class AutonomousSession:
             )
             return False
 
-    def _handle_exec(self, action_data: Dict[str, Any]) -> bool:
+    def _handle_exec(self, action_data: dict[str, Any]) -> bool:
         """Handle EXEC action - execute command."""
         cmd_raw = action_data.get("command", "").strip()
         reason = action_data.get("reason", "")
@@ -358,7 +358,7 @@ class AutonomousSession:
         )
         return True
 
-    def _handle_skip(self, action_data: Dict[str, Any]) -> None:
+    def _handle_skip(self, action_data: dict[str, Any]) -> None:
         """Handle SKIP action."""
         reason = action_data.get("reason", "")
         print(f"  ⏭️  Pomijam: {reason}")
@@ -386,9 +386,9 @@ class AutonomousSession:
         reply = self._query_llm()
         if reply is None:
             # Retrying a rejected key only repeats the failure.
-            if getattr(self, "llm_auth_failed", False) or not self._handle_llm_error():
-                return False
-            return True
+            return not getattr(
+                self, "llm_auth_failed", False
+            ) and self._handle_llm_error()
 
         self.messages.append({"role": "assistant", "content": reply})
 
@@ -464,7 +464,7 @@ class AutonomousSession:
 
 
 def run_autonomous_session(
-    diagnostics: Dict[str, Any],
+    diagnostics: dict[str, Any],
     config: FixOsConfig,
     show_data: bool = True,
     max_fixes: int = 10,

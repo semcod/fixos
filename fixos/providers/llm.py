@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import json
 import time
-from typing import Iterator, Type
+from collections.abc import Iterator
 
 try:
     import openai
@@ -22,13 +22,11 @@ from ..config import FixOsConfig
 class LLMError(Exception):
     """Błąd komunikacji z LLM."""
 
-    pass
 
 
 class LLMAuthError(LLMError):
     """Odrzucone uwierzytelnienie; ponawianie z tym samym kluczem nic nie zmieni."""
 
-    pass
 
 
 class _ModelInvalidError(LLMError):
@@ -277,7 +275,7 @@ class LLMClient:
     def chat_structured(
         self,
         messages: list[dict],
-        response_model: Type,
+        response_model: type,
         *,
         max_retries: int = 2,
         max_tokens: int = 3000,
