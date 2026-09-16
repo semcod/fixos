@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Service Data Scanner for fixOS
 Scans data from various services (Docker, Ollama, etc.) and allows cleanup
@@ -6,21 +5,21 @@ Scans data from various services (Docker, Ollama, etc.) and allows cleanup
 Refactored: Now uses ServiceDetailsProvider and ServiceCleaner for detailed operations.
 """
 
-import os
 import glob
 import json
+import os
 import re
 import subprocess
 import tempfile
-from datetime import datetime
-from pathlib import Path
-from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, field
+from datetime import datetime
 from enum import Enum
+from pathlib import Path
+from typing import Any, ClassVar
 
-from .service_details import ServiceDetailsProvider
-from .service_cleanup import ServiceCleaner
 from ..constants import SERVICE_SCAN_THRESHOLD_MB
+from .service_cleanup import ServiceCleaner
+from .service_details import ServiceDetailsProvider
 
 
 class ServiceType(Enum):
@@ -127,8 +126,8 @@ class ServiceDataInfo:
     preview_command: str
     safe_to_cleanup: bool
     impact: str = "medium"
-    items_count: Optional[int] = None
-    details: Dict[str, Any] = field(default_factory=dict)
+    items_count: int | None = None
+    details: dict[str, Any] = field(default_factory=dict)
     risk_level: str = RiskLevel.REVIEW.value
 
 
@@ -137,7 +136,7 @@ class ServiceDataScanner:
 
     DEFAULT_THRESHOLD_MB = SERVICE_SCAN_THRESHOLD_MB
 
-    SERVICE_PATHS = {
+    SERVICE_PATHS: ClassVar[dict[ServiceType, list[str]]] = {
         ServiceType.DOCKER: ["/var/lib/docker", "~/.docker"],
         ServiceType.OLLAMA: [
             "~/.ollama/models",
@@ -275,21 +274,21 @@ class ServiceDataScanner:
         {ServiceType.UNKNOWN, ServiceType.GENERIC_CACHE, ServiceType.ELECTRON}
     )
 
-    def __init__(self, threshold_mb: int = None):
+    def __init__(self, threshold_mb: int | None = None):
         self.threshold_mb = threshold_mb or self.DEFAULT_THRESHOLD_MB
         self.threshold_gb = self.threshold_mb / 1024
         self._details_provider = ServiceDetailsProvider()
         self._cleaner = ServiceCleaner(self)
-        self._docker_usage_cache: Optional[Dict[str, Any]] = None
+        self._docker_usage_cache: dict[str, Any] | None = None
         self._docker_usage_failed = False
         self._docker_usage_timed_out = False
-        self.scan_warnings: List[str] = []
+        self.scan_warnings: list[str] = []
 
-    def scan_all_services(self) -> List[ServiceDataInfo]:
+    def scan_all_services(self) -> list[ServiceDataInfo]:
         """Scan all known services for data above threshold."""
         from .cache_discovery import discover_additional_caches
 
-        results: List[ServiceDataInfo] = []
+        results: list[ServiceDataInfo] = []
         for service_type in ServiceType:
             if service_type in self._SKIP_ENUM_SCAN:
                 continue
@@ -305,7 +304,7 @@ class ServiceDataScanner:
         results.sort(key=lambda x: x.size_mb, reverse=True)
         return results
 
-    def _collect_covered_paths(self, results: List[ServiceDataInfo]) -> set[str]:
+    def _collect_covered_paths(self, results: list[ServiceDataInfo]) -> set[str]:
         """Paths already represented by dedicated service scanners."""
         covered: set[str] = set()
         for result in results:
@@ -320,7 +319,7 @@ class ServiceDataScanner:
                     covered.add(path)
         return covered
 
-    def scan_service(self, service_type: ServiceType) -> List[ServiceDataInfo]:
+    def scan_service(self, service_type: ServiceType) -> list[ServiceDataInfo]:
         """Scan specific service type for data."""
         results = []
         paths = self.SERVICE_PATHS.get(service_type, [])
@@ -336,14 +335,14 @@ class ServiceDataScanner:
             return self._merge_by_risk(results)
         return results
 
-    def _merge_by_risk(self, results: List[ServiceDataInfo]) -> List[ServiceDataInfo]:
+    def _merge_by_risk(self, results: list[ServiceDataInfo]) -> list[ServiceDataInfo]:
         """Merge same-service paths, but never blend risk tiers together.
 
         A pure cache dir (e.g. Cursor's ``Cache``) and a directory holding
         real installed data (e.g. Cursor's ``extensions``) must stay separate
         so the risky one is never hidden inside a "safe" summary entry.
         """
-        groups: Dict[str, List[ServiceDataInfo]] = {}
+        groups: dict[str, list[ServiceDataInfo]] = {}
         for item in results:
             groups.setdefault(item.risk_level, []).append(item)
 
@@ -354,7 +353,7 @@ class ServiceDataScanner:
         merged.sort(key=lambda item: item.size_mb, reverse=True)
         return merged
 
-    def _merge_service_entries(self, results: List[ServiceDataInfo]) -> ServiceDataInfo:
+    def _merge_service_entries(self, results: list[ServiceDataInfo]) -> ServiceDataInfo:
         """Combine multiple same-risk paths for a service into one summary entry."""
         primary = max(results, key=lambda item: item.size_mb)
         total_mb = sum(item.size_mb for item in results)
@@ -383,7 +382,7 @@ class ServiceDataScanner:
 
     def _analyze_service_path(
         self, service_type: ServiceType, path: str
-    ) -> Optional[ServiceDataInfo]:
+    ) -> ServiceDataInfo | None:
         """Analyze a specific service path."""
         try:
             size_mb = self.measure_service_size_mb(service_type, path)
@@ -430,14 +429,14 @@ class ServiceDataScanner:
                 details=details,
                 risk_level=risk_level,
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - one bad path must not abort the whole scan
             return ServiceDataInfo(
                 service_type=service_type,
                 name=service_type.value.title(),
                 path=path,
                 size_mb=0,
                 size_gb=0,
-                description=f"Error analyzing: {str(e)}",
+                description=f"Error analyzing: {e!s}",
                 can_cleanup=False,
                 cleanup_command="",
                 preview_command="",
@@ -532,7 +531,7 @@ class ServiceDataScanner:
             risk_level=ServiceCleaner.get_risk_level(ServiceType.DOCKER, path),
         )
 
-    def _get_docker_daemon_size_mb(self, *, refresh: bool = False) -> Optional[float]:
+    def _get_docker_daemon_size_mb(self, *, refresh: bool = False) -> float | None:
         """Total Docker disk usage as reported by the daemon itself."""
         usage = self._get_docker_daemon_usage(refresh=refresh)
         if usage is None:
@@ -541,7 +540,7 @@ class ServiceDataScanner:
 
     def _get_docker_daemon_usage(
         self, *, refresh: bool = False
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Return one stable Docker usage snapshot.
 
         Asking the daemon (``docker system df``) works even when the caller
@@ -590,7 +589,7 @@ class ServiceDataScanner:
         if not result.stdout.strip():
             return None
 
-        rows: Dict[str, Dict[str, Any]] = {}
+        rows: dict[str, dict[str, Any]] = {}
         total_mb = 0.0
         reclaimable_mb = 0.0
         for line in result.stdout.strip().splitlines():
@@ -631,7 +630,7 @@ class ServiceDataScanner:
         return self._docker_usage_cache
 
     @staticmethod
-    def _persist_docker_usage(usage: Dict[str, Any]) -> None:
+    def _persist_docker_usage(usage: dict[str, Any]) -> None:
         """Make an expensive Docker measurement reusable by the quick path."""
         cache_root = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"))
         path = cache_root / "fixos" / "docker-usage.json"
@@ -658,7 +657,7 @@ class ServiceDataScanner:
                     pass
 
     @staticmethod
-    def _docker_usage_details(usage: Dict[str, Any]) -> Dict[str, Any]:
+    def _docker_usage_details(usage: dict[str, Any]) -> dict[str, Any]:
         rows = usage.get("rows", {})
         return {
             "items_count": sum(int(row.get("total", 0)) for row in rows.values()),
@@ -704,7 +703,9 @@ class ServiceDataScanner:
         except OSError:
             return False
 
-    def get_cleanup_plan(self, selected_services: List[str] = None) -> Dict[str, Any]:
+    def get_cleanup_plan(
+        self, selected_services: list[str] | None = None
+    ) -> dict[str, Any]:
         """Generate cleanup plan for services."""
         return self._cleaner.get_cleanup_plan(selected_services)
 
@@ -712,8 +713,8 @@ class ServiceDataScanner:
         self,
         service_type: str,
         dry_run: bool = False,
-        planned_service: Dict[str, Any] | None = None,
-    ) -> Dict[str, Any]:
+        planned_service: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """Execute cleanup for a specific service."""
         return self._cleaner.cleanup_service(
             service_type,

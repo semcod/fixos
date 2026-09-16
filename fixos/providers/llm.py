@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import json
 import time
-from typing import Iterator, Type
+from collections.abc import Iterator
 
 try:
     import openai
@@ -22,13 +22,11 @@ from ..config import FixOsConfig
 class LLMError(Exception):
     """Błąd komunikacji z LLM."""
 
-    pass
 
 
 class LLMAuthError(LLMError):
     """Odrzucone uwierzytelnienie; ponawianie z tym samym kluczem nic nie zmieni."""
 
-    pass
 
 
 class _ModelInvalidError(LLMError):
@@ -226,7 +224,7 @@ class LLMClient:
                 return content
             except _ModelUnusableResponseError:
                 raise
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - dispatches to _handle_api_error by SDK error type
                 self._handle_api_error(e, attempt)
 
         raise LLMError("Nie udało się uzyskać odpowiedzi po 3 próbach")
@@ -277,7 +275,7 @@ class LLMClient:
     def chat_structured(
         self,
         messages: list[dict],
-        response_model: Type,
+        response_model: type,
         *,
         max_retries: int = 2,
         max_tokens: int = 3000,
@@ -312,7 +310,7 @@ class LLMClient:
             cleaned = self._extract_json(raw)
             try:
                 return response_model.model_validate_json(cleaned)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - any parse failure retries the LLM call
                 if attempt < max_retries:
                     augmented.append({"role": "assistant", "content": raw})
                     augmented.append(

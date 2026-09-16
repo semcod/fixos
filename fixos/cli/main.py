@@ -5,7 +5,26 @@ Main CLI entry point for fixOS
 import click
 
 from fixos import __version__
+from fixos.cli.ask_cmd import ask
+from fixos.cli.cleanup_cmd import cleanup_services
+from fixos.cli.config_cmd import config
+from fixos.cli.features_cmd import features
+from fixos.cli.fix_cmd import fix
+from fixos.cli.history_cmd import history
+from fixos.cli.jetbrains_cmd import jetbrains
+from fixos.cli.orchestrate_cmd import orchestrate
+from fixos.cli.profile_cmd import profile
+from fixos.cli.projects_cmd import projects_cmd
+from fixos.cli.provider_cmd import llm_providers, providers, test_llm
+from fixos.cli.quick_cmd import quick
+from fixos.cli.quickfix_cmd import quickfix
+from fixos.cli.report_cmd import report
+from fixos.cli.rollback_cmd import rollback
+from fixos.cli.scan_cmd import scan
 from fixos.cli.shared import BANNER, NaturalLanguageGroup
+from fixos.cli.shell_cmd import shell_cmd
+from fixos.cli.token_cmd import token
+from fixos.cli.watch_cmd import watch
 from fixos.config import FixOsConfig
 
 
@@ -227,7 +246,7 @@ def _print_quick_status() -> None:
         from fixos.diagnostics.quick_snapshot import collect_quick_snapshot
 
         render_quick_snapshot(collect_quick_snapshot(), compact=True)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - welcome banner must never crash the CLI
         click.echo(
             click.style(
                 f"Szybka analiza chwilowo niedostępna: {exc}",
@@ -239,29 +258,6 @@ def _print_quick_status() -> None:
 def main() -> None:
     """Entry point for fixOS CLI."""
     cli()
-
-
-# Register commands
-from fixos.cli.rollback_cmd import rollback
-from fixos.cli.watch_cmd import watch
-from fixos.cli.profile_cmd import profile
-from fixos.cli.history_cmd import history
-from fixos.cli.report_cmd import report
-from fixos.cli.quickfix_cmd import quickfix
-from fixos.cli.token_cmd import token
-from fixos.cli.config_cmd import config
-from fixos.cli.provider_cmd import llm_providers, providers, test_llm
-from fixos.cli.ask_cmd import ask
-from fixos.cli.scan_cmd import scan
-from fixos.cli.fix_cmd import fix
-from fixos.cli.orchestrate_cmd import orchestrate
-from fixos.cli.cleanup_cmd import cleanup_services
-from fixos.cli.projects_cmd import projects_cmd
-from fixos.cli.features_cmd import features
-from fixos.cli.quick_cmd import quick
-from fixos.cli.jetbrains_cmd import jetbrains
-from fixos.cli.shell_cmd import shell_cmd
-
 
 
 @click.command("help")

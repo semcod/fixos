@@ -4,33 +4,32 @@ Interactive session where user approves each action.
 """
 
 import time
-from typing import Dict, Any, List
+from typing import Any
 
-from ..providers.llm import LLMAuthError, LLMClient, LLMError
-from ..utils.anonymizer import anonymize, deanonymize, display_anonymized_preview
-from ..utils.web_search import search_all, format_results_for_llm
 from ..config import FixOsConfig
 from ..platform_utils import (
-    setup_signal_timeout,
     cancel_signal_timeout,
     get_os_info,
     get_package_manager,
+    setup_signal_timeout,
 )
+from ..providers.llm import LLMAuthError, LLMClient, LLMError
+from ..utils.anonymizer import anonymize, deanonymize, display_anonymized_preview
 from ..utils.timeout import SessionTimeout
-
+from ..utils.web_search import format_results_for_llm, search_all
+from . import session_handlers as handlers
+from . import session_io as io
 from .session_core import (
+    SYSTEM_PROMPT,
     CmdResult,
     DiagnosticChoice,
     RemediationAction,
-    SYSTEM_PROMPT,
     extract_diagnostic_choices,
     extract_remediation_actions,
     extract_search_topic,
     strip_remediation_plan,
     transform_remediation_commands,
 )
-from . import session_io as io
-from . import session_handlers as handlers
 
 
 class HITLSession:
@@ -41,7 +40,7 @@ class HITLSession:
 
     def __init__(
         self,
-        diagnostics: Dict[str, Any],
+        diagnostics: dict[str, Any],
         config: FixOsConfig,
         show_data: bool = True,
     ):
@@ -51,15 +50,15 @@ class HITLSession:
         self.llm = LLMClient(config)
         self.os_info = get_os_info()
         self.pkg_manager = get_package_manager() or "unknown"
-        self.messages: List[Dict[str, str]] = []
-        self.executed: List[CmdResult] = []
+        self.messages: list[dict[str, str]] = []
+        self.executed: list[CmdResult] = []
         self.web_search_count = 0
-        self.last_fixes: List[RemediationAction | DiagnosticChoice] = []
+        self.last_fixes: list[RemediationAction | DiagnosticChoice] = []
         self._diagnosis_queue_active = False
-        self._pending_optimizations: List[DiagnosticChoice] = []
+        self._pending_optimizations: list[DiagnosticChoice] = []
         self._focused_optimization: DiagnosticChoice | None = None
         self._remediation_queue_active = False
-        self._pending_remediations: List[RemediationAction] = []
+        self._pending_remediations: list[RemediationAction] = []
         self._completed_finding_refs: set[str] = set()
         self.session_started_ts = time.time()
         self.start_ts = self.session_started_ts
@@ -157,21 +156,21 @@ class HITLSession:
             low_conf
             and self.config.enable_web_search
             and self.web_search_count < self.MAX_WEB_SEARCHES
+            and io.ask_low_confidence_search()
         ):
-            if io.ask_low_confidence_search():
-                self.web_search_count += 1
-                topic = extract_search_topic(reply)
-                results = search_all(topic, self.config.serpapi_key)
-                if results:
-                    web_ctx = format_results_for_llm(results)
-                    io.console.print(web_ctx)
-                    self.messages.append(
-                        {
-                            "role": "user",
-                            "content": f"External sources:\n{web_ctx}\nUpdate analysis.",
-                        }
-                    )
-                    return True
+            self.web_search_count += 1
+            topic = extract_search_topic(reply)
+            results = search_all(topic, self.config.serpapi_key)
+            if results:
+                web_ctx = format_results_for_llm(results)
+                io.console.print(web_ctx)
+                self.messages.append(
+                    {
+                        "role": "user",
+                        "content": f"External sources:\n{web_ctx}\nUpdate analysis.",
+                    }
+                )
+            return True
         return False
 
     def _select_turn_choices(
@@ -285,9 +284,7 @@ class HITLSession:
         except LLMError as e:
             io.clear_thinking()
             io.print_llm_error(e)
-            if not self._handle_llm_error():
-                return False
-            return True
+            return self._handle_llm_error()
         io.clear_thinking()
 
         io.print_llm_reply(strip_remediation_plan(reply))
@@ -367,7 +364,7 @@ class HITLSession:
 
 
 def run_hitl_session(
-    diagnostics: Dict[str, Any],
+    diagnostics: dict[str, Any],
     config: FixOsConfig,
     show_data: bool = True,
 ) -> None:
@@ -382,8 +379,8 @@ def run_hitl_session(
 
 # Backward compatibility exports
 __all__ = [
+    "SYSTEM_PROMPT",
     "CmdResult",
     "HITLSession",
     "run_hitl_session",
-    "SYSTEM_PROMPT",
 ]

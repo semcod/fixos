@@ -11,7 +11,11 @@ Sub-modules (split from the original monolith):
 
 import click
 
+# Re-export public symbols used by fixos.cli (backward-compat)
+from fixos.cli._cleanup_flatpak import _cleanup_flatpak_detailed
+from fixos.cli._cleanup_system import _cleanup_full_system
 from fixos.cli._cleanup_utils import _parse_numeric_range_set
+from fixos.constants import DEFAULT_CLEANUP_THRESHOLD_MB
 from fixos.diagnostics.docker_startup_optimizer import (
     DEFAULT_DOCKER_STALE_SERVICE_DAYS,
     DockerStartupOptimizer,
@@ -21,21 +25,15 @@ from fixos.diagnostics.orphaned_workloads import (
     DEFAULT_STALE_PROCESS_HOURS,
     OrphanedWorkloadCleaner,
 )
-from fixos.diagnostics.service_cleanup import PRUNE_UNREFERENCED
-from fixos.diagnostics.service_scanner import ServiceDataScanner
-from fixos.constants import DEFAULT_CLEANUP_THRESHOLD_MB
-from fixos.orphan_pins import OrphanProjectPinError, OrphanProjectPins
-
-# Re-export public symbols used by fixos.cli (backward-compat)
-from fixos.cli._cleanup_flatpak import _cleanup_flatpak_detailed  # noqa: F401
-from fixos.cli._cleanup_system import _cleanup_full_system
 from fixos.diagnostics.service_cleanup import (
     DEFAULT_DOCKER_NETWORK_AGE_DAYS,
     DEFAULT_DOCKER_OLD_UNUSED_DAYS,
     DEFAULT_OLLAMA_OLD_UNUSED_DAYS,
+    PRUNE_UNREFERENCED,
     ServiceCleaner,
 )
-
+from fixos.diagnostics.service_scanner import ServiceDataScanner
+from fixos.orphan_pins import OrphanProjectPinError, OrphanProjectPins
 
 # ── Service display helpers ───────────────────────────────────────────────
 
@@ -269,7 +267,7 @@ def _format_hint_line(hint: str) -> None:
     """Print a single cleanup hint line with appropriate styling."""
     if hint.startswith("  "):
         click.echo(click.style(hint, fg="cyan"))
-    elif hint.startswith("🔥") or hint.startswith("🐳") or hint.startswith("🤖"):
+    elif hint.startswith(("🔥", "🐳", "🤖")):
         click.echo(click.style(f"\n    {hint}", fg="yellow", bold=True))
     elif hint.startswith("💡"):
         click.echo(click.style(f"    {hint}", fg="green"))

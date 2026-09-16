@@ -3,16 +3,17 @@ Service Cleanup for fixOS
 Handles planning and execution of service data cleanup operations.
 """
 
+import json
 import os
 import re
 import shlex
 import subprocess
-import json
 import urllib.error
 import urllib.request
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
-from typing import Dict, Any, List
+from typing import Any
+
 from ..constants import (
     DEFAULT_COMMAND_TIMEOUT,
 )
@@ -107,17 +108,17 @@ class ServiceCleaner:
         return dt.astimezone(timezone.utc)
 
     @staticmethod
-    def _ollama_api_get(path: str) -> Dict[str, Any]:
+    def _ollama_api_get(path: str) -> dict[str, Any]:
         url = f"{ServiceCleaner._ollama_base_url()}{path}"
         request = urllib.request.Request(url, method="GET")
         with urllib.request.urlopen(request, timeout=10) as response:
             return json.loads(response.read().decode("utf-8"))
 
     @staticmethod
-    def list_ollama_models() -> List[Dict[str, Any]]:
+    def list_ollama_models() -> list[dict[str, Any]]:
         """Return installed Ollama models with name/size/modified_at (UTC)."""
         payload = ServiceCleaner._ollama_api_get("/api/tags")
-        models: List[Dict[str, Any]] = []
+        models: list[dict[str, Any]] = []
         for item in payload.get("models") or []:
             name = item.get("name") or item.get("model")
             modified = item.get("modified_at")
@@ -151,19 +152,19 @@ class ServiceCleaner:
 
     @staticmethod
     def select_old_ollama_models(
-        models: List[Dict[str, Any]],
+        models: list[dict[str, Any]],
         days: int = DEFAULT_OLLAMA_OLD_UNUSED_DAYS,
         *,
         now: datetime | None = None,
         running: set[str] | None = None,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Filter models whose modified_at is older than N days; skip running ones."""
         days_int = int(days)
         if days_int < 1:
             raise ValueError("days must be >= 1")
         cutoff = (now or datetime.now(timezone.utc)) - timedelta(days=days_int)
         skip = running or set()
-        selected: List[Dict[str, Any]] = []
+        selected: list[dict[str, Any]] = []
         for model in models:
             name = model["name"]
             if name in skip:
@@ -179,13 +180,13 @@ class ServiceCleaner:
         self,
         days: int = DEFAULT_OLLAMA_OLD_UNUSED_DAYS,
         dry_run: bool = False,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Remove Ollama models not modified for more than N days (skip running)."""
         days_int = int(days)
         if days_int < 1:
             raise ValueError("days must be >= 1")
 
-        result: Dict[str, Any] = {
+        result: dict[str, Any] = {
             "service": "ollama-old",
             "dry_run": dry_run,
             "success": False,
@@ -240,8 +241,10 @@ class ServiceCleaner:
                 result["success"] = True
                 result["space_freed_gb"] = estimated_gb
                 lines = [
-                    f"[DRY RUN] Would remove {len(selected)} model(s) older than "
-                    f"{days_int} days:",
+                    (
+                        f"[DRY RUN] Would remove {len(selected)} model(s) older than "
+                        f"{days_int} days:"
+                    ),
                 ]
                 for model in result["models"]:
                     lines.append(
@@ -253,8 +256,8 @@ class ServiceCleaner:
                 result["output"] = "\n".join(lines)
                 return result
 
-            outputs: List[str] = []
-            errors: List[str] = []
+            outputs: list[str] = []
+            errors: list[str] = []
             freed_bytes = 0
             ok = True
             for model in selected:
@@ -263,6 +266,7 @@ class ServiceCleaner:
                     capture_output=True,
                     text=True,
                     timeout=DEFAULT_COMMAND_TIMEOUT,
+                    check=False,
                 )
                 if proc.stdout:
                     outputs.append(proc.stdout.strip())
@@ -278,7 +282,7 @@ class ServiceCleaner:
             result["output"] = "\n".join(line for line in outputs if line)
             result["error"] = "\n".join(errors)
             result["space_freed_gb"] = round(freed_bytes / (1024**3), 3)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - stored in result["error"] for the caller to display
             result["error"] = str(exc)
 
         return result
@@ -330,12 +334,12 @@ class ServiceCleaner:
 
     def _attach_orphan_network_cleanup(
         self,
-        result: Dict[str, Any],
+        result: dict[str, Any],
         *,
         include_networks: bool,
         dry_run: bool,
         network_days: int = DEFAULT_DOCKER_NETWORK_AGE_DAYS,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Attach bounded orphan-network cleanup to a Docker cleanup result."""
         if not include_networks:
             return result
@@ -346,7 +350,7 @@ class ServiceCleaner:
                 days=network_days,
                 dry_run=dry_run,
             )
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - stored in result["error"] for the caller to display
             network_result = {
                 "service": "docker-networks",
                 "dry_run": dry_run,
@@ -388,10 +392,10 @@ class ServiceCleaner:
         *,
         include_networks: bool = False,
         network_days: int = DEFAULT_DOCKER_NETWORK_AGE_DAYS,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Remove unused images/cache and optionally orphaned networks."""
         command = self.get_docker_unused_command()
-        result: Dict[str, Any] = {
+        result: dict[str, Any] = {
             "service": "docker-unused",
             "dry_run": dry_run,
             "success": False,
@@ -415,7 +419,7 @@ class ServiceCleaner:
                 build_cache_reclaimable = float(
                     (usage.get("Build Cache") or {}).get("reclaimable_gb", 0.0)
                 )
-        except Exception:
+        except Exception:  # noqa: BLE001, S110 - probe is best-effort; caller treats a miss as absent data
             pass
 
         estimated_gb = round(images_reclaimable + build_cache_reclaimable, 3)
@@ -444,6 +448,7 @@ class ServiceCleaner:
                 capture_output=True,
                 text=True,
                 timeout=max(DEFAULT_COMMAND_TIMEOUT, 1800),
+                check=False,
             )
             combined = "\n".join(
                 part
@@ -464,7 +469,7 @@ class ServiceCleaner:
                     result["space_freed_gb"] = parsed
                 elif result["success"]:
                     result["space_freed_gb"] = 0
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - stored in result["error"] for the caller to display
             result["error"] = str(exc)
 
         return self._attach_orphan_network_cleanup(
@@ -479,8 +484,8 @@ class ServiceCleaner:
         days: int = DEFAULT_DOCKER_NETWORK_AGE_DAYS,
         dry_run: bool = False,
         *,
-        network_ids: List[str] | None = None,
-    ) -> Dict[str, Any]:
+        network_ids: list[str] | None = None,
+    ) -> dict[str, Any]:
         """Remove unused custom networks and verify Docker address-pool allocation."""
         from .docker_network_cleanup import DockerNetworkCleaner
 
@@ -498,11 +503,11 @@ class ServiceCleaner:
         *,
         include_networks: bool = False,
         network_days: int = DEFAULT_DOCKER_NETWORK_AGE_DAYS,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Remove old images/cache and optionally orphaned networks."""
         command = self.get_docker_old_unused_command(days)
         hours = self.docker_old_unused_until_hours(days)
-        result: Dict[str, Any] = {
+        result: dict[str, Any] = {
             "service": "docker-old",
             "dry_run": dry_run,
             "success": False,
@@ -533,7 +538,7 @@ class ServiceCleaner:
                     "upper bound = all reclaimable Images+Build Cache; "
                     f"until={hours}h usually frees less"
                 )
-        except Exception:
+        except Exception:  # noqa: BLE001, S110 - probe is best-effort; caller treats a miss as absent data
             pass
 
         if dry_run:
@@ -561,6 +566,7 @@ class ServiceCleaner:
                 capture_output=True,
                 text=True,
                 timeout=max(DEFAULT_COMMAND_TIMEOUT, 1800),
+                check=False,
             )
             combined = "\n".join(
                 part
@@ -578,7 +584,7 @@ class ServiceCleaner:
             else:
                 parsed = self._parse_docker_reclaimed_gb(combined)
                 result["space_freed_gb"] = parsed if parsed is not None else 0
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - stored in result["error"] for the caller to display
             result["error"] = str(exc)
 
         return self._attach_orphan_network_cleanup(
@@ -589,8 +595,8 @@ class ServiceCleaner:
         )
 
     def build_safe_age_actions(
-        self, selected_services: List[str] | None = None
-    ) -> List[Dict[str, Any]]:
+        self, selected_services: list[str] | None = None
+    ) -> list[dict[str, Any]]:
         """Bounded age-based cleanups treated as safe (option [1] in interactive cleanup).
 
         Includes:
@@ -602,7 +608,7 @@ class ServiceCleaner:
         def allowed(*keys: str) -> bool:
             return not allow or any(key in allow for key in keys)
 
-        actions: List[Dict[str, Any]] = []
+        actions: list[dict[str, Any]] = []
 
         if allowed("ollama", "ollama-old"):
             try:
@@ -613,7 +619,7 @@ class ServiceCleaner:
                     days=DEFAULT_OLLAMA_OLD_UNUSED_DAYS,
                     running=running,
                 )
-            except Exception:
+            except Exception:  # noqa: BLE001 - best-effort probe; falls back to "selected = []"
                 selected = []
             if selected:
                 size_bytes = sum(int(model["size_bytes"]) for model in selected)
@@ -655,7 +661,7 @@ class ServiceCleaner:
             "docker", "docker-all", "docker-old", "docker-unused", "docker-networks"
         ):
             estimated_gb = 0.0
-            network_candidates: List[Dict[str, Any]] = []
+            network_candidates: list[dict[str, Any]] = []
             try:
                 from .service_scanner import ServiceType
 
@@ -667,13 +673,13 @@ class ServiceCleaner:
                     ) + float(
                         (usage.get("Build Cache") or {}).get("reclaimable_gb", 0.0)
                     )
-            except Exception:
+            except Exception:  # noqa: BLE001 - best-effort probe; falls back to "estimated_gb = 0.0"
                 estimated_gb = 0.0
 
             try:
                 network_preview = self.cleanup_docker_networks(dry_run=True)
                 network_candidates = network_preview.get("candidates") or []
-            except Exception:
+            except Exception:  # noqa: BLE001 - best-effort probe; falls back to "network_candidates = []"
                 network_candidates = []
 
             if estimated_gb > 0 or network_candidates:
@@ -746,7 +752,9 @@ class ServiceCleaner:
 
         return actions
 
-    def get_cleanup_plan(self, selected_services: List[str] = None) -> Dict[str, Any]:
+    def get_cleanup_plan(
+        self, selected_services: list[str] | None = None
+    ) -> dict[str, Any]:
         """Generate cleanup plan for services, split into 3 risk tiers."""
         from .service_scanner import RiskLevel
 
@@ -815,8 +823,8 @@ class ServiceCleaner:
         self,
         service_type: str,
         dry_run: bool = False,
-        planned_service: Dict[str, Any] | None = None,
-    ) -> Dict[str, Any]:
+        planned_service: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """Execute cleanup for a specific service or exact planned entry.
 
         One service type can have entries in multiple risk tiers (for example
@@ -899,6 +907,7 @@ class ServiceCleaner:
                 capture_output=True,
                 text=True,
                 timeout=DEFAULT_COMMAND_TIMEOUT,
+                check=False,
             )
 
             # Check new size
@@ -923,7 +932,7 @@ class ServiceCleaner:
             result["initial_size_gb"] = initial_size
             result["remaining_size_gb"] = round(new_size_gb, 3)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - stored in result["error"] for the caller to display
             result["error"] = str(e)
 
         return result
@@ -955,7 +964,7 @@ class ServiceCleaner:
         return round(float(service.size_gb), 3)
 
     @staticmethod
-    def _service_to_dict(service) -> Dict[str, Any]:
+    def _service_to_dict(service) -> dict[str, Any]:
         """Convert ServiceDataInfo to dictionary."""
         return {
             "service_type": service.service_type.value,
@@ -1152,7 +1161,7 @@ class ServiceCleaner:
         return ServiceCleaner.get_risk_level(service_type, path) == RiskLevel.SAFE.value
 
     @staticmethod
-    def get_cleanup_hints(service_type, size_gb: float) -> List[str]:
+    def get_cleanup_hints(service_type, size_gb: float) -> list[str]:
         """Get helpful hints for cleaning services that require manual review."""
         from .service_scanner import ServiceType
 
@@ -1416,13 +1425,17 @@ class ServiceCleaner:
         if service_type in protected_without_bulk_cleanup:
             return ""
 
-        if service_type in (ServiceType.VSCODE, ServiceType.CURSOR):
-            if ServiceCleaner.get_risk_level(service_type, path) == "dangerous":
-                return ""
+        if service_type in (
+            ServiceType.VSCODE,
+            ServiceType.CURSOR,
+        ) and ServiceCleaner.get_risk_level(service_type, path) == "dangerous":
+            return ""
 
-        if service_type == ServiceType.STEAM:
-            if ServiceCleaner.get_risk_level(service_type, path) == "dangerous":
-                return ""
+        if (
+            service_type == ServiceType.STEAM
+            and ServiceCleaner.get_risk_level(service_type, path) == "dangerous"
+        ):
+            return ""
 
         commands = {
             # Containers

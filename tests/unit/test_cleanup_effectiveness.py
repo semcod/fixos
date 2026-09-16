@@ -10,10 +10,10 @@ from __future__ import annotations
 import subprocess
 
 from fixos.diagnostics.service_cleanup import (
-    PRUNE_UNREFERENCED,
     JETBRAINS_CLEANUP_COMMAND,
     JETBRAINS_IDE_PROCESSES,
     POETRY_CLEANUP_COMMAND,
+    PRUNE_UNREFERENCED,
     ServiceCleaner,
 )
 from fixos.diagnostics.service_scanner import (
@@ -64,7 +64,7 @@ class TestPruneAccounting:
                 return []
 
         cleaner = ServiceCleaner(FakeScanner())
-        monkeypatch.setattr(cleaner, "list_ollama_models", lambda: [])
+        monkeypatch.setattr(cleaner, "list_ollama_models", list)
         monkeypatch.setattr(cleaner, "list_running_ollama_models", lambda: set())
 
         plan = cleaner.get_cleanup_plan()
@@ -126,6 +126,7 @@ class TestJetbrainsCleanup:
             input="",
             capture_output=True,
             text=True,
+            check=False,
         )
         # No such fixture process exists in the test environment, so this
         # just proves the pattern itself is a plain exact-match alternation.
