@@ -78,7 +78,8 @@
           "go.mod",
           "Cargo.toml",
           "pom.xml",
-          "docs/**"
+          "docs/**",
+          "MANIFEST.in"
         ]
       },
       "interfaces": {
