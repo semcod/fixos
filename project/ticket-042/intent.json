@@ -1,0 +1,91 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-042",
+  "summary": "Non-interactive cleanup --yes plus version 2.2.49 in package init",
+  "workstream": "application",
+  "classification": {
+    "kind": "SERVICE",
+    "priority": "P2",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-042/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/__init__.py",
+    "fixos/cli/cleanup_cmd.py",
+    "tests/unit/test_cleanup_safety.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "03e5444c7f5d30be74f1ddb12651e21f3682a621",
+    "targetBranch": "main",
+    "outcome": "fixos cleanup --yes runs the safe plan non-interactively (usable over SSH, cron, CI) with identical safety gates; __version__ bumps to 2.2.49 for the upcoming release.",
+    "nonGoals": [
+      "No change to which services count as safe or to confirmation gates for dangerous entries.",
+      "VERSION and pyproject bump land in the paired integration ticket.",
+      "No new dependencies."
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 30,
+    "budgets": {
+      "maxImplementationFiles": 4,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 1,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Add --yes flag that executes plan['safe_to_cleanup'] via the existing _execute_safe_cleanup path and still prints review/dangerous sections; version bump in fixos/__init__.py joins this material ticket per release policy.",
+      "components": [
+        {
+          "name": "cli",
+          "paths": [
+            "fixos/cli/cleanup_cmd.py",
+            "fixos/__init__.py",
+            "tests/unit/test_cleanup_safety.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the commit; interactive prompting returns and version stays 2.2.48."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python -m pytest -q tests/unit/test_cleanup_safety.py"
+        ],
+        "evidence": "project/ticket-042/README.md"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "python -m pytest -q tests/unit"
+        ],
+        "evidence": "project/ticket-042/README.md"
+      },
+      {
+        "criterion": "AC-03",
+        "commands": [
+          "./project/governance-check.sh"
+        ],
+        "evidence": "project/ticket-042/README.md"
+      }
+    ]
+  }
+}
