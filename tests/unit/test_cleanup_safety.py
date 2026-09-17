@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import shlex
 import subprocess
+from types import SimpleNamespace
 
 import click
 from click.testing import CliRunner
@@ -149,6 +150,116 @@ class TestCleanupCommandSafety:
         command = ServiceCleaner.get_cleanup_command(ServiceType.GCLOUD, "")
         assert "revoke" not in command
         assert "gcloud auth" not in command
+
+
+class TestDockerDefaultProposal:
+    """Default `fixos cleanup` must propose stopped containers and unused
+    images without touching running containers or volumes."""
+
+    @staticmethod
+    def _scanner(usage):
+        class FakeScanner:
+            def scan_service(self, service_type):
+                if service_type == ServiceType.DOCKER:
+                    return [SimpleNamespace(details={"usage": usage})]
+                return []
+
+        return FakeScanner()
+
+    @staticmethod
+    def _cleaner(scanner, monkeypatch):
+        cleaner = ServiceCleaner(scanner)
+        monkeypatch.setattr(cleaner, "list_ollama_models", list)
+        monkeypatch.setattr(cleaner, "list_running_ollama_models", lambda: set())
+        monkeypatch.setattr(
+            cleaner,
+            "cleanup_docker_networks",
+            lambda days=0, dry_run=False: {
+                "success": True,
+                "candidates": [],
+                "removed": [],
+                "failed": [],
+            },
+        )
+        return cleaner
+
+    def test_default_plan_proposes_stopped_containers_and_images(
+        self, monkeypatch
+    ):
+        usage = {
+            "Containers": {"size_gb": 3.0, "reclaimable_gb": 2.5},
+            "Images": {"size_gb": 40.0, "reclaimable_gb": 10.0},
+            "Build Cache": {"size_gb": 5.0, "reclaimable_gb": 4.0},
+        }
+        cleaner = self._cleaner(self._scanner(usage), monkeypatch)
+
+        actions = cleaner.build_safe_age_actions()
+        kinds = {action["cleanup_kind"] for action in actions}
+
+        assert "docker-containers" in kinds
+        assert "docker-unused" in kinds
+
+        containers = next(
+            action
+            for action in actions
+            if action["cleanup_kind"] == "docker-containers"
+        )
+        assert containers["safe_to_cleanup"] is True
+        assert containers["risk_level"] == "safe"
+        assert containers["size_gb"] == 2.5
+        assert containers["cleanup_command"] == "docker container prune --force"
+
+    def test_container_proposal_absent_without_reclaimable(self, monkeypatch):
+        usage = {
+            "Containers": {"size_gb": 3.0, "reclaimable_gb": 0.0},
+            "Images": {"size_gb": 40.0, "reclaimable_gb": 0.0},
+            "Build Cache": {"size_gb": 5.0, "reclaimable_gb": 0.0},
+        }
+        cleaner = self._cleaner(self._scanner(usage), monkeypatch)
+
+        kinds = {
+            action["cleanup_kind"] for action in cleaner.build_safe_age_actions()
+        }
+        assert "docker-containers" not in kinds
+        assert "docker-unused" not in kinds
+
+    def test_container_prune_never_touches_volumes_or_running(self):
+        command = ServiceCleaner.get_docker_containers_command()
+
+        assert command == "docker container prune --force"
+        assert "volume" not in command
+        assert "system prune" not in command
+        assert "image" not in command
+
+    def test_container_prune_dry_run_executes_nothing(self, monkeypatch):
+        def forbidden_run(*args, **kwargs):
+            raise AssertionError("dry-run must not execute docker commands")
+
+        monkeypatch.setattr(subprocess, "run", forbidden_run)
+        usage = {"Containers": {"size_gb": 3.0, "reclaimable_gb": 2.5}}
+        cleaner = self._cleaner(self._scanner(usage), monkeypatch)
+
+        result = cleaner.cleanup_docker_containers(dry_run=True)
+
+        assert result["success"] is True
+        assert result["space_freed_gb"] == 2.5
+        assert "docker container prune --force" in result["output"]
+
+    def test_planned_cleanup_dispatches_containers_kind(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr(
+            ServiceCleaner,
+            "cleanup_docker_containers",
+            lambda self, dry_run=False: calls.append(dry_run)
+            or {"success": True, "space_freed_gb": 0.0, "output": ""},
+        )
+        svc = _service("Docker (zatrzymane kontenery)", "safe")
+        svc["cleanup_kind"] = "docker-containers"
+        svc["service_type"] = "docker-containers"
+
+        cleanup_cmd._execute_planned_cleanup(object(), svc, dry_run=True)
+
+        assert calls == [True]
 
 
 class TestScanMeasurement:
