@@ -39,4 +39,5 @@ This file indexes governance tickets without taking ownership of
 | **ticket-032** | [`README.md`](./ticket-032/README.md) | - | - |  [`ai-codex.md`](./ticket-032/ai-codex.md) |  [`ai-codex-logs.txt`](./ticket-032/ai-codex-logs.txt) | [`changelog.md`](./ticket-032/changelog.md) |
 | **ticket-033** | [`README.md`](./ticket-033/README.md) | - | - | - | - | - |
 | **ticket-034** | [`README.md`](./ticket-034/README.md) | - | - | - | - | - |
+| **ticket-035** | [`README.md`](./ticket-035/README.md) | - | - | - | - | - |
 <!-- AUTO:TICKET_INDEX:END -->

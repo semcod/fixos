@@ -1,0 +1,88 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-035",
+  "summary": "Ship YAML data files in fixos package",
+  "workstream": "integration",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P1",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-035/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "pyproject.toml"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "c5a0babd41f6477f10304afd034cfad45c90fe77",
+    "targetBranch": "main",
+    "outcome": "The built wheel and sdist ship the runtime YAML data (feature profile/catalog files and builtin profiles), so `fixos features profiles`, `features audit`, `features install` and profile-aware commands work from a pip install instead of silently listing nothing.",
+    "nonGoals": [
+      "No source or test file changes; packaging declaration only.",
+      "No new runtime dependency; package-data uses existing setuptools build backend.",
+      "No version bump or release in this ticket."
+    ],
+    "complexity": "XS",
+    "estimatedMinutes": 10,
+    "budgets": {
+      "maxImplementationFiles": 2,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Declare `[tool.setuptools.package-data]` for the fixos package covering `features/data/*.yaml`, `features/data/profiles/*.yaml` and `profiles/*.yaml`; setuptools package-data feeds both wheel and sdist.",
+      "components": [
+        {
+          "name": "packaging",
+          "paths": [
+            "project/ticket-035/**",
+            "pyproject.toml"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the pyproject.toml package-data block; the wheel returns to its previous file set."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python -m pip wheel . -w /tmp/fixos-wheel --no-deps && python -m zipfile -l /tmp/fixos-wheel/fixos-*.whl | grep -c 'yaml'"
+        ],
+        "evidence": "ticket-035/README.md"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "python -m venv /tmp/fixos-verify && /tmp/fixos-verify/bin/pip install /tmp/fixos-wheel/fixos-*.whl && /tmp/fixos-verify/bin/fixos features profiles"
+        ],
+        "evidence": "ticket-035/README.md"
+      },
+      {
+        "criterion": "AC-03",
+        "commands": [
+          "./project/governance-check.sh"
+        ],
+        "evidence": "ticket-035/README.md"
+      }
+    ]
+  }
+}
