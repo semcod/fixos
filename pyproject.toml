@@ -57,6 +57,13 @@ Homepage = "https://github.com/wronai/fixos"
 [tool.setuptools.packages.find]
 exclude = ["tests*", "docker*"]
 
+[tool.setuptools.package-data]
+fixos = [
+    "features/data/*.yaml",
+    "features/data/profiles/*.yaml",
+    "profiles/*.yaml",
+]
+
 [tool.wellmanifest]
 standard = "0.20.31"
 revision = "2b016654cff1a1ccef2c0d6126a9c2550ae6b37a"
