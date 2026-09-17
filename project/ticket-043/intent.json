@@ -1,0 +1,81 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-043",
+  "summary": "Release 2.2.49 version bump in VERSION and pyproject",
+  "workstream": "integration",
+  "classification": {
+    "kind": "SERVICE",
+    "priority": "P2",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-043/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "VERSION",
+    "pyproject.toml"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "03e5444c7f5d30be74f1ddb12651e21f3682a621",
+    "targetBranch": "main",
+    "outcome": "VERSION and pyproject.toml declare 2.2.49 so the release carries tickets 040-042 (interactive UX, NoSuchCommand fix, cleanup --yes) to PyPI.",
+    "nonGoals": [
+      "No source or test changes; release projection only, joined to already-merged material work.",
+      "fixos/__init__.py bump lands in ticket-042."
+    ],
+    "complexity": "XS",
+    "estimatedMinutes": 5,
+    "budgets": {
+      "maxImplementationFiles": 2,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Bump the two integration-owned version carriers to 2.2.49, matching fixos.__version__ from ticket-042.",
+      "components": [
+        {
+          "name": "packaging",
+          "paths": [
+            "VERSION",
+            "pyproject.toml"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the commit; version carriers return to 2.2.48."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "grep -c '2.2.49' VERSION pyproject.toml"
+        ],
+        "evidence": "project/ticket-043/README.md"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "./project/governance-check.sh"
+        ],
+        "evidence": "project/ticket-043/README.md"
+      }
+    ]
+  }
+}
