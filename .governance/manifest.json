@@ -41,11 +41,11 @@
         "ownedPaths": [
           ".governance/**",
           ".gitignore",
-        "AGENTS.md",
-        "README.md",
-        "CONTRIBUTING.md",
-        "pytest.ini",
-        "TODO.md",
+          "AGENTS.md",
+          "README.md",
+          "CONTRIBUTING.md",
+          "pytest.ini",
+          "TODO.md",
           "CHANGELOG.md",
           ".env.example",
           "goal.yaml",
@@ -79,7 +79,8 @@
           "Cargo.toml",
           "pom.xml",
           "docs/**",
-          "MANIFEST.in"
+          "MANIFEST.in",
+          "uv.lock"
         ]
       },
       "interfaces": {
