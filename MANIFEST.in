@@ -6,6 +6,7 @@ include requirements-dev.txt
 include .env.example
 include pytest.ini
 recursive-include fixos *.py
+recursive-include fixos *.yaml
 recursive-include tests *.py
 recursive-include docker *
 prune docker/__pycache__

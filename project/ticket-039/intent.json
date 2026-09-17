@@ -1,0 +1,75 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-039",
+  "summary": "Include YAML data in MANIFEST.in",
+  "workstream": "integration",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P3",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-039/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "MANIFEST.in"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "1fcc8f3393167db22fde646ecaa81b532fb939d7",
+    "targetBranch": "main",
+    "outcome": "MANIFEST.in explicitly includes the runtime YAML data files, so the sdist manifest matches the setuptools package-data declaration added in ticket-035.",
+    "nonGoals": [
+      "No source changes.",
+      "No new dependency.",
+      "No version bump."
+    ],
+    "complexity": "XS",
+    "estimatedMinutes": 5,
+    "budgets": {
+      "maxImplementationFiles": 1,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Add `recursive-include fixos *.yaml` next to the existing `recursive-include fixos *.py` line so the sdist manifest covers the same runtime data as package-data.",
+      "components": [
+        {
+          "name": "packaging",
+          "paths": [
+            "project/ticket-039/**",
+            "MANIFEST.in"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the MANIFEST.in line; sdist still gets the YAML files via package-data."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "./project/governance-check.sh",
+          "python -m build --sdist --outdir /tmp/fixos-sdist-verify"
+        ],
+        "evidence": "ticket-039/README.md"
+      }
+    ]
+  }
+}
