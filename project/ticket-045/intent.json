@@ -1,0 +1,79 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-045",
+  "summary": "Relock uv.lock after pfix removal",
+  "workstream": "integration",
+  "classification": {
+    "kind": "SERVICE",
+    "priority": "P2",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-045/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "uv.lock"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "7fc4e76e3c29316f0fbb1ee4545d0652eea7ca72",
+    "targetBranch": "main",
+    "outcome": "uv lock --check passes on main again; the direct pfix dependency is removed from the lockfile and the fixos version inside it matches 2.2.49.",
+    "nonGoals": [
+      "No dependency version changes beyond what uv 0.12.13 resolves from the existing pyproject.",
+      "pfix remains as a transitive entry where other packages require it."
+    ],
+    "complexity": "XS",
+    "estimatedMinutes": 10,
+    "budgets": {
+      "maxImplementationFiles": 1,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Run pinned uv 0.12.13 'uv lock' to regenerate uv.lock from the current pyproject; verify with 'uv lock --check'.",
+      "components": [
+        {
+          "name": "packaging",
+          "paths": [
+            "uv.lock"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the commit; lockfile returns to the stale state."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "uvx --from uv==0.12.13 uv lock --check"
+        ],
+        "evidence": "project/ticket-045/README.md"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "./project/governance-check.sh"
+        ],
+        "evidence": "project/ticket-045/README.md"
+      }
+    ]
+  }
+}
