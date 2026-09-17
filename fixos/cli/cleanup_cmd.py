@@ -169,6 +169,8 @@ def _execute_planned_cleanup(scanner, svc: dict, *, dry_run: bool = False) -> di
             dry_run=dry_run,
             include_networks=True,
         )
+    if kind == "docker-containers":
+        return cleaner.cleanup_docker_containers(dry_run=dry_run)
     if kind == "docker-old":
         return cleaner.cleanup_docker_old_unused(
             days=int(svc.get("days") or DEFAULT_DOCKER_OLD_UNUSED_DAYS),
@@ -597,6 +599,41 @@ def _cleanup_docker_all_unused(scanner, json_output: bool, dry_run: bool) -> Non
             dry_run=dry_run,
             title="Docker — osierocone sieci znalezione przy czyszczeniu",
         )
+
+
+def _cleanup_docker_containers(scanner, json_output: bool, dry_run: bool) -> None:
+    """Prune stopped Docker containers only."""
+    result = ServiceCleaner(scanner).cleanup_docker_containers(dry_run=dry_run)
+
+    if json_output:
+        import json
+
+        click.echo(json.dumps(result, indent=2, default=str))
+        return
+
+    click.echo(
+        click.style(
+            "Docker — zatrzymane kontenery (uruchomione i wolumeny zostają)",
+            fg="yellow",
+        )
+    )
+    click.echo(f"  Komenda: {result.get('command')}")
+    if dry_run:
+        click.echo(click.style("[TRYB DRY-RUN] - brak faktycznych zmian", fg="cyan"))
+
+    if result.get("success"):
+        if dry_run:
+            click.echo(click.style("Symulacja zakończona", fg="green"))
+            if result.get("estimated_max_gb", 0) > 0:
+                click.echo(
+                    f"  Maksymalnie Containers reclaimable: "
+                    f"{result['estimated_max_gb']:.2f} GB"
+                )
+        else:
+            click.echo(click.style("Zakończono czyszczenie kontenerów", fg="green"))
+            click.echo(f"  Zwolniono: {result.get('space_freed_gb', 0):.2f} GB")
+    else:
+        click.echo(click.style(f"Błąd: {_error_message(result)}", fg="red"))
 
 
 def _cleanup_docker_old_unused(
@@ -1315,7 +1352,7 @@ def _run_interactive_cleanup(
     default=None,
     help=(
         "Wyczyść konkretną usługę "
-        "(docker, docker-all, docker-old, docker-networks, "
+        "(docker, docker-all, docker-old, docker-containers, docker-networks, "
         "docker-stale-services, orphaned-projects, ollama-old, npm, ...)"
     ),
 )
@@ -1563,6 +1600,7 @@ def cleanup_services(
 
     want_docker_old = docker_old or (cleanup == "docker-old")
     want_docker_all = docker_all or cleanup in {"docker-all", "docker-unused"}
+    want_docker_containers = cleanup == "docker-containers"
     want_docker_networks = docker_networks or (cleanup == "docker-networks")
     want_docker_stale_services = docker_stale_services or (
         cleanup == "docker-stale-services"
@@ -1640,6 +1678,9 @@ def cleanup_services(
         return
     if want_docker_all:
         _cleanup_docker_all_unused(scanner, json_output, dry_run)
+        return
+    if want_docker_containers:
+        _cleanup_docker_containers(scanner, json_output, dry_run)
         return
     if want_docker_old:
         effective_days = days if days is not None else DEFAULT_DOCKER_OLD_UNUSED_DAYS

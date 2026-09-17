@@ -297,6 +297,16 @@ class ServiceCleaner:
         return "docker image prune -a --force && docker builder prune --force"
 
     @staticmethod
+    def get_docker_containers_command() -> str:
+        """Prune stopped containers only.
+
+        ``docker container prune`` removes exited/created containers while
+        running containers, images, networks and every volume (including
+        anonymous ones) stay untouched.
+        """
+        return "docker container prune --force"
+
+    @staticmethod
     def _parse_docker_reclaimed_gb(output: str) -> float | None:
         """Parse ``Total reclaimed space: …`` from docker prune stdout/stderr."""
         match = re.search(
@@ -319,15 +329,30 @@ class ServiceCleaner:
             return None
         return round(value * factor, 3)
 
-    def _docker_images_and_cache_gb(self, *, refresh: bool = False) -> float | None:
-        """Current Images + Build Cache size from ``docker system df``."""
+    def _docker_usage_rows(self, *, refresh: bool = False) -> dict | None:
+        """Rows of one ``docker system df`` snapshot, or None when unavailable."""
         usage_fn = getattr(self.scanner, "_get_docker_daemon_usage", None)
         if not callable(usage_fn):
             return None
         usage = usage_fn(refresh=refresh)
         if not usage:
             return None
-        rows = usage.get("rows") or {}
+        return usage.get("rows") or {}
+
+    def _docker_usage_size_gb(
+        self, row_name: str, *, refresh: bool = False
+    ) -> float | None:
+        """Current size of one ``docker system df`` row (e.g. ``Containers``)."""
+        rows = self._docker_usage_rows(refresh=refresh)
+        if rows is None:
+            return None
+        return round(float((rows.get(row_name) or {}).get("size_gb", 0.0)), 3)
+
+    def _docker_images_and_cache_gb(self, *, refresh: bool = False) -> float | None:
+        """Current Images + Build Cache size from ``docker system df``."""
+        rows = self._docker_usage_rows(refresh=refresh)
+        if rows is None:
+            return None
         images = float((rows.get("Images") or {}).get("size_gb", 0.0))
         cache = float((rows.get("Build Cache") or {}).get("size_gb", 0.0))
         return round(images + cache, 3)
@@ -479,6 +504,82 @@ class ServiceCleaner:
             network_days=network_days,
         )
 
+    def cleanup_docker_containers(
+        self,
+        dry_run: bool = False,
+    ) -> dict[str, Any]:
+        """Remove stopped containers via ``docker container prune --force``.
+
+        Only containers in a non-running state are removed; running
+        containers, images, networks and volumes are never touched.
+        """
+        command = self.get_docker_containers_command()
+        result: dict[str, Any] = {
+            "service": "docker-containers",
+            "dry_run": dry_run,
+            "success": False,
+            "space_freed_gb": 0,
+            "output": "",
+            "error": "",
+            "command": command,
+        }
+
+        estimated_gb = 0.0
+        try:
+            from .service_scanner import ServiceType
+
+            services = self.scanner.scan_service(ServiceType.DOCKER)
+            if services:
+                usage = (services[0].details or {}).get("usage") or {}
+                estimated_gb = float(
+                    (usage.get("Containers") or {}).get("reclaimable_gb", 0.0)
+                )
+        except Exception:  # noqa: BLE001, S110 - probe is best-effort; caller treats a miss as absent data
+            pass
+
+        result["estimated_max_gb"] = round(estimated_gb, 3)
+
+        if dry_run:
+            result["success"] = True
+            result["space_freed_gb"] = round(estimated_gb, 3)
+            result["output"] = (
+                f"[DRY RUN] Would execute: {command}\n"
+                "  Scope: stopped containers only. Running containers, "
+                "images, networks and volumes are kept."
+            )
+            return result
+
+        try:
+            before_gb = self._docker_usage_size_gb("Containers", refresh=True)
+            cleanup_result = subprocess.run(
+                command,
+                shell=True,
+                capture_output=True,
+                text=True,
+                timeout=DEFAULT_COMMAND_TIMEOUT,
+                check=False,
+            )
+            combined = "\n".join(
+                part
+                for part in (cleanup_result.stdout, cleanup_result.stderr)
+                if part and part.strip()
+            )
+            result["returncode"] = cleanup_result.returncode
+            result["output"] = cleanup_result.stdout
+            result["error"] = cleanup_result.stderr
+            result["success"] = cleanup_result.returncode == 0
+
+            after_gb = self._docker_usage_size_gb("Containers", refresh=True)
+            if before_gb is not None and after_gb is not None:
+                result["space_freed_gb"] = round(max(0.0, before_gb - after_gb), 3)
+            else:
+                parsed = self._parse_docker_reclaimed_gb(combined)
+                result["space_freed_gb"] = parsed if parsed is not None else 0
+        except Exception as exc:  # noqa: BLE001 - stored in result["error"] for the caller to display
+            result["error"] = str(exc)
+
+        return result
+
     def cleanup_docker_networks(
         self,
         days: int = DEFAULT_DOCKER_NETWORK_AGE_DAYS,
@@ -601,6 +702,7 @@ class ServiceCleaner:
 
         Includes:
         - Ollama models not modified for ``DEFAULT_OLLAMA_OLD_UNUSED_DAYS``
+        - Stopped Docker containers (``docker container prune``)
         - All unused Docker images + build cache and orphaned custom networks
         """
         allow = {item.strip() for item in (selected_services or []) if item.strip()}
@@ -658,9 +760,15 @@ class ServiceCleaner:
                 )
 
         if allowed(
-            "docker", "docker-all", "docker-old", "docker-unused", "docker-networks"
+            "docker",
+            "docker-all",
+            "docker-old",
+            "docker-unused",
+            "docker-networks",
+            "docker-containers",
         ):
             estimated_gb = 0.0
+            containers_gb = 0.0
             network_candidates: list[dict[str, Any]] = []
             try:
                 from .service_scanner import ServiceType
@@ -673,14 +781,48 @@ class ServiceCleaner:
                     ) + float(
                         (usage.get("Build Cache") or {}).get("reclaimable_gb", 0.0)
                     )
+                    containers_gb = float(
+                        (usage.get("Containers") or {}).get("reclaimable_gb", 0.0)
+                    )
             except Exception:  # noqa: BLE001 - best-effort probe; falls back to "estimated_gb = 0.0"
                 estimated_gb = 0.0
+                containers_gb = 0.0
 
             try:
                 network_preview = self.cleanup_docker_networks(dry_run=True)
                 network_candidates = network_preview.get("candidates") or []
             except Exception:  # noqa: BLE001 - best-effort probe; falls back to "network_candidates = []"
                 network_candidates = []
+
+            if containers_gb > 0:
+                actions.append(
+                    {
+                        "service_type": "docker-containers",
+                        "cleanup_kind": "docker-containers",
+                        "name": "Docker (zatrzymane kontenery)",
+                        "path": "/var/lib/docker",
+                        "size_mb": round(containers_gb * 1024, 1),
+                        "size_gb": round(containers_gb, 3),
+                        "description": (
+                            "Wszystkie zatrzymane kontenery Docker "
+                            "(uruchomione kontenery, obrazy, sieci "
+                            "i wolumeny zostają)"
+                        ),
+                        "can_cleanup": True,
+                        "cleanup_command": self.get_docker_containers_command(),
+                        "preview_command": (
+                            "docker container ls --all "
+                            "--filter status=exited --filter status=created"
+                        ),
+                        "safe_to_cleanup": True,
+                        "risk_level": "safe",
+                        "impact": "low",
+                        "items_count": 0,
+                        "details": {
+                            "estimated_max_gb": round(containers_gb, 3),
+                        },
+                    }
+                )
 
             if estimated_gb > 0 or network_candidates:
                 has_images = estimated_gb > 0
