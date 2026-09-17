@@ -45,14 +45,14 @@ def test_individual_mode_walks_all_risk_tiers_in_display_order():
     def command():
         cleanup_cmd._run_interactive_cleanup(plan, False, Scanner())
 
-    # 2 = individual; Docker yes; JetBrains no; Npm yes; Docker risk
+    # 2 = individual; pick 1 (Docker) and 3 (Npm) in one input; Docker risk
     # confirmation yes. Ollama has no executable bulk action, so it is shown
-    # but intentionally does not consume an answer.
-    result = CliRunner().invoke(command, input="2\ny\nn\ny\ny\n")
+    # without a number and intentionally consumes no input.
+    result = CliRunner().invoke(command, input="2\n1,3\ny\n")
 
     assert result.exit_code == 0
     individual_output = result.output.split(
-        "Wybierz kolejno spośród wszystkich możliwych usług:", 1
+        "Wybierz usługi do wyczyszczenia:", 1
     )[1]
     assert individual_output.index("Docker") < individual_output.index("Jetbrains")
     assert individual_output.index("Jetbrains") < individual_output.index("Npm")
