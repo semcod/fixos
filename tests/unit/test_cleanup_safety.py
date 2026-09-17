@@ -87,9 +87,9 @@ class TestInteractiveDryRun:
         def command():
             cleanup_cmd._run_interactive_cleanup(plan, False, scanner, dry_run=True)
 
-        # 2 = individual; Docker yes; Npm yes. No protected-data confirmation
-        # is needed because nothing is executed.
-        result = CliRunner().invoke(command, input="2\ny\ny\n")
+        # 2 = individual; 'all' picks both entries in one input. No
+        # protected-data confirmation is needed because nothing is executed.
+        result = CliRunner().invoke(command, input="2\nall\n")
 
         assert result.exit_code == 0, result.output
         assert scanner.calls == [("docker", True), ("npm", True)]

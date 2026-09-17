@@ -1218,26 +1218,58 @@ def _selection_description(svc: dict) -> str:
     return description
 
 
+def _parse_selection(raw: str, count: int) -> set[int]:
+    """Parse '1,3,7-9', 'all' or 'none' into 0-based indexes."""
+    tokens = raw.strip().lower().replace(" ", "")
+    if tokens in ("", "none", "0"):
+        return set()
+    if tokens == "all":
+        return set(range(count))
+    selected = set()
+    for part in tokens.split(","):
+        if not part:
+            continue
+        bounds = part.split("-", 1)
+        try:
+            if len(bounds) == 2:
+                numbers = range(int(bounds[0]), int(bounds[1]) + 1)
+            else:
+                numbers = (int(bounds[0]),)
+        except ValueError:
+            continue
+        for number in numbers:
+            if 1 <= number <= count:
+                selected.add(number - 1)
+    return selected
+
+
 def _select_individual_services(services: list) -> list:
     """Offer every scanned, executable entry in its displayed order."""
     click.echo(
         click.style(
-            "Wybierz kolejno spośród wszystkich możliwych usług:",
+            "Wybierz usługi do wyczyszczenia:",
             fg="cyan",
         )
     )
-    selected = []
+    executable = []
     for svc in services:
-        label = f"  {svc['name']} ({_size_str(svc)}) [{_selection_description(svc)}]"
+        label = f"{svc['name']} ({_size_str(svc)}) [{_selection_description(svc)}]"
         if not svc.get("can_cleanup") or not svc.get("cleanup_command", "").strip():
-            click.echo(f"{label} — brak bezpiecznej operacji zbiorczej")
+            click.echo(f"  {label} — brak bezpiecznej operacji zbiorczej")
             preview = svc.get("preview_command")
             if preview:
                 click.echo(f"    Podgląd: {preview}")
             continue
-        if click.confirm(label, default=False):
-            selected.append(svc)
-    return selected
+        executable.append(svc)
+        click.echo(f"  [{len(executable)}] {label}")
+    if not executable:
+        return []
+    raw = click.prompt(
+        "Numery do wyczyszczenia (np. 1,3,7-9; all = wszystkie; none = żadne)",
+        default="none",
+        show_default=True,
+    )
+    return [executable[i] for i in sorted(_parse_selection(raw, len(executable)))]
 
 
 def _execute_individual_cleanup(

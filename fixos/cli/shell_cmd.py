@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import os
 import shlex
-import sys
 from typing import Any
 
 import click
@@ -17,53 +16,32 @@ from prompt_toolkit.history import FileHistory
 from prompt_toolkit.styles import Style
 
 
+def _command_completion_words(command: click.Command) -> dict[str, Any] | None:
+    """Collect subcommand and option words for one click command."""
+    words: dict[str, Any] = {}
+    if isinstance(command, click.Group):
+        for name in sorted(command.commands):
+            words[name] = _command_completion_words(command.commands[name])
+    for param in getattr(command, "params", []):
+        for opt in list(getattr(param, "opts", [])) + list(
+            getattr(param, "secondary_opts", [])
+        ):
+            words.setdefault(opt, None)
+    return words or None
+
+
 def get_command_completer() -> NestedCompleter:
-    """Build a nested completer for all fixOS commands and common options."""
-    return NestedCompleter.from_nested_dict({
-        "quick": {"--hours": None, "--json": None, "--deep": None, "--help": None},
-        "fix": {
-            "--modules": None,
-            "--dry-run": None,
-            "--json": None,
-            "--yaml": None,
-            "--help": None,
-        },
-        "cleanup": {
-            "--docker-all": None,
-            "--docker-old": None,
-            "--docker-networks": None,
-            "--docker-stale-services": None,
-            "--orphaned-projects": None,
-            "--ollama-old": None,
-            "--dry-run": None,
-            "--threshold": None,
-            "-t": None,
-            "--list": None,
-            "--full": None,
-            "--help": None,
-        },
-        "scan": {"--modules": None, "--show-raw": None, "--json": None, "--help": None},
-        "quickfix": {"--help": None},
-        "jetbrains": {"doctor": None, "--help": None},
-        "projects": {"--help": None},
-        "orchestrate": {"--dry-run": None, "--help": None},
-        "watch": {"--help": None},
-        "report": {"--help": None},
-        "history": {"--help": None},
-        "rollback": {"--help": None},
-        "profile": {"--help": None},
-        "llm": {"--free": None, "--help": None},
-        "providers": {"--help": None},
-        "token": {"set": None, "show": None, "clear": None, "--help": None},
-        "config": {"show": None, "set": None, "init": None, "--help": None},
-        "test-llm": {"--help": None},
-        "ask": {"--dry-run": None, "--help": None},
-        "help": None,
-        "clear": None,
-        "menu": None,
-        "exit": None,
-        "quit": None,
-    })
+    """Build a nested completer from the live click command tree."""
+    from fixos.cli.main import cli
+
+    words: dict[str, Any] = {
+        name: _command_completion_words(command)
+        for name, command in sorted(cli.commands.items())
+    }
+    words.update(
+        {"commands": None, "clear": None, "menu": None, "exit": None, "quit": None}
+    )
+    return NestedCompleter.from_nested_dict(words)
 
 
 def print_interactive_menu() -> None:
@@ -81,6 +59,7 @@ def print_interactive_menu() -> None:
         ("5", "jetbrains doctor", "Diagnoza PyCharm, WebStorm, IDEA"),
         ("6", "ask", "Zadaj pytanie / polecenie w języku naturalnym"),
         ("7", "config show", "Podgląd konfiguracji i aktywny model"),
+        ("8", "commands", "Pełna lista wszystkich komend i opcji"),
     ]
     for num, cmd, desc in menu_items:
         num_styled = click.style(f"[{num}]", fg="yellow", bold=True)
@@ -92,7 +71,7 @@ def print_interactive_menu() -> None:
     click.echo()
     click.echo(
         click.style(
-            "  💡 Wskazówka: wpisz numer [1-7], komendę lub zapytanie naturalne.",
+            "  💡 Wskazówka: wpisz numer [1-8], komendę lub zapytanie naturalne.",
             fg="bright_black",
         )
     )
@@ -106,6 +85,38 @@ def print_interactive_menu() -> None:
     click.echo()
 
 
+def print_command_catalog() -> None:
+    """Print every registered command with its one-line help."""
+    from fixos.cli.main import cli
+
+    click.echo(click.style("  📚 Wszystkie komendy fixos:", fg="cyan", bold=True))
+    click.echo()
+    for name in sorted(cli.commands):
+        command = cli.commands[name]
+        try:
+            short = command.get_short_help_str().splitlines()[0]
+        except Exception:
+            short = ""
+        name_styled = click.style(f"{name:<14}", fg="green")
+        click.echo(f"  {name_styled} {short}")
+        if isinstance(command, click.Group):
+            for sub_name in sorted(command.commands):
+                sub = command.commands[sub_name]
+                try:
+                    sub_short = sub.get_short_help_str().splitlines()[0]
+                except Exception:
+                    sub_short = ""
+                click.echo(f"    {sub_name:<12} {sub_short}")
+    click.echo()
+    click.echo(
+        click.style(
+            "  💡 Każdą komendę możesz uruchomić z flagą --help, np. `cleanup --help`.",
+            fg="bright_black",
+        )
+    )
+    click.echo()
+
+
 MENU_SHORTCUTS = {
     "1": "quick",
     "2": "fix",
@@ -114,6 +125,7 @@ MENU_SHORTCUTS = {
     "5": "jetbrains doctor",
     "6": "ask",
     "7": "config show",
+    "8": "commands",
 }
 
 
@@ -134,9 +146,11 @@ def run_interactive_shell(ctx: click.Context | None = None) -> None:
     history = FileHistory(history_file)
     completer = get_command_completer()
 
-    style = Style.from_dict({
-        "prompt": "#00d7af bold",
-    })
+    style = Style.from_dict(
+        {
+            "prompt": "#00d7af bold",
+        }
+    )
 
     session = PromptSession(
         history=history,
@@ -168,6 +182,10 @@ def run_interactive_shell(ctx: click.Context | None = None) -> None:
             click.clear()
             continue
 
+        if user_input.lower() == "commands":
+            print_command_catalog()
+            continue
+
         # Check menu shortcuts
         if user_input in MENU_SHORTCUTS:
             if user_input == "6":
@@ -179,6 +197,9 @@ def run_interactive_shell(ctx: click.Context | None = None) -> None:
                         continue
                 except (KeyboardInterrupt, EOFError):
                     continue
+            elif MENU_SHORTCUTS[user_input] == "commands":
+                print_command_catalog()
+                continue
             else:
                 user_input = MENU_SHORTCUTS[user_input]
 
