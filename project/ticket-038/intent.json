@@ -1,0 +1,74 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-038",
+  "summary": "Own MANIFEST.in in integration workstream",
+  "workstream": "governance",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P2",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-038/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    ".governance/manifest.json"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "a1b77a9880172d8d1daa631f35904c658bce14d5",
+    "targetBranch": "main",
+    "outcome": "MANIFEST.in is owned by the integration workstream, so packaging-manifest changes can be allocated to a ticket instead of failing with GOV-WORK-START-001 on unowned paths.",
+    "nonGoals": [
+      "No component responsibility transfer; this repairs the ownership registry only.",
+      "No change to other workstream scopes or delivery policy.",
+      "No source or packaging file edits."
+    ],
+    "complexity": "XS",
+    "estimatedMinutes": 5,
+    "budgets": {
+      "maxImplementationFiles": 1,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Append MANIFEST.in to coordination.workstreams.integration.ownedPaths; packaging manifests belong with the dependency manifests already owned by integration.",
+      "components": [
+        {
+          "name": "governance-registry",
+          "paths": [
+            "project/ticket-038/**",
+            ".governance/manifest.json"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the ownedPaths entry; MANIFEST.in returns to unowned status."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "./project/governance-check.sh"
+        ],
+        "evidence": "ticket-038/README.md"
+      }
+    ]
+  }
+}
