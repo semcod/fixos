@@ -1,0 +1,80 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-036",
+  "summary": "Regression test for packaged YAML data files",
+  "workstream": "application",
+  "classification": {
+    "kind": "SERVICE",
+    "priority": "P2",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-036/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "tests/unit/test_packaging_data.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "569e573d5f37c20883b41334585af14a57c13254",
+    "targetBranch": "main",
+    "outcome": "A unit test pins the runtime YAML data contract: the eight data files exist inside the fixos package and pyproject.toml declares matching setuptools package-data patterns, so a packaging regression fails CI instead of silently shipping an empty feature catalog.",
+    "nonGoals": [
+      "No source or packaging changes; test coverage only.",
+      "No new runtime dependency."
+    ],
+    "complexity": "XS",
+    "estimatedMinutes": 10,
+    "budgets": {
+      "maxImplementationFiles": 2,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Add tests/unit/test_packaging_data.py asserting each runtime YAML is reachable via importlib.resources and that the package-data section of pyproject.toml declares the three covering glob patterns.",
+      "components": [
+        {
+          "name": "tests",
+          "paths": [
+            "project/ticket-036/**",
+            "tests/unit/test_packaging_data.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the commit; the test file disappears without touching runtime code."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python -m pytest -q tests/unit/test_packaging_data.py"
+        ],
+        "evidence": "ticket-036/README.md"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "./project/governance-check.sh"
+        ],
+        "evidence": "ticket-036/README.md"
+      }
+    ]
+  }
+}
