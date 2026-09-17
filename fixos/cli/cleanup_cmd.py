@@ -1358,6 +1358,41 @@ def _run_interactive_cleanup(
         _display_dangerous_services(plan["dangerous"])
 
 
+def _execute_yes_cleanup(plan: dict, scanner, dry_run: bool = False) -> None:
+    """Execute the whole safe plan without prompting (--yes)."""
+    safe = plan["safe_to_cleanup"]
+    if not safe:
+        click.echo(
+            click.style(
+                "Brak bezpiecznych pozycji do automatycznego czyszczenia.",
+                fg="yellow",
+            )
+        )
+    else:
+        if dry_run:
+            click.echo(
+                click.style(
+                    "Tryb symulacji (--dry-run): wybrane pozycje nie zostaną usunięte.",
+                    fg="cyan",
+                    bold=True,
+                )
+            )
+        _execute_safe_cleanup(safe, scanner, dry_run=dry_run)
+        if not dry_run:
+            click.echo()
+            click.echo(
+                click.style(
+                    "Uwaga: listy poniżej pochodzą ze skanu sprzed czyszczenia — "
+                    "uruchom ponownie `fixos cleanup --list`, by zobaczyć aktualny stan.",
+                    fg="cyan",
+                )
+            )
+    if plan["requires_review"]:
+        _display_unsafe_services(plan["requires_review"])
+    if plan.get("dangerous"):
+        _display_dangerous_services(plan["dangerous"])
+
+
 # ── Main CLI command ──────────────────────────────────────────────────────
 
 
@@ -1512,6 +1547,14 @@ def _run_interactive_cleanup(
     help="Tylko wyświetl listę bez interakcji",
 )
 @click.option(
+    "--yes",
+    "-y",
+    "yes",
+    is_flag=True,
+    default=False,
+    help="Bez pytań — wykonaj wszystkie bezpieczne pozycje (SSH/cron/CI)",
+)
+@click.option(
     "--full",
     "-f",
     "full_analysis",
@@ -1537,6 +1580,7 @@ def cleanup_services(
     days,
     dry_run,
     list_only,
+    yes,
     full_analysis,
 ) -> None:
     """
@@ -1554,6 +1598,7 @@ def cleanup_services(
       fixos cleanup -t 1000           # próg 1000MB (1GB)
       fixos cleanup -s docker,ollama  # tylko Docker i Ollama
       fixos cleanup --list              # tylko lista, bez czyszczenia
+      fixos cleanup --yes               # bez pytań: wszystkie bezpieczne
       fixos cleanup -c docker --dry-run  # tylko cache buildów >7 dni
       fixos cleanup --docker-all --dry-run
       # wszystkie unused images/cache + osierocone sieci
@@ -1768,5 +1813,9 @@ def cleanup_services(
 
     for svc in plan["services"]:
         _display_service_item(svc)
+
+    if yes:
+        _execute_yes_cleanup(plan, scanner, dry_run=dry_run)
+        return
 
     _run_interactive_cleanup(plan, list_only, scanner, dry_run=dry_run)

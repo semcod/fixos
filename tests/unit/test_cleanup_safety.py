@@ -132,12 +132,51 @@ class TestInteractiveDryRun:
         assert "Symulacja" not in result.output
 
 
+class TestYesFlag:
+    """`--yes` runs the safe plan with zero interactive input."""
+
+    def _command_with_plan(self, plan, scanner, monkeypatch, argv):
+        scanner.get_cleanup_plan = lambda selected_services=None: plan
+        monkeypatch.setattr(cleanup_cmd, "ServiceDataScanner", lambda **_: scanner)
+        return CliRunner().invoke(cleanup_cmd.cleanup_services, argv)
+
+    def test_yes_runs_all_safe_without_input(self, monkeypatch):
+        scanner = RecordingScanner()
+        plan = _plan(_service("Npm", "safe"), _service("Pip", "safe"))
+        result = self._command_with_plan(plan, scanner, monkeypatch, ["--yes"])
+        assert result.exit_code == 0, result.output
+        assert scanner.calls == [("npm", False), ("pip", False)]
+
+    def test_yes_dry_run_simulates_everything(self, monkeypatch):
+        scanner = RecordingScanner()
+        plan = _plan(_service("Npm", "safe"), _service("Pip", "safe"))
+        result = self._command_with_plan(
+            plan, scanner, monkeypatch, ["--yes", "--dry-run"]
+        )
+        assert result.exit_code == 0, result.output
+        assert scanner.calls == [("npm", True), ("pip", True)]
+        assert "Tryb symulacji (--dry-run)" in result.output
+        assert "Zwolniono" not in result.output
+
+    def test_yes_with_no_safe_services_cleans_nothing(self, monkeypatch):
+        scanner = RecordingScanner()
+        plan = _plan(_service("Docker", "dangerous"))
+        result = self._command_with_plan(plan, scanner, monkeypatch, ["--yes"])
+        assert result.exit_code == 0, result.output
+        assert scanner.calls == []
+        assert "Brak bezpiecznych pozycji" in result.output
+
+
 class TestCleanupCommandSafety:
     def test_logs_service_leaves_xdg_state_alone(self):
         path = "~/.cache/log"
         assert ServiceDataScanner.SERVICE_PATHS[ServiceType.LOGS] == [path]
-        assert ".local/state" not in ServiceCleaner.get_cleanup_command(ServiceType.LOGS, path)
-        assert ".local/state" not in ServiceCleaner.get_preview_command(ServiceType.LOGS, path)
+        assert ".local/state" not in ServiceCleaner.get_cleanup_command(
+            ServiceType.LOGS, path
+        )
+        assert ".local/state" not in ServiceCleaner.get_preview_command(
+            ServiceType.LOGS, path
+        )
 
     def test_multi_word_cache_paths_stay_single_rm_arguments(self):
         for service_type in (ServiceType.DISCORD, ServiceType.SLACK):
@@ -183,9 +222,7 @@ class TestDockerDefaultProposal:
         )
         return cleaner
 
-    def test_default_plan_proposes_stopped_containers_and_images(
-        self, monkeypatch
-    ):
+    def test_default_plan_proposes_stopped_containers_and_images(self, monkeypatch):
         usage = {
             "Containers": {"size_gb": 3.0, "reclaimable_gb": 2.5},
             "Images": {"size_gb": 40.0, "reclaimable_gb": 10.0},
@@ -217,9 +254,7 @@ class TestDockerDefaultProposal:
         }
         cleaner = self._cleaner(self._scanner(usage), monkeypatch)
 
-        kinds = {
-            action["cleanup_kind"] for action in cleaner.build_safe_age_actions()
-        }
+        kinds = {action["cleanup_kind"] for action in cleaner.build_safe_age_actions()}
         assert "docker-containers" not in kinds
         assert "docker-unused" not in kinds
 
@@ -250,8 +285,10 @@ class TestDockerDefaultProposal:
         monkeypatch.setattr(
             ServiceCleaner,
             "cleanup_docker_containers",
-            lambda self, dry_run=False: calls.append(dry_run)
-            or {"success": True, "space_freed_gb": 0.0, "output": ""},
+            lambda self, dry_run=False: (
+                calls.append(dry_run)
+                or {"success": True, "space_freed_gb": 0.0, "output": ""}
+            ),
         )
         svc = _service("Docker (zatrzymane kontenery)", "safe")
         svc["cleanup_kind"] = "docker-containers"
@@ -265,7 +302,9 @@ class TestDockerDefaultProposal:
 class TestScanMeasurement:
     def test_du_total_is_kept_when_a_subdirectory_is_unreadable(self, monkeypatch):
         def fake_run(cmd, **kwargs):
-            return subprocess.CompletedProcess(cmd, 1, stdout="2048\t/data\n", stderr="denied")
+            return subprocess.CompletedProcess(
+                cmd, 1, stdout="2048\t/data\n", stderr="denied"
+            )
 
         def forbidden_walk(*args, **kwargs):
             raise AssertionError("du output must not be discarded")
