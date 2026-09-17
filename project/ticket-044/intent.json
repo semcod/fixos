@@ -1,0 +1,72 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-044",
+  "summary": "Own uv.lock in the integration workstream",
+  "workstream": "governance",
+  "classification": {
+    "kind": "SERVICE",
+    "priority": "P2",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-044/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    ".governance/manifest.json"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "72a7b8afb51ab7fa8549b165eae3bd5209267d21",
+    "targetBranch": "main",
+    "outcome": "uv.lock is owned by the integration workstream, so the stale lockfile (pfix removed but lock not regenerated, issue #46 / PLF-010) can be relocked through a normal integration ticket.",
+    "nonGoals": [
+      "Does not relock uv.lock itself; that is the follow-up integration ticket.",
+      "No responsibility transfer: registry fix only."
+    ],
+    "complexity": "XS",
+    "estimatedMinutes": 10,
+    "budgets": {
+      "maxImplementationFiles": 1,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Append 'uv.lock' to integration.ownedPaths in .governance/manifest.json, matching the MANIFEST.in precedent (ticket-038).",
+      "components": [
+        {
+          "name": "governance",
+          "paths": [
+            ".governance/manifest.json"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the commit; uv.lock becomes unowned again."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "./project/governance-check.sh"
+        ],
+        "evidence": "project/ticket-044/README.md"
+      }
+    ]
+  }
+}
