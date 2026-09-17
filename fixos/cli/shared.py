@@ -178,9 +178,7 @@ class NaturalLanguageGroup(click.Group):
                 except (click.Abort, EOFError):
                     pass
             # In non-interactive mode or if rejected, fail cleanly with typo suggestion
-            raise click.exceptions.NoSuchCommand(
-                cmd_name, possibilities=all_commands, ctx=ctx
-            )
+            ctx.fail(f"No such command '{cmd_name}'. Did you mean '{best_match}'?")
 
         # 2. Check if this is a genuine natural language command:
         # - multiple arguments: e.g. `fixos wylacz kontenery`
@@ -196,7 +194,5 @@ class NaturalLanguageGroup(click.Group):
             return super().resolve_command(ctx, ["ask"] + args)
 
         # 3. Otherwise, unrecognized single token that is not NL nor a close match
-        raise click.exceptions.NoSuchCommand(
-            cmd_name, possibilities=all_commands, ctx=ctx
-        )
+        ctx.fail(f"No such command '{cmd_name}'.")
 
