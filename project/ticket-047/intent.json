@@ -1,0 +1,72 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-047",
+  "summary": "ignore planfile and koru runtime state",
+  "workstream": "governance",
+  "classification": {
+    "kind": "SERVICE",
+    "priority": "P2",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-047/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    ".gitignore"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "89baee8",
+    "targetBranch": "main",
+    "outcome": "Ignore .planfile/ and .koru/ runtime state directories in .gitignore, matching the sibling-repo convention (koru, repatch ignore the same generated paths) so daemon/index writes do not create pending-delta noise that blocks ticket allocation.",
+    "nonGoals": [
+      "Do not untrack any tracked file (none exist under .planfile/ or .koru/).",
+      "Do not change product source under fixos/ or tests/."
+    ],
+    "complexity": "XS",
+    "estimatedMinutes": 15,
+    "budgets": {
+      "maxImplementationFiles": 1,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Root .gitignore gains .planfile/ and .koru/ entries adjacent to the existing generated-artefact ignores.",
+      "components": [
+        {
+          "name": "gitignore",
+          "paths": [
+            ".gitignore"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the ticket/047 commit."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "./project/governance-check.sh"
+        ],
+        "evidence": "Governance gate passes; .planfile/ and .koru/ no longer appear in git status."
+      }
+    ]
+  }
+}
