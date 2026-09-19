@@ -1,0 +1,90 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-048",
+  "summary": "Fix disk_analyzer memory explosion and cleanup correctness bugs",
+  "workstream": "application",
+  "classification": {
+    "kind": "SERVICE",
+    "priority": "P1",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-048/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/cli/cleanup_cmd.py",
+    "fixos/diagnostics/disk_analyzer.py",
+    "fixos/diagnostics/service_cleanup.py",
+    "fixos/diagnostics/storage_analyzer.py",
+    "tests/unit/test_cleanup_safety.py",
+    "tests/unit/test_disk_analyzer.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "97ffe5b95bdd21e74ea341efdfee8a280d05155a",
+    "targetBranch": "main",
+    "outcome": "Audyt i korekta bezpiecznego cleanupu: sugestie dyskowe nie usuwają wolumenów ani całych nieograniczonych katalogów, a cleanup usług nie traktuje danych Spotify offline jako bezpiecznego cache i ogranicza ścieżki odkrytych cache do XDG cache/config.",
+    "nonGoals": [
+      "Nie wykonuje żadnej komendy cleanup na systemie podczas testów.",
+      "Nie usuwa istniejących danych użytkownika ani nie zmienia konfiguracji Dockera.",
+      "Nie zmienia aktywnego zakresu naprawy pamięci analizatora dysku poza jego sugestiami cleanupu."
+    ],
+    "complexity": "M",
+    "estimatedMinutes": 45,
+    "budgets": {
+      "maxImplementationFiles": 5,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Pozostawić wykonanie poleceń usług bez zmian, ale zawęzić generowanie poleceń do znanych ścieżek cache, rozdzielić Spotify cache od danych offline oraz generować sugestie dyskowe z quotingiem i filtrami wieku bez prune wolumenów.",
+      "components": [
+        {
+          "name": "cleanup-safety",
+          "paths": [
+            "fixos/diagnostics/service_cleanup.py",
+            "fixos/diagnostics/disk_analyzer.py",
+            "fixos/cli/cleanup_cmd.py",
+            "tests/unit/test_cleanup_safety.py",
+            "tests/unit/test_disk_analyzer.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert zmiany ticket-048; nie wymaga odtwarzania danych, ponieważ implementacja nie wykonuje cleanupu podczas testów."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "PYTHONPATH=. pytest -p no:rerunfailures -p no:wellmanifest_governance -q tests/unit/test_cleanup_safety.py tests/unit/test_disk_analyzer.py",
+          "git diff --check"
+        ],
+        "evidence": "Pending implementation."
+      },
+      {
+        "criterion": "AC-03",
+        "commands": [
+          "./project/governance-check.sh"
+        ],
+        "evidence": "Pending protected delivery; pre-existing dirty governance files remain outside this ticket."
+      }
+    ]
+  }
+}
