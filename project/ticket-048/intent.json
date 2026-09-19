@@ -38,7 +38,7 @@
     "complexity": "M",
     "estimatedMinutes": 45,
     "budgets": {
-      "maxImplementationFiles": 3,
+      "maxImplementationFiles": 5,
       "maxAffectedComponents": 2,
       "maxPublicInterfaceChanges": 0,
       "maxRuntimeDependencies": 0

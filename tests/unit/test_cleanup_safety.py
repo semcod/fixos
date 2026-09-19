@@ -78,6 +78,19 @@ class TestInteractiveDryRun:
         assert result.exit_code == 0, result.output
         assert "Invalid value" not in result.output
 
+    def test_terminal_escape_sequence_is_removed_from_individual_selection(self):
+        service = _service("Npm", "safe")
+
+        @click.command()
+        def command():
+            selected = cleanup_cmd._select_individual_services([service])
+            assert selected == [service]
+
+        result = CliRunner().invoke(command, input="\x1b[F1\n")
+
+        assert result.exit_code == 0, result.output
+        assert "Invalid value" not in result.output
+
     def test_bulk_safe_choice_only_simulates(self):
         scanner = RecordingScanner()
         plan = _plan(_service("Npm", "safe"), _service("Pip", "safe"))
