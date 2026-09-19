@@ -1,0 +1,83 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-049",
+  "summary": "Protect JetBrains Local History from automatic cleanup",
+  "workstream": "application",
+  "classification": {
+    "kind": "SERVICE",
+    "priority": "P1",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-049/**",
+    "fixos/diagnostics/service_cleanup.py",
+    "tests/unit/test_cleanup_safety.py",
+    "tests/unit/test_cleanup_effectiveness.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "e68b74b23affe23e12ac16f3b42851c4277cfd12",
+    "targetBranch": "main",
+    "outcome": "Protect mixed JetBrains system directories, including irreplaceable LocalHistory, from automatic and explicit bulk cleanup.",
+    "nonGoals": [
+      "Nie wykonuje \u017cadnej komendy cleanup na systemie podczas test\u00f3w.",
+      "Nie usuwa istniej\u0105cych danych u\u017cytkownika ani nie zmienia konfiguracji Dockera.",
+      "Nie zmienia aktywnego zakresu naprawy pami\u0119ci analizatora dysku poza jego sugestiami cleanupu."
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 30,
+    "budgets": {
+      "maxImplementationFiles": 3,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Classify JetBrains as protected mixed data and offer read-only inventory only. No bulk deletion command; dedicated selective cache cleanup is deferred.",
+      "components": [
+        {
+          "name": "cleanup-safety",
+          "paths": [
+            "fixos/diagnostics/service_cleanup.py",
+            "tests/unit/test_cleanup_safety.py",
+            "tests/unit/test_cleanup_effectiveness.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert ticket-049; no data migration."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "python -m pytest tests/unit/test_cleanup_safety.py tests/unit/test_cleanup_effectiveness.py",
+          "git diff --check"
+        ],
+        "evidence": "Two targeted regressions failed before the fix. All 36 focused cleanup tests pass after the fix. Ruff changed-file lint and git diff --check pass."
+      },
+      {
+        "criterion": "AC-03",
+        "commands": [
+          "python -m pytest tests/"
+        ],
+        "evidence": "Full suite: 690 passed, 5 skipped, 16 deselected (slow/docker/real_api), Python 3.13.12. Governance: zero errors and warnings. Protected publication pending."
+      }
+    ]
+  }
+}

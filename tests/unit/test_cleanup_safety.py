@@ -397,3 +397,37 @@ class TestScanMeasurement:
         assert "Docker: pominięto" in result.output
         assert "Nie znaleziono usług powyżej progu." in result.output
 # ruff: noqa: PIE807
+
+
+class TestJetBrainsHistoryProtection:
+    def test_system_directory_is_protected(self):
+        assert ServiceCleaner.get_risk_level(ServiceType.JETBRAINS) == "dangerous"
+
+    def test_explicit_selection_has_no_bulk_delete_command(self):
+        assert ServiceCleaner.get_cleanup_command(ServiceType.JETBRAINS, "/home/test/.cache/JetBrains") == ""
+
+    def test_scanner_protects_system_data_and_retains_preview(self, monkeypatch):
+        scanner = ServiceDataScanner(threshold_mb=1)
+        monkeypatch.setattr(scanner, "measure_service_size_mb", lambda *args: 1024)
+        monkeypatch.setattr(scanner._details_provider, "get_details", lambda *args: {})
+        entry = scanner._analyze_service_path(ServiceType.JETBRAINS, "/home/test/.cache/JetBrains")
+        assert entry.risk_level == "dangerous"
+        assert not entry.safe_to_cleanup
+        assert not entry.can_cleanup
+        assert not entry.cleanup_command
+        assert "du -sh" in entry.preview_command
+
+    def test_stale_safe_plan_cannot_execute_bulk_cleanup(self, monkeypatch):
+        def unexpected_execution(*args, **kwargs):
+            raise AssertionError("JetBrains cleanup must not execute commands")
+
+        monkeypatch.setattr(subprocess, "run", unexpected_execution)
+        cleaner = ServiceCleaner(None)
+        stale_plan = _service("Jetbrains", "safe")
+        result = cleaner.cleanup_service("jetbrains", planned_service=stale_plan)
+        assert not result["success"]
+        assert "zbiorcze czyszczenie" in result["error"]
+        preview = cleaner.cleanup_service("jetbrains", dry_run=True, planned_service=stale_plan)
+        assert preview["success"]
+        assert preview["requires_item_selection"]
+        assert "clean-jetbrains" not in preview["output"]
