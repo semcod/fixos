@@ -10,5 +10,5 @@ pytest-mock>=3.12.0
 pytest-cov>=4.1.0
 
 # Linting / formatowanie (opcjonalne)
-ruff>=0.4.0,<0.16
+ruff==0.15.4
 black>=24.0.0
