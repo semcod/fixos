@@ -11,6 +11,7 @@ import subprocess
 import urllib.error
 import urllib.request
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
@@ -1187,6 +1188,15 @@ class ServiceCleaner:
                 return RiskLevel.SAFE.value
             return RiskLevel.REVIEW.value
 
+        if service_type == ServiceType.SPOTIFY:
+            cache_root = (Path.home() / ".cache" / "spotify").resolve()
+            candidate = Path(os.path.realpath(os.path.expanduser(path or "")))
+            return (
+                RiskLevel.SAFE.value
+                if candidate == cache_root or cache_root in candidate.parents
+                else RiskLevel.REVIEW.value
+            )
+
         if service_type == ServiceType.STEAM:
             safe_suffixes = ("shadercache", "appcache")
             if any(normalized_path.endswith(suffix) for suffix in safe_suffixes):
@@ -1649,13 +1659,34 @@ class ServiceCleaner:
             ServiceType.BRAVE: ServiceCleaner._brave_cleanup_command(path),
             ServiceType.DISCORD: "rm -rf ~/.config/discord/Cache ~/.config/discord/'Code Cache' ~/.config/discord/GPUCache",
             ServiceType.SLACK: "rm -rf ~/.config/Slack/Cache ~/.config/Slack/'Code Cache' ~/.config/Slack/'Service Worker'",
-            ServiceType.SPOTIFY: "rm -rf ~/.cache/spotify ~/.config/spotify/Data",
+            ServiceType.SPOTIFY: ServiceCleaner._spotify_cleanup_command(path),
             ServiceType.BAZEL: "rm -rf ~/.cache/bazel",
             ServiceType.GH: "rm -rf ~/.cache/gh",
-            ServiceType.ELECTRON: f"rm -rf {shlex.quote(path)}",
-            ServiceType.GENERIC_CACHE: f"rm -rf {shlex.quote(path)}",
+            ServiceType.ELECTRON: ServiceCleaner._discovered_cache_cleanup_command(path),
+            ServiceType.GENERIC_CACHE: ServiceCleaner._discovered_cache_cleanup_command(path),
         }
-        return commands.get(service_type, f"rm -rf {path}")
+        return commands.get(service_type, "")
+
+    @staticmethod
+    def _discovered_cache_cleanup_command(path: str) -> str:
+        """Build a command only for an XDG cache/config discovery result."""
+        candidate = Path(os.path.realpath(os.path.expanduser(path)))
+        home = Path.home().resolve()
+        allowed_roots = (home / ".cache", home / ".config")
+        if not any(
+            candidate == root or root in candidate.parents for root in allowed_roots
+        ):
+            return ""
+        return f"rm -rf -- {shlex.quote(str(candidate))}"
+
+    @staticmethod
+    def _spotify_cleanup_command(path: str) -> str:
+        """Clean Spotify's rebuildable cache, never offline application data."""
+        candidate = Path(os.path.realpath(os.path.expanduser(path)))
+        cache_root = (Path.home() / ".cache" / "spotify").resolve()
+        if candidate == cache_root or cache_root in candidate.parents:
+            return f"rm -rf -- {shlex.quote(str(candidate))}"
+        return ""
 
     @staticmethod
     def _chrome_cleanup_command(path: str) -> str:

@@ -9,6 +9,8 @@ Sub-modules (split from the original monolith):
   _cleanup_system.py  – Full-system analysis, filtering, interactive select
 """
 
+import re
+
 import click
 
 # Re-export public symbols used by fixos.cli (backward-compat)
@@ -94,6 +96,14 @@ _RISK_LABELS = {
     "review": ("(do rozważenia)", "yellow"),
     "dangerous": ("(CHRONIONE — dane rzeczywiste lub mieszane)", "red"),
 }
+
+
+_TERMINAL_ESCAPE_RE = re.compile(r"\x1b(?:\[[0-?]*[ -/]*[@-~]|[@-_])")
+
+
+def _clean_terminal_input(value: str) -> str:
+    """Remove terminal control sequences before Click validates user input."""
+    return _TERMINAL_ESCAPE_RE.sub("", value)
 
 
 def _display_service_item(svc: dict) -> None:
@@ -837,7 +847,8 @@ def _cleanup_docker_stale_services(
         "Wybierz numery usług (np. 1,3-5 lub all; 0 pomija)",
         default="0",
         show_default=True,
-    ).strip()
+        value_proc=lambda value: _clean_terminal_input(value).strip(),
+    )
     if raw_selection.lower() == "all":
         selected_numbers = set(range(1, len(candidates) + 1))
     else:
@@ -1023,7 +1034,8 @@ def _cleanup_orphaned_projects(
         "Wybierz numery obciążeń (np. 1,3-5 lub all; 0 pomija)",
         default="0",
         show_default=True,
-    ).strip()
+        value_proc=lambda value: _clean_terminal_input(value).strip(),
+    )
     if raw_selection.lower() == "all":
         selected_numbers = set(range(1, len(combined) + 1))
     else:
@@ -1189,7 +1201,11 @@ def _select_safe_services(safe_services: list) -> tuple[str, list]:
     click.echo("  [2] Wybierz pojedyncze spośród wszystkich usług")
     click.echo("  [0] Nic — pomiń")
     choice = click.prompt(
-        "Wybór", type=click.Choice(["0", "1", "2"]), default="1", show_choices=False
+        "Wybór",
+        type=click.Choice(["0", "1", "2"]),
+        default="1",
+        show_choices=False,
+        value_proc=lambda value: _clean_terminal_input(value).strip(),
     )
 
     if choice == "0":
@@ -1268,6 +1284,7 @@ def _select_individual_services(services: list) -> list:
         "Numery do wyczyszczenia (np. 1,3,7-9; all = wszystkie; none = żadne)",
         default="none",
         show_default=True,
+        value_proc=lambda value: _clean_terminal_input(value).strip(),
     )
     return [executable[i] for i in sorted(_parse_selection(raw, len(executable)))]
 

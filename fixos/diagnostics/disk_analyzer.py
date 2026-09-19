@@ -4,8 +4,11 @@ Disk Analyzer Module for fixOS
 Analyzes disk usage and groups cleanup causes
 """
 
+import os
+import shlex
 import shutil
 import json
+import subprocess
 from pathlib import Path
 from typing import Dict, List, Any
 from datetime import datetime
@@ -68,6 +71,11 @@ class DiskAnalyzer:
             free_gb = stat.free / (1024**3)
             usage_percent = (used_gb / total_gb) * 100
 
+            large_files = self.get_large_files(path)
+            cache_dirs = self.get_cache_dirs(path)
+            log_dirs = self.get_log_dirs(path)
+            temp_dirs = self.get_temp_dirs(path)
+
             analysis = {
                 "path": str(path),
                 "total_gb": round(total_gb, 2),
@@ -75,11 +83,17 @@ class DiskAnalyzer:
                 "free_gb": round(free_gb, 2),
                 "usage_percent": round(usage_percent, 2),
                 "status": self._get_disk_status(usage_percent),
-                "large_files": self.get_large_files(path),
-                "cache_dirs": self.get_cache_dirs(path),
-                "log_dirs": self.get_log_dirs(path),
-                "temp_dirs": self.get_temp_dirs(path),
-                "suggestions": self.suggest_cleanup_actions(path),
+                "large_files": large_files,
+                "cache_dirs": cache_dirs,
+                "log_dirs": log_dirs,
+                "temp_dirs": temp_dirs,
+                "suggestions": self.suggest_cleanup_actions(
+                    path,
+                    large_files=large_files,
+                    cache_dirs=cache_dirs,
+                    log_dirs=log_dirs,
+                    temp_dirs=temp_dirs,
+                ),
                 "timestamp": datetime.now().isoformat(),
             }
 
@@ -105,14 +119,16 @@ class DiskAnalyzer:
         min_size_mb: int = MIN_FILE_SIZE_MB,
         max_files: int = MAX_LARGE_FILES_DEFAULT,
     ) -> List[Dict]:
-        """Find large files"""
+        """Find large files using os.walk to avoid rglob memory explosion."""
         large_files = []
 
         try:
-            for file_path in path.rglob("*"):
-                if file_path.is_file():
+            for dirpath, _dirnames, filenames in os.walk(path):
+                for filename in filenames:
+                    file_path = Path(dirpath) / filename
                     try:
-                        size_mb = file_path.stat().st_size / (1024**2)
+                        st = file_path.stat()
+                        size_mb = st.st_size / (1024**2)
                         if size_mb >= min_size_mb:
                             large_files.append(
                                 {
@@ -120,15 +136,15 @@ class DiskAnalyzer:
                                     "size_mb": round(size_mb, 2),
                                     "size_gb": round(size_mb / 1024, 3),
                                     "modified": datetime.fromtimestamp(
-                                        file_path.stat().st_mtime
+                                        st.st_mtime
                                     ).isoformat(),
                                     "category": self._categorize_file(file_path),
                                 }
                             )
+                            if len(large_files) >= max_files:
+                                break
                     except (OSError, PermissionError):
                         continue
-
-                # Limit results to avoid excessive scanning
                 if len(large_files) >= max_files:
                     break
 
@@ -142,34 +158,34 @@ class DiskAnalyzer:
     def get_cache_dirs(
         self, path: Path, max_dirs: int = MAX_CACHE_DIRS_DEFAULT
     ) -> List[Dict]:
-        """Find cache directories"""
+        """Find cache directories using os.walk to avoid rglob memory explosion."""
         cache_dirs = []
 
         try:
-            for dir_path in path.rglob("*"):
-                if dir_path.is_dir():
-                    dir_name = dir_path.name.lower()
-                    if any(pattern in dir_name for pattern in self.cache_patterns):
-                        try:
-                            size_mb = self._get_dir_size_mb(dir_path)
-                            if size_mb > 10:  # Only include significant cache dirs
-                                cache_dirs.append(
-                                    {
-                                        "path": str(dir_path),
-                                        "size_mb": round(size_mb, 2),
-                                        "size_gb": round(size_mb / 1024, 3),
-                                        "files_count": (
-                                            lambda p: len(list(p.rglob("*")))
-                                        )(dir_path)
-                                        if size_mb < 1000
-                                        else "many",
-                                        "cache_type": self._identify_cache_type(
-                                            dir_path
-                                        ),
-                                    }
-                                )
-                        except (OSError, PermissionError):
-                            continue
+            for dirpath, dirnames, _filenames in os.walk(path):
+                dir_path = Path(dirpath)
+                dir_name = dir_path.name.lower()
+                if any(pattern in dir_name for pattern in self.cache_patterns):
+                    try:
+                        size_mb = self._get_dir_size_mb(dir_path)
+                        if size_mb > 10:  # Only include significant cache dirs
+                            cache_dirs.append(
+                                {
+                                    "path": str(dir_path),
+                                    "size_mb": round(size_mb, 2),
+                                    "size_gb": round(size_mb / 1024, 3),
+                                    "files_count": self._count_files_fast(
+                                        dir_path
+                                    ),
+                                    "cache_type": self._identify_cache_type(
+                                        dir_path
+                                    ),
+                                }
+                            )
+                    except (OSError, PermissionError):
+                        continue
+                    # Don't recurse into found cache dirs
+                    dirnames.clear()
 
                 if len(cache_dirs) >= max_dirs:
                     break
@@ -183,32 +199,34 @@ class DiskAnalyzer:
     def get_log_dirs(
         self, path: Path, max_dirs: int = MAX_LOG_DIRS_DEFAULT
     ) -> List[Dict]:
-        """Find log directories"""
+        """Find log directories using os.walk to avoid rglob memory explosion."""
         log_dirs = []
 
         try:
-            for dir_path in path.rglob("*"):
-                if dir_path.is_dir():
-                    dir_name = dir_path.name.lower()
-                    if any(pattern in dir_name for pattern in ["log", "logs"]):
-                        try:
-                            size_mb = self._get_dir_size_mb(dir_path)
-                            if size_mb > 5:  # Only include significant log dirs
-                                log_dirs.append(
-                                    {
-                                        "path": str(dir_path),
-                                        "size_mb": round(size_mb, 2),
-                                        "size_gb": round(size_mb / 1024, 3),
-                                        "oldest_log": self._get_oldest_file_date(
-                                            dir_path
-                                        ),
-                                        "newest_log": self._get_newest_file_date(
-                                            dir_path
-                                        ),
-                                    }
-                                )
-                        except (OSError, PermissionError):
-                            continue
+            for dirpath, dirnames, _filenames in os.walk(path):
+                dir_path = Path(dirpath)
+                dir_name = dir_path.name.lower()
+                if any(pattern in dir_name for pattern in ["log", "logs"]):
+                    try:
+                        size_mb = self._get_dir_size_mb(dir_path)
+                        if size_mb > 5:  # Only include significant log dirs
+                            log_dirs.append(
+                                {
+                                    "path": str(dir_path),
+                                    "size_mb": round(size_mb, 2),
+                                    "size_gb": round(size_mb / 1024, 3),
+                                    "oldest_log": self._get_oldest_file_date(
+                                        dir_path
+                                    ),
+                                    "newest_log": self._get_newest_file_date(
+                                        dir_path
+                                    ),
+                                }
+                            )
+                    except (OSError, PermissionError):
+                        continue
+                    # Don't recurse into found log dirs
+                    dirnames.clear()
 
                 if len(log_dirs) >= max_dirs:
                     break
@@ -222,27 +240,29 @@ class DiskAnalyzer:
     def get_temp_dirs(
         self, path: Path, max_dirs: int = MAX_TEMP_DIRS_DEFAULT
     ) -> List[Dict]:
-        """Find temporary directories"""
+        """Find temporary directories using os.walk to avoid rglob memory explosion."""
         temp_dirs = []
 
         try:
-            for dir_path in path.rglob("*"):
-                if dir_path.is_dir():
-                    dir_name = dir_path.name.lower()
-                    if any(pattern in dir_name for pattern in self.temp_patterns):
-                        try:
-                            size_mb = self._get_dir_size_mb(dir_path)
-                            if size_mb > 5:
-                                temp_dirs.append(
-                                    {
-                                        "path": str(dir_path),
-                                        "size_mb": round(size_mb, 2),
-                                        "size_gb": round(size_mb / 1024, 3),
-                                        "temp_type": self._identify_temp_type(dir_path),
-                                    }
-                                )
-                        except (OSError, PermissionError):
-                            continue
+            for dirpath, dirnames, _filenames in os.walk(path):
+                dir_path = Path(dirpath)
+                dir_name = dir_path.name.lower()
+                if any(pattern in dir_name for pattern in self.temp_patterns):
+                    try:
+                        size_mb = self._get_dir_size_mb(dir_path)
+                        if size_mb > 5:
+                            temp_dirs.append(
+                                {
+                                    "path": str(dir_path),
+                                    "size_mb": round(size_mb, 2),
+                                    "size_gb": round(size_mb / 1024, 3),
+                                    "temp_type": self._identify_temp_type(dir_path),
+                                }
+                            )
+                    except (OSError, PermissionError):
+                        continue
+                    # Don't recurse into found temp dirs
+                    dirnames.clear()
 
                 if len(temp_dirs) >= max_dirs:
                     break
@@ -253,18 +273,34 @@ class DiskAnalyzer:
         temp_dirs.sort(key=lambda x: x["size_mb"], reverse=True)
         return temp_dirs
 
-    def suggest_cleanup_actions(self, path: Path) -> List[Dict]:
-        """Generate cleanup suggestions using heuristics"""
+    def suggest_cleanup_actions(
+        self,
+        path: Path,
+        *,
+        large_files: List[Dict] | None = None,
+        cache_dirs: List[Dict] | None = None,
+        log_dirs: List[Dict] | None = None,
+        temp_dirs: List[Dict] | None = None,
+    ) -> List[Dict]:
+        """Generate cleanup suggestions using heuristics.
+
+        Accepts optional pre-scanned data to avoid redundant filesystem scans.
+        Falls back to scanning if data is not provided (backward compat).
+        """
         suggestions = []
 
         try:
-            # Get analysis data
-            large_files = self.get_large_files(
-                path, min_size_mb=LARGE_FILE_SIZE_MB, max_files=10
-            )
-            cache_dirs = self.get_cache_dirs(path, max_dirs=MAX_LOG_DIRS_DEFAULT)
-            log_dirs = self.get_log_dirs(path, max_dirs=8)
-            temp_dirs = self.get_temp_dirs(path, max_dirs=8)
+            # Reuse pre-scanned data when available; scan only if needed.
+            if large_files is None:
+                large_files = self.get_large_files(
+                    path, min_size_mb=LARGE_FILE_SIZE_MB, max_files=10
+                )
+            if cache_dirs is None:
+                cache_dirs = self.get_cache_dirs(path, max_dirs=MAX_LOG_DIRS_DEFAULT)
+            if log_dirs is None:
+                log_dirs = self.get_log_dirs(path, max_dirs=8)
+            if temp_dirs is None:
+                temp_dirs = self.get_temp_dirs(path, max_dirs=8)
 
             # Cache cleanup suggestions
             for cache in cache_dirs[:5]:
@@ -278,8 +314,12 @@ class DiskAnalyzer:
                             "path": cache["path"],
                             "size_gb": cache["size_gb"],
                             "description": f"Clear {cache['cache_type']} cache",
-                            "command": f"{'sudo ' if cache.get('is_system') else ''}rm -rf {cache['path']}",
-                            "preview_command": f"ls -la {cache['path']} 2>/dev/null",
+                            "command": (
+                                f"{'sudo ' if cache.get('is_system') else ''}"
+                                f"find -- {shlex.quote(cache['path'])} -xdev "
+                                "-mindepth 1 -mtime +7 -delete"
+                            ),
+                            "preview_command": f"ls -la -- {shlex.quote(cache['path'])} 2>/dev/null",
                             "safe": cache["cache_type"]
                             in ["npm", "pip", "gradle", "maven"],
                             "impact": "high",
@@ -296,8 +336,12 @@ class DiskAnalyzer:
                             "path": log_dir["path"],
                             "size_gb": log_dir["size_gb"],
                             "description": "Clean old log files",
-                            "command": f"sudo find {log_dir['path']} -name '*.log' -mtime +30 -delete || sudo rm -rf {log_dir['path']}/*.log",
-                            "preview_command": f"find {log_dir['path']} -name '*.log' -mtime +30 2>/dev/null",
+                            "command": (
+                                f"{'sudo ' if log_dir.get('is_system') else ''}"
+                                f"find -- {shlex.quote(log_dir['path'])} -xdev "
+                                "-type f -name '*.log' -mtime +30 -delete"
+                            ),
+                            "preview_command": f"find -- {shlex.quote(log_dir['path'])} -xdev -type f -name '*.log' -mtime +30 2>/dev/null",
                             "safe": True,
                             "impact": "medium",
                         }
@@ -311,8 +355,8 @@ class DiskAnalyzer:
                     "priority": "high",
                     "path": "/var/lib/docker",
                     "size_gb": 0.0,  # Will be recalculated by planner
-                    "description": "Clean unused Docker images, containers, and volumes",
-                    "command": "docker system prune -af --volumes",
+                    "description": "Clean unused Docker images and build cache (without volumes)",
+                    "command": "docker image prune -af && docker builder prune -af",
                     "safe": False,
                     "impact": "high",
                 }
@@ -341,8 +385,12 @@ class DiskAnalyzer:
                             "path": temp_dir["path"],
                             "size_gb": temp_dir["size_gb"],
                             "description": f"Clean {temp_dir['temp_type']} temporary files",
-                            "command": f"{'sudo ' if temp_dir.get('is_system') else ''}rm -rf {temp_dir['path']}/*",
-                            "preview_command": f"find {temp_dir['path']} -maxdepth 2 -type f 2>/dev/null",
+                            "command": (
+                                f"{'sudo ' if temp_dir.get('is_system') else ''}"
+                                f"find -- {shlex.quote(temp_dir['path'])} -xdev "
+                                "-mindepth 1 -mtime +7 -delete"
+                            ),
+                            "preview_command": f"find -- {shlex.quote(temp_dir['path'])} -xdev -mindepth 1 -mtime +7 2>/dev/null",
                             "safe": temp_dir["temp_type"]
                             in ["system_temp", "app_temp"],
                             "impact": "medium",
@@ -389,15 +437,54 @@ class DiskAnalyzer:
         return suggestions[:15]  # Limit to top 15 suggestions
 
     def _get_dir_size_mb(self, dir_path: Path) -> float:
-        """Calculate directory size in MB"""
+        """Calculate directory size in MB using du to avoid rglob memory usage."""
+        try:
+            result = subprocess.run(
+                ["du", "-sb", str(dir_path)],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                return int(result.stdout.split()[0]) / (1024**2)
+        except (subprocess.TimeoutExpired, OSError, ValueError):
+            pass
+        # Fallback: quick estimate from first-level entries only
         total_size = 0
         try:
-            for item in dir_path.rglob("*"):
-                if item.is_file():
-                    total_size += item.stat().st_size
+            with os.scandir(dir_path) as entries:
+                for entry in entries:
+                    try:
+                        if entry.is_file(follow_symlinks=False):
+                            total_size += entry.stat(follow_symlinks=False).st_size
+                    except (OSError, PermissionError):
+                        continue
         except (OSError, PermissionError):
             pass
         return total_size / (1024**2)
+
+    @staticmethod
+    def _count_files_fast(dir_path: Path, limit: int = 100_000) -> int | str:
+        """Count files without materializing a list in memory.
+
+        Returns an integer count, or 'many' if counting exceeds the limit
+        or the subprocess times out.
+        """
+        try:
+            result = subprocess.run(
+                ["find", str(dir_path), "-type", "f"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+            if result.returncode == 0:
+                count = result.stdout.count("\n")
+                return count if count < limit else "many"
+        except (subprocess.TimeoutExpired, OSError):
+            pass
+        return "many"
 
     def _categorize_file(self, file_path: Path) -> str:
         """Categorize file type"""

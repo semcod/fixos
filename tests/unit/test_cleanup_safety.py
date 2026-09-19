@@ -64,6 +64,20 @@ def _plan(*services):
 
 
 class TestInteractiveDryRun:
+    def test_terminal_escape_sequence_does_not_corrupt_choice(self):
+        service = _service("Npm", "safe")
+
+        @click.command()
+        def command():
+            mode, selected = cleanup_cmd._select_safe_services([service])
+            assert mode == "safe"
+            assert selected == [service]
+
+        result = CliRunner().invoke(command, input="\x1b[F1\n")
+
+        assert result.exit_code == 0, result.output
+        assert "Invalid value" not in result.output
+
     def test_bulk_safe_choice_only_simulates(self):
         scanner = RecordingScanner()
         plan = _plan(_service("Npm", "safe"), _service("Pip", "safe"))
@@ -189,6 +203,21 @@ class TestCleanupCommandSafety:
         command = ServiceCleaner.get_cleanup_command(ServiceType.GCLOUD, "")
         assert "revoke" not in command
         assert "gcloud auth" not in command
+
+    def test_spotify_offline_data_is_review_only_and_has_no_bulk_command(self):
+        offline = "~/.config/spotify/Data"
+        assert ServiceCleaner.get_risk_level(ServiceType.SPOTIFY, offline) == "review"
+        assert ServiceCleaner.get_cleanup_command(ServiceType.SPOTIFY, offline) == ""
+
+    def test_discovered_cache_command_is_bounded_to_xdg_roots(self):
+        safe = ServiceCleaner.get_cleanup_command(
+            ServiceType.GENERIC_CACHE, "~/.cache/example cache"
+        )
+        outside = ServiceCleaner.get_cleanup_command(ServiceType.GENERIC_CACHE, "/tmp/cache")
+
+        assert safe.startswith("rm -rf -- ")
+        assert "example cache" in safe
+        assert outside == ""
 
 
 class TestDockerDefaultProposal:
