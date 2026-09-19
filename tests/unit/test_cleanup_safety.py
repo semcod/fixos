@@ -91,6 +91,9 @@ class TestInteractiveDryRun:
         assert result.exit_code == 0, result.output
         assert "Invalid value" not in result.output
 
+    def test_csi_navigation_sequence_is_removed_from_prompt_value(self):
+        assert cleanup_cmd._clean_terminal_input("\x1b[1;5D1") == "1"
+
     def test_bulk_safe_choice_only_simulates(self):
         scanner = RecordingScanner()
         plan = _plan(_service("Npm", "safe"), _service("Pip", "safe"))
