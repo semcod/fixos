@@ -16,6 +16,7 @@
     "fixos/diagnostics/disk_analyzer.py",
     "fixos/diagnostics/service_cleanup.py",
     "fixos/diagnostics/storage_analyzer.py",
+    "pyproject.toml",
     "requirements-dev.txt",
     "tests/unit/test_cleanup_safety.py",
     "tests/unit/test_disk_analyzer.py"
@@ -54,6 +55,7 @@
             "fixos/diagnostics/service_cleanup.py",
             "fixos/diagnostics/disk_analyzer.py",
             "fixos/cli/cleanup_cmd.py",
+            "pyproject.toml",
             "tests/unit/test_cleanup_safety.py",
             "tests/unit/test_disk_analyzer.py"
           ]
