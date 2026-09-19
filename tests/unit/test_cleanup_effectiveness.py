@@ -1,17 +1,13 @@
 """Tests for ticket-033: cleanup reports only what it actually reclaims.
 
 Covers AC-01 (pnpm/conda prune accounting), AC-02 (Poetry cache clearing),
-AC-03 (JetBrains safe classification + running-IDE detection) and AC-04
+AC-03 (JetBrains protected mixed-data classification) and AC-04
 (Docker stays reviewable when `docker system df` times out).
 """
 
 from __future__ import annotations
 
-import subprocess
-
 from fixos.diagnostics.service_cleanup import (
-    JETBRAINS_CLEANUP_COMMAND,
-    JETBRAINS_IDE_PROCESSES,
     POETRY_CLEANUP_COMMAND,
     PRUNE_UNREFERENCED,
     ServiceCleaner,
@@ -100,38 +96,11 @@ class TestPoetryCleanup:
 
 
 class TestJetbrainsCleanup:
-    """AC-03: JetBrains cache is safe and running-IDE detection is exact."""
+    """Local History cannot be counted as rebuildable cache."""
 
-    def test_jetbrains_cache_is_safe_to_cleanup(self):
-        assert ServiceCleaner.get_risk_level(ServiceType.JETBRAINS) == "safe"
-
-    def test_ide_process_list_does_not_include_toolbox_or_daemon(self):
-        assert "jetbrains-toolb" not in JETBRAINS_IDE_PROCESSES
-        assert "jetbrainsd" not in JETBRAINS_IDE_PROCESSES
-        assert "pycharm" in JETBRAINS_IDE_PROCESSES
-
-    def test_pgrep_pattern_uses_exact_match_not_substring_search(self):
-        command = ServiceCleaner.get_cleanup_command(ServiceType.JETBRAINS, "")
-
-        assert command == JETBRAINS_CLEANUP_COMMAND
-        assert "pgrep -x" in command
-        assert "pgrep -f" not in command
-
-    def test_toolbox_daemon_alone_does_not_block_cleanup(self):
-        # pgrep -x only matches whole process names, so a toolbox/daemon
-        # process running alongside no IDE must exit 0 (no match) and let
-        # the find/rm branch run.
-        result = subprocess.run(
-            ["pgrep", "-x", "|".join(JETBRAINS_IDE_PROCESSES)],
-            input="",
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        # No such fixture process exists in the test environment, so this
-        # just proves the pattern itself is a plain exact-match alternation.
-        assert result.returncode in (0, 1)
-        assert "jetbrains-toolb" not in JETBRAINS_IDE_PROCESSES
+    def test_jetbrains_system_data_is_protected(self):
+        assert ServiceCleaner.get_risk_level(ServiceType.JETBRAINS) == "dangerous"
+        assert ServiceCleaner.get_cleanup_command(ServiceType.JETBRAINS, "") == ""
 
 
 class TestDockerTimeoutStaysReviewable:

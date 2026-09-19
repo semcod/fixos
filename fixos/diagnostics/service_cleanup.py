@@ -20,18 +20,6 @@ from ..constants import (
 )
 
 PRUNE_UNREFERENCED = "prune-unreferenced"
-# Match IDE executables exactly. JetBrains Toolbox (jetbrains-toolb) and its
-# daemon (jetbrainsd) run permanently and must not block cache cleanup.
-JETBRAINS_IDE_PROCESSES = (
-    "idea", "pycharm", "webstorm", "clion", "goland", "rider", "phpstorm",
-    "rubymine", "datagrip", "dataspell", "rustrover", "aqua", "studio",
-)
-JETBRAINS_CLEANUP_COMMAND = (
-    "if pgrep -x '" + "|".join(JETBRAINS_IDE_PROCESSES) + "' >/dev/null; "
-    "then echo 'Zamknij działające IDE JetBrains przed czyszczeniem cache' >&2; "
-    "exit 2; else find ~/.cache/JetBrains -mindepth 1 -maxdepth 1 "
-    "-exec rm -rf -- {} +; fi"
-)
 # `poetry cache clear --all pypi` exits 0 even when no cache has that name, so
 # clear every listed cache and remove only cache/artifacts, never virtualenvs.
 POETRY_CLEANUP_COMMAND = (
@@ -1012,9 +1000,13 @@ class ServiceCleaner:
                 service = services[0]  # Backward-compatible single-service mode.
             initial_size = service.size_gb
 
-            protected_bulk_blocked = getattr(
-                service, "risk_level", "review"
-            ) == "dangerous" and not self._is_allowed_protected_cleanup(service)
+            # Old plans may still classify JetBrains as safe. Its system
+            # directory contains irreplaceable LocalHistory, so reject bulk
+            # execution regardless of a supplied plan's risk/command fields.
+            protected_bulk_blocked = service_enum == ServiceType.JETBRAINS or (
+                getattr(service, "risk_level", "review") == "dangerous"
+                and not self._is_allowed_protected_cleanup(service)
+            )
             if (
                 protected_bulk_blocked
                 or not service.can_cleanup
@@ -1295,13 +1287,12 @@ class ServiceCleaner:
             return RiskLevel.SAFE.value
 
         if service_type == ServiceType.JETBRAINS:
-            # Caches and indexes under ~/.cache/JetBrains and the per-IDE
-            # caches/index directories are rebuilt by the IDE on next start.
-            # Settings, plugins and projects live elsewhere.
-            return RiskLevel.SAFE.value
+            # JetBrains system directories mix rebuildable indexes with
+            # LocalHistory (file revisions that may exist nowhere else).
+            return RiskLevel.DANGEROUS.value
 
         # Default: reinstallable apps / long-unused tool data / unclassified
-        # (Flatpak, Snap, Android SDK, JetBrains, Vagrant, Unity, ...) —
+        # (Flatpak, Snap, Android SDK, Vagrant, Unity, ...) —
         # worth a look before deleting, but not flagged as high-risk.
         return RiskLevel.REVIEW.value
 
@@ -1396,15 +1387,12 @@ class ServiceCleaner:
         elif service_type == ServiceType.JETBRAINS:
             hints.extend(
                 [
-                    "🧠 JETBRAINS CACHE:",
-                    "  pgrep -af 'idea|pycharm|webstorm|jetbrains'",
-                    "  # Najpierw zamknij IDE; fixOS odmówi czyszczenia, gdy działa",
-                    "",
+                    "🧠 JETBRAINS — CACHE I HISTORIA LOKALNA:",
                     "  du -h --max-depth=2 ~/.cache/JetBrains | sort -h | tail -20",
-                    "  # Pokazuje indeksy, runtime agentów i cache Toolbox",
                     "",
-                    "💡 Ustawienia i projekty nie są w ~/.cache/JetBrains.",
-                    "   Cache zostanie odbudowany, ale pierwsze uruchomienie IDE potrwa dłużej.",
+                    "  Katalog zawiera LocalHistory — lokalne wersje plików.",
+                    "  Nie usuwaj całego katalogu; historia nie jest odtwarzalnym cache.",
+                    "  Czyść wybrane cache w IDE, zachowując Local History.",
                 ]
             )
 
@@ -1513,7 +1501,7 @@ class ServiceCleaner:
             # IDEs
             ServiceType.VSCODE: "VS Code extensions and cache",
             ServiceType.CURSOR: "Cursor editor cache",
-            ServiceType.JETBRAINS: "JetBrains IDE caches and indexes",
+            ServiceType.JETBRAINS: "JetBrains caches and Local History (protected file revisions)",
             # Cloud/ML
             ServiceType.HUGGINGFACE: "HuggingFace models cache",
             ServiceType.AWS: "AWS CLI cache and logs",
@@ -1563,6 +1551,7 @@ class ServiceCleaner:
         from .service_scanner import ServiceType
 
         protected_without_bulk_cleanup = {
+            ServiceType.JETBRAINS,
             ServiceType.CONTAINERD,
             ServiceType.PODMAN,
             ServiceType.OLLAMA,
@@ -1633,7 +1622,6 @@ class ServiceCleaner:
             # IDEs
             ServiceType.VSCODE: "rm -rf ~/.config/Code/Cache ~/.config/Code/CachedData",
             ServiceType.CURSOR: "rm -rf ~/.config/Cursor/Cache ~/.config/Cursor/CachedData",
-            ServiceType.JETBRAINS: JETBRAINS_CLEANUP_COMMAND,
             # Cloud/ML
             ServiceType.AWS: "rm -rf ~/.aws/sso/cache ~/.aws/cli/cache",
             ServiceType.GCLOUD: "rm -rf ~/.config/gcloud/logs ~/.cache/gcloud",
