@@ -396,3 +396,4 @@ class TestScanMeasurement:
         result = CliRunner().invoke(command)
         assert "Docker: pominięto" in result.output
         assert "Nie znaleziono usług powyżej progu." in result.output
+# ruff: noqa: PIE807

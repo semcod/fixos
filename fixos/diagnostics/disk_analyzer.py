@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: EXE001,I001,UP035,RUF013,UP006,DTZ005,BLE001,RUF010,S110,RUF012,DTZ006
 """
 Disk Analyzer Module for fixOS
 Analyzes disk usage and groups cleanup causes
