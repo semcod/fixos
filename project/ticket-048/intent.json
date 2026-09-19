@@ -16,6 +16,7 @@
     "fixos/diagnostics/disk_analyzer.py",
     "fixos/diagnostics/service_cleanup.py",
     "fixos/diagnostics/storage_analyzer.py",
+    "requirements-dev.txt",
     "tests/unit/test_cleanup_safety.py",
     "tests/unit/test_disk_analyzer.py"
   ],
