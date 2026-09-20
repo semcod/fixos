@@ -262,12 +262,14 @@ class FixOsConfig:
 
         pdef = PROVIDER_DEFAULTS[cfg.provider]
 
-        # API Key: argument CLI > env specyficzny dla providera > OPENAI_API_KEY (fallback)
+        # API Key: argument CLI > env specyficzny dla providera
+        # > API_KEY / LLM_API_KEY (ogólne) > OPENAI_API_KEY (fallback)
         key_env = pdef.get("key_env")
         cfg.api_key = (
             api_key
             or (os.environ.get(key_env) if key_env else None)
             or os.environ.get("API_KEY")
+            or os.environ.get("LLM_API_KEY")
             or os.environ.get("OPENAI_API_KEY")  # universal fallback
         )
 
@@ -300,6 +302,22 @@ class FixOsConfig:
             print(
                 f"⚠️  Nieznany GEMINI_TRANSPORT '{cfg.gemini_transport}', "
                 "używam 'native'",
+                file=sys.stderr,
+            )
+            cfg.gemini_transport = "native"
+
+        # Klucze AQ.* (auth keys z AI Studio) nie działają na endpoincie
+        # OpenAI-compatible (Bearer → 401/400); działają tylko przez natywne
+        # API z x-goog-api-key. Wymuszamy native zamiast zwracać 401.
+        if (
+            cfg.provider == "gemini"
+            and cfg.api_key
+            and cfg.api_key.startswith("AQ.")
+            and cfg.gemini_transport == "openai"
+        ):
+            print(
+                "ℹ️  Klucz Gemini w formacie AQ.* wymaga natywnego API "
+                "— przełączam GEMINI_TRANSPORT na 'native'.",
                 file=sys.stderr,
             )
             cfg.gemini_transport = "native"
@@ -413,6 +431,7 @@ class FixOsConfig:
 
 
 KEY_PREFIXES: list[tuple[str, str]] = [
+    ("AQ.", "gemini"),  # nowy format kluczy Google (auth keys z AI Studio)
     ("AIzaSy", "gemini"),
     ("sk-ant-", "anthropic"),
     ("sk-or-", "openrouter"),

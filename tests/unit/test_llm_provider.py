@@ -212,3 +212,44 @@ class TestLooksLikeInvalidModel:
     def test_does_not_match_unrelated_errors(self):
         assert not LLMClient._looks_like_invalid_model(Exception("rate limit exceeded"))
         assert not LLMClient._looks_like_invalid_model(Exception("connection refused"))
+
+
+class TestApiKeyConfig:
+    def test_detect_provider_aq_prefix_is_gemini(self):
+        from fixos.config import detect_provider_from_key
+
+        assert detect_provider_from_key("AQ.Ab8RnExampleKey123") == "gemini"
+        assert detect_provider_from_key("AIzaSyExampleKey") == "gemini"
+        assert detect_provider_from_key("unknown-format") is None
+
+    def test_llm_api_key_env_used_as_fallback(self, monkeypatch):
+        from fixos.config import FixOsConfig
+
+        monkeypatch.setattr("fixos.config._load_env_files", lambda: None)
+        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        monkeypatch.delenv("API_KEY", raising=False)
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.setenv("LLM_API_KEY", "AQ.Ab8RnGenericKey")
+
+        cfg = FixOsConfig.load()
+        assert cfg.api_key == "AQ.Ab8RnGenericKey"
+
+    def test_provider_key_env_wins_over_llm_api_key(self, monkeypatch):
+        from fixos.config import FixOsConfig
+
+        monkeypatch.setattr("fixos.config._load_env_files", lambda: None)
+        monkeypatch.setenv("GEMINI_API_KEY", "AIzaSySpecificKey")
+        monkeypatch.setenv("LLM_API_KEY", "AQ.Ab8RnGenericKey")
+
+        cfg = FixOsConfig.load(provider="gemini")
+        assert cfg.api_key == "AIzaSySpecificKey"
+
+    def test_aq_key_forces_native_transport(self, monkeypatch):
+        from fixos.config import FixOsConfig
+
+        monkeypatch.setattr("fixos.config._load_env_files", lambda: None)
+        monkeypatch.setenv("GEMINI_API_KEY", "AQ.Ab8RnExampleKey123")
+        monkeypatch.setenv("GEMINI_TRANSPORT", "openai")
+
+        cfg = FixOsConfig.load(provider="gemini")
+        assert cfg.gemini_transport == "native"

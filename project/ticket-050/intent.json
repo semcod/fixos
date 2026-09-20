@@ -32,7 +32,7 @@
   "delivery": {
     "acceptedBaseSha": "c33584ba156d20008d620e97a847dfe2232bd8c1",
     "targetBranch": "main",
-    "outcome": "fixos cleanup --docker-stale-services shows per-candidate CPU/RAM/disk savings in a table and can remove containers/images on explicit opt-in; provider gemini can use the native Google generateContent API via GEMINI_TRANSPORT",
+    "outcome": "fixos cleanup --docker-stale-services shows per-candidate CPU/RAM/disk savings in a table and can remove containers/images on explicit opt-in; provider gemini can use the native Google generateContent API via GEMINI_TRANSPORT; new AQ.* Google auth keys are detected as gemini, force the native transport, and generic LLM_API_KEY is honored as an API-key fallback",
     "nonGoals": [
       "No automatic removal without the two explicit removal confirmations",
       "No removal of images shared with other containers",
