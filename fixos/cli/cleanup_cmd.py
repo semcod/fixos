@@ -16,7 +16,7 @@ import click
 # Re-export public symbols used by fixos.cli (backward-compat)
 from fixos.cli._cleanup_flatpak import _cleanup_flatpak_detailed
 from fixos.cli._cleanup_system import _cleanup_full_system
-from fixos.cli._cleanup_utils import _parse_numeric_range_set
+from fixos.cli._cleanup_utils import _format_bytes, _parse_numeric_range_set
 from fixos.constants import DEFAULT_CLEANUP_THRESHOLD_MB
 from fixos.diagnostics.docker_startup_optimizer import (
     DEFAULT_DOCKER_STALE_SERVICE_DAYS,
@@ -787,25 +787,113 @@ def _cleanup_docker_networks(
     _display_docker_network_result(result, dry_run=dry_run)
 
 
+def _shorten_path(path: object) -> str:
+    """Shorten a host path for table display (home dir becomes ~)."""
+    if not path:
+        return "—"
+    from pathlib import Path
+
+    text = str(path)
+    home = str(Path.home())
+    if text.startswith(home):
+        return "~" + text[len(home):]
+    return text
+
+
 def _display_stale_docker_candidates(candidates: list[dict], days: int) -> None:
     """Render repository evidence used to protect or select Docker services."""
-    click.echo(
-        click.style(
-            f"Docker — usługi z repozytoriów nieaktywnych od {days}+ dni",
-            fg="yellow",
-        )
-    )
     if not candidates:
+        click.echo(
+            click.style(
+                f"Docker — usługi z repozytoriów nieaktywnych od {days}+ dni",
+                fg="yellow",
+            )
+        )
         click.echo("  Brak usług spełniających wszystkie bezpieczne kryteria.")
         return
+
+    from rich.console import Console
+    from rich.table import Table
+
+    # Nie-TTY (pipe, logi, testy) dostaje szeroką tabelę bez ucinania kolumn.
+    console = Console()
+    if not console.is_terminal:
+        console = Console(width=200)
+
+    table = Table(
+        title=f"Docker — usługi z repozytoriów nieaktywnych od {days}+ dni",
+        title_style="yellow",
+        header_style="bold cyan",
+        show_lines=False,
+    )
+    table.add_column("#", justify="right", style="bold")
+    table.add_column("Usługa")
+    table.add_column("ID")
+    table.add_column("Stan")
+    table.add_column("Restart")
+    table.add_column("Nieakt. [dni]", justify="right")
+    table.add_column("CPU", justify="right")
+    table.add_column("RAM", justify="right")
+    table.add_column("Dysk*", justify="right")
+    table.add_column("Helpery", justify="right")
+    table.add_column("Repozytorium", overflow="fold")
+
     for index, candidate in enumerate(candidates, 1):
+        resources = candidate.get("resources") or {}
         helpers = len(candidate.get("docker_exec_helpers") or [])
-        click.echo(
-            f"  [{index}] {candidate['name']} ({candidate['short_id']}) — "
-            f"{candidate['inactivity_days']:.1f} dni, "
-            f"stan={candidate['status']}, restart={candidate['restart_policy']}"
+        cpu = resources.get("cpu_percent")
+        memory = resources.get("memory_bytes")
+        disk = resources.get("disk_reclaimable_bytes")
+        inactivity = candidate.get("inactivity_days")
+        table.add_row(
+            str(index),
+            str(candidate.get("name") or "?"),
+            str(candidate.get("short_id") or ""),
+            str(candidate.get("status") or "?"),
+            str(candidate.get("restart_policy") or "?"),
+            f"{inactivity:.1f}" if isinstance(inactivity, (int, float)) else "—",
+            f"{cpu:.2f}%" if isinstance(cpu, (int, float)) else "—",
+            _format_bytes(memory) if isinstance(memory, (int, float)) else "—",
+            _format_bytes(disk) if isinstance(disk, (int, float)) else "—",
+            str(helpers),
+            _shorten_path(candidate.get("repository")),
         )
-        click.echo(f"      repo: {candidate['repository']}; docker exec: {helpers}")
+
+    console.print(table)
+    click.echo("  * Dysk = warstwa zapisu + obraz, jeśli niewspółdzielony; "
+               "odzyskiwalny dopiero po usunięciu kontenera.")
+
+
+def _display_savings_summary(savings: dict | None) -> None:
+    """Show the aggregate resources freed by stopping/removing candidates."""
+    if not savings:
+        return
+    running = savings.get("running_candidates") or 0
+    memory = savings.get("memory_bytes")
+    cpu = savings.get("cpu_percent")
+    disk = savings.get("disk_bytes")
+    parts = []
+    if isinstance(memory, (int, float)) and memory:
+        parts.append(f"RAM {_format_bytes(memory)}")
+    if isinstance(cpu, (int, float)) and cpu:
+        parts.append(f"CPU ~{cpu:.1f}%")
+    if parts:
+        click.echo(
+            click.style(
+                f"  Szacunek: zatrzymanie {running} usług zwolni "
+                + ", ".join(parts)
+                + ".",
+                fg="green",
+            )
+        )
+    if isinstance(disk, (int, float)) and disk:
+        click.echo(
+            click.style(
+                f"  Szacunek: usunięcie odzyska dodatkowo {_format_bytes(disk)} "
+                "dysku.",
+                fg="green",
+            )
+        )
 
 
 def _cleanup_docker_stale_services(
@@ -836,6 +924,7 @@ def _cleanup_docker_stale_services(
     candidates = scan["candidates"]
     _display_stale_docker_candidates(candidates, days)
     click.echo(f"  Helpery docker exec w systemie: {scan['docker_exec_helper_count']}")
+    _display_savings_summary(scan.get("potential_savings"))
     if not candidates:
         return
     if dry_run or list_only:
@@ -874,17 +963,43 @@ def _cleanup_docker_stale_services(
         "Zatrzymać teraz wybrane aktywne usługi?",
         default=False,
     )
+    remove_containers = click.confirm(
+        "Usunąć wybrane kontenery (docker rm)? "
+        "Kontenery nadal działające zostaną pominięte.",
+        default=False,
+    )
+    remove_images = remove_containers and click.confirm(
+        "Usunąć też obrazy niewspółdzielone z innymi kontenerami (docker rmi)?",
+        default=False,
+    )
     result = optimizer.optimize(
         [candidate["id"] for candidate in selected],
         min_inactive_days=days,
         apply=True,
         stop_running=stop_running,
+        remove_containers=remove_containers,
+        remove_images=remove_images,
     )
     for changed in result["changed"]:
         state = changed.get("status") or "nieznany"
         click.echo(
             click.style(f"  ✓ {changed['name']}: restart=no, stan={state}", fg="green")
         )
+        if changed.get("remove_error"):
+            click.echo(
+                click.style(
+                    f"    pominięto usunięcie: {changed['remove_error']}",
+                    fg="yellow",
+                )
+            )
+        if changed.get("image_removed"):
+            click.echo(click.style("    obraz usunięty (docker rmi)", fg="green"))
+        elif changed.get("image_error"):
+            click.echo(
+                click.style(
+                    f"    obraz zachowany: {changed['image_error']}", fg="yellow"
+                )
+            )
     for failed in result["failed"]:
         click.echo(
             click.style(

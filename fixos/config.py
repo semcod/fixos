@@ -203,6 +203,11 @@ class FixOsConfig:
     model: Optional[str] = None
     model_fallbacks: List[str] = field(default_factory=list)
     base_url: Optional[str] = None
+    # Transport dla providera gemini: native (generativelanguage API)
+    # lub openai (endpoint OpenAI-compatible). Env: GEMINI_TRANSPORT.
+    # Domyślna wartość pola zachowuje kompatybilność konstrukcji bez load();
+    # FixOsConfig.load() ustawia "native", chyba że env mówi inaczej.
+    gemini_transport: str = "openai"
 
     # Agent
     agent_mode: str = "hitl"  # hitl | autonomous
@@ -288,6 +293,16 @@ class FixOsConfig:
         # Base URL
         url_env_key = f"{cfg.provider.upper()}_BASE_URL"
         cfg.base_url = base_url or os.environ.get(url_env_key) or pdef["base_url"]
+
+        # Transport Gemini: natywne API Google albo endpoint OpenAI-compatible
+        cfg.gemini_transport = os.environ.get("GEMINI_TRANSPORT", "native").lower()
+        if cfg.gemini_transport not in ("native", "openai"):
+            print(
+                f"⚠️  Nieznany GEMINI_TRANSPORT '{cfg.gemini_transport}', "
+                "używam 'native'",
+                file=sys.stderr,
+            )
+            cfg.gemini_transport = "native"
 
         cfg.endpoint_refresh_enabled = (
             refresh_endpoints

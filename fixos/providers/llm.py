@@ -1,6 +1,11 @@
 """
 Ujednolicony klient LLM obsługujący wiele providerów przez OpenAI-compatible API.
 Gemini, OpenAI, xAI, OpenRouter, Ollama – wszystkie przez ten sam interfejs.
+
+``LLMClient`` jest fasadą: dla providera ``gemini`` z
+``config.gemini_transport == "native"`` deleguje do natywnego klienta Google
+Gemini API (``gemini_native.GeminiNativeClient``); pozostałe konfiguracje
+używają klienta OpenAI-compatible ``_OpenAILLMClient``.
 """
 
 from __future__ import annotations
@@ -40,6 +45,36 @@ class _ModelUnusableResponseError(LLMError):
 
 
 class LLMClient:
+    """Fasada wybierająca transport LLM na podstawie konfiguracji.
+
+    Zachowuje dotychczasowy interfejs dla wszystkich miejsc wywołań;
+    właściwa implementacja jest dostępna jako ``self._impl``.
+    """
+
+    def __init__(self, config: FixOsConfig):
+        provider = str(getattr(config, "provider", "") or "").lower()
+        transport = str(
+            getattr(config, "gemini_transport", "openai") or "openai"
+        ).lower()
+        if provider == "gemini" and transport == "native":
+            from .gemini_native import GeminiNativeClient
+
+            self._impl = GeminiNativeClient(config)
+        else:
+            self._impl = _OpenAILLMClient(config)
+
+    def __getattr__(self, name: str):
+        impl = self.__dict__.get("_impl")
+        if impl is None:
+            raise AttributeError(name)
+        return getattr(impl, name)
+
+    @staticmethod
+    def _looks_like_invalid_model(e: Exception) -> bool:
+        return _OpenAILLMClient._looks_like_invalid_model(e)
+
+
+class _OpenAILLMClient:
     """
     Wrapper nad openai.OpenAI kompatybilny z wieloma providerami.
     Obsługuje retry, streaming i zbieranie tokenu zużycia.

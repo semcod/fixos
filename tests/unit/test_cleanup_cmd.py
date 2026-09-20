@@ -595,6 +595,19 @@ def _stale_container(index: int) -> dict:
         "status": "running",
         "restart_policy": "unless-stopped",
         "docker_exec_helpers": [{"pid": 4000 + index}],
+        "resources": {
+            "collected": True,
+            "cpu_percent": 0.5 * index,
+            "memory_bytes": 64 * 1024**2 * index,
+            "memory_limit_bytes": 2 * 1024**3,
+            "memory_percent": 3.0 * index,
+            "size_rw_bytes": 10 * 1024**2 * index,
+            "size_rootfs_bytes": 200 * 1024**2 * index,
+            "image_id": f"sha256:{'0' * 60}{index:04d}",
+            "image_size_bytes": 150 * 1024**2 * index,
+            "image_shared": False,
+            "disk_reclaimable_bytes": 160 * 1024**2 * index,
+        },
     }
 
 
@@ -659,7 +672,7 @@ def test_docker_stale_services_selects_exact_ids_and_confirms_stop(monkeypatch):
     result = CliRunner().invoke(
         cleanup_cmd.cleanup_services,
         ["--docker-stale-services", "--days", "5"],
-        input="1,3\ny\ny\n",
+        input="1,3\ny\ny\nn\n",
     )
 
     assert result.exit_code == 0, result.output
@@ -668,6 +681,8 @@ def test_docker_stale_services_selects_exact_ids_and_confirms_stop(monkeypatch):
         "min_inactive_days": 5,
         "apply": True,
         "stop_running": True,
+        "remove_containers": False,
+        "remove_images": False,
     }
     assert "old-service-1" in result.output
     assert "old-service-3" in result.output
@@ -704,12 +719,13 @@ def test_docker_stale_services_can_disable_autostart_without_stopping(monkeypatc
     result = CliRunner().invoke(
         cleanup_cmd.cleanup_services,
         ["-c", "docker-stale-services"],
-        input="all\ny\nn\n",
+        input="all\ny\nn\nn\n",
     )
 
     assert result.exit_code == 0, result.output
     assert captured["apply"] is True
     assert captured["stop_running"] is False
+    assert captured["remove_containers"] is False
     assert "stan=running" in result.output
 
 

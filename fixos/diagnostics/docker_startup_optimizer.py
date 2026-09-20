@@ -27,6 +27,58 @@ COMPOSE_WORKING_DIR_LABEL = "com.docker.compose.project.working_dir"
 TERMINAL_CONTAINER_STATES = frozenset({"created", "dead", "exited", "removing"})
 DEFAULT_DOCKER_STALE_SERVICE_DAYS = 3
 
+_SIZE_UNITS = {
+    "B": 1,
+    "KB": 1000,
+    "MB": 1000**2,
+    "GB": 1000**3,
+    "TB": 1000**4,
+    "KIB": 1024,
+    "MIB": 1024**2,
+    "GIB": 1024**3,
+    "TIB": 1024**4,
+}
+
+
+def _parse_docker_percent(value: object) -> float | None:
+    """Parse ``docker stats`` percentage strings like ``"0.52%"``."""
+    if value is None:
+        return None
+    text = str(value).strip().rstrip("%")
+    try:
+        return float(text)
+    except ValueError:
+        return None
+
+
+def _parse_docker_size(value: object) -> int | None:
+    """Parse ``docker`` human sizes (``"45.6MiB"``, ``"1.2GB"``, ``"0B"``)."""
+    if value is None:
+        return None
+    text = str(value).strip().upper().replace(" ", "")
+    for unit, multiplier in sorted(
+        _SIZE_UNITS.items(), key=lambda item: -len(item[0])
+    ):
+        if text.endswith(unit):
+            try:
+                return int(float(text[: -len(unit)]) * multiplier)
+            except ValueError:
+                return None
+    try:
+        return int(float(text))
+    except ValueError:
+        return None
+
+
+def _parse_docker_mem_usage(value: object) -> tuple[int | None, int | None]:
+    """Split ``"45.6MiB / 1.5GiB"`` into (used, limit) byte counts."""
+    if value is None:
+        return None, None
+    parts = str(value).split("/")
+    used = _parse_docker_size(parts[0])
+    limit = _parse_docker_size(parts[1]) if len(parts) > 1 else None
+    return used, limit
+
 
 class DockerStartupOptimizer:
     """Find and explicitly disable stale repository-backed Docker autostart.
@@ -314,6 +366,128 @@ class DockerStartupOptimizer:
                 matches.append(helper)
         return matches
 
+    def _live_stats(
+        self, container_ids: Collection[str]
+    ) -> tuple[dict[str, dict[str, Any]], str | None]:
+        """Collect instantaneous CPU/memory usage for running containers."""
+        stats: dict[str, dict[str, Any]] = {}
+        ids = [cid for cid in dict.fromkeys(container_ids) if cid]
+        if not ids:
+            return stats, None
+        try:
+            completed = self._run(
+                [
+                    "docker",
+                    "stats",
+                    "--no-stream",
+                    "--format",
+                    "{{json .}}",
+                    *ids,
+                ]
+            )
+        except (OSError, subprocess.SubprocessError) as exc:
+            return stats, str(exc)
+        if completed.returncode != 0:
+            return stats, self._error(completed, "docker stats failed")
+        for line in completed.stdout.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            container_ref = str(row.get("Container") or row.get("ID") or "")
+            used, limit = _parse_docker_mem_usage(row.get("MemUsage"))
+            stats[container_ref] = {
+                "cpu_percent": _parse_docker_percent(row.get("CPUPerc")),
+                "memory_bytes": used,
+                "memory_limit_bytes": limit,
+                "memory_percent": _parse_docker_percent(row.get("MemPerc")),
+            }
+        return stats, None
+
+    def _disk_footprint(
+        self, candidates: list[dict[str, Any]], inspected: list[dict[str, Any]]
+    ) -> tuple[dict[str, dict[str, Any]], str | None]:
+        """Collect writable-layer and image sizes for stale candidates.
+
+        ``disk_reclaimable_bytes`` counts the container's writable layer plus
+        the image size only when no other container references that image.
+        """
+        footprint: dict[str, dict[str, Any]] = {}
+        ids = [item["id"] for item in candidates]
+        if not ids:
+            return footprint, None
+
+        image_usage: dict[str, int] = {}
+        for container in inspected:
+            image_id = str(container.get("Image") or "")
+            if image_id:
+                image_usage[image_id] = image_usage.get(image_id, 0) + 1
+
+        try:
+            sized = self._run(["docker", "inspect", "--size", *ids])
+        except (OSError, subprocess.SubprocessError) as exc:
+            return footprint, str(exc)
+        if sized.returncode != 0:
+            return footprint, self._error(sized, "docker inspect --size failed")
+        try:
+            sized_payload = json.loads(sized.stdout)
+        except json.JSONDecodeError:
+            return footprint, "docker inspect --size returned invalid JSON"
+
+        image_ids = sorted(
+            {
+                str(item.get("Image") or "")
+                for item in sized_payload
+                if isinstance(item, dict) and item.get("Image")
+            }
+        )
+        image_sizes: dict[str, int] = {}
+        if image_ids:
+            try:
+                images = self._run(["docker", "image", "inspect", *image_ids])
+            except (OSError, subprocess.SubprocessError) as exc:
+                return footprint, str(exc)
+            if images.returncode == 0:
+                try:
+                    for image in json.loads(images.stdout):
+                        image_id = str(image.get("Id") or "")
+                        size = image.get("Size")
+                        if image_id and isinstance(size, (int, float)):
+                            image_sizes[image_id] = int(size)
+                except json.JSONDecodeError:
+                    pass
+
+        for item in sized_payload:
+            if not isinstance(item, dict):
+                continue
+            container_id = str(item.get("Id") or "")
+            image_id = str(item.get("Image") or "")
+            size_rw = item.get("SizeRw")
+            size_rootfs = item.get("SizeRootFs")
+            image_size = image_sizes.get(image_id)
+            shared = bool(image_id) and image_usage.get(image_id, 0) > 1
+            reclaimable = 0
+            if isinstance(size_rw, (int, float)):
+                reclaimable += int(size_rw)
+            if not shared and image_size is not None:
+                reclaimable += image_size
+            footprint[container_id] = {
+                "size_rw_bytes": int(size_rw)
+                if isinstance(size_rw, (int, float))
+                else None,
+                "size_rootfs_bytes": int(size_rootfs)
+                if isinstance(size_rootfs, (int, float))
+                else None,
+                "image_id": image_id or None,
+                "image_size_bytes": image_size,
+                "image_shared": shared,
+                "disk_reclaimable_bytes": reclaimable,
+            }
+        return footprint, None
+
     def scan(
         self, min_inactive_days: int = DEFAULT_DOCKER_STALE_SERVICE_DAYS
     ) -> dict[str, Any]:
@@ -406,12 +580,57 @@ class DockerStartupOptimizer:
             )
 
         records.sort(key=lambda item: (not item["candidate"], item["name"]))
+        candidates = [item for item in records if item["candidate"]]
+
+        stats, stats_error = self._live_stats(
+            item["id"] for item in candidates if item["running"]
+        )
+        footprint, footprint_error = self._disk_footprint(candidates, inspected)
+        for item in candidates:
+            live = stats.get(item["id"]) or stats.get(item["short_id"]) or {}
+            disk = footprint.get(item["id"]) or {}
+            item["resources"] = {
+                "collected": bool(live or disk),
+                "cpu_percent": live.get("cpu_percent"),
+                "memory_bytes": live.get("memory_bytes"),
+                "memory_limit_bytes": live.get("memory_limit_bytes"),
+                "memory_percent": live.get("memory_percent"),
+                "size_rw_bytes": disk.get("size_rw_bytes"),
+                "size_rootfs_bytes": disk.get("size_rootfs_bytes"),
+                "image_id": disk.get("image_id"),
+                "image_size_bytes": disk.get("image_size_bytes"),
+                "image_shared": disk.get("image_shared"),
+                "disk_reclaimable_bytes": disk.get("disk_reclaimable_bytes"),
+            }
+        for item in records:
+            item.setdefault("resources", None)
+
+        def _sum(field: str, *, running_only: bool = False) -> float | None:
+            values = [
+                (item["resources"] or {}).get(field)
+                for item in candidates
+                if not running_only or item["running"]
+            ]
+            present = [value for value in values if isinstance(value, (int, float))]
+            return sum(present) if present else None
+
         return {
             "service": "docker-startup",
             "read_only": True,
             "min_inactive_days": min_inactive_days,
             "containers": records,
-            "candidates": [item for item in records if item["candidate"]],
+            "candidates": candidates,
+            "potential_savings": {
+                "candidates": len(candidates),
+                "running_candidates": sum(
+                    1 for item in candidates if item["running"]
+                ),
+                "memory_bytes": _sum("memory_bytes", running_only=True),
+                "cpu_percent": _sum("cpu_percent", running_only=True),
+                "disk_bytes": _sum("disk_reclaimable_bytes"),
+            },
+            "stats_error": stats_error,
+            "disk_footprint_error": footprint_error,
             "docker_exec_helper_count": len(helpers),
             "unmatched_docker_exec_helpers": [
                 helper
@@ -452,15 +671,23 @@ class DockerStartupOptimizer:
         min_inactive_days: int = DEFAULT_DOCKER_STALE_SERVICE_DAYS,
         apply: bool = False,
         stop_running: bool = False,
+        remove_containers: bool = False,
+        remove_images: bool = False,
         stop_timeout_seconds: int = 10,
     ) -> dict[str, Any]:
-        """Disable exact stale candidates and optionally stop them.
+        """Disable exact stale candidates and optionally stop/remove them.
 
-        No Docker object is removed.  A fresh scan revalidates repository state
-        immediately before any mutation.
+        Removal is opt-in per call: ``remove_containers`` runs ``docker rm``
+        after the container is stopped (never on a still-active container),
+        and ``remove_images`` additionally runs ``docker rmi`` for images that
+        the fresh scan did not mark as shared with other containers.
+        A fresh scan revalidates repository state immediately before any
+        mutation.
         """
         if stop_timeout_seconds < 1:
             raise ValueError("stop_timeout_seconds must be >= 1")
+        if remove_images and not remove_containers:
+            raise ValueError("remove_images requires remove_containers")
         selected = sorted({str(item) for item in container_ids})
         scan = self.scan(min_inactive_days=min_inactive_days)
         candidates = {item["id"]: item for item in scan["candidates"]}
@@ -468,6 +695,8 @@ class DockerStartupOptimizer:
             "service": "docker-startup",
             "dry_run": not apply,
             "stop_running": stop_running,
+            "remove_containers": remove_containers,
+            "remove_images": remove_images,
             "selected": selected,
             "planned": [],
             "changed": [],
@@ -491,6 +720,12 @@ class DockerStartupOptimizer:
                 "repository": candidate["repository"],
                 "restart_policy": "no",
                 "stop": bool(stop_running and candidate["active"]),
+                "remove": bool(remove_containers),
+                "remove_image": bool(
+                    remove_images
+                    and (candidate.get("resources") or {}).get("image_id")
+                    and not (candidate.get("resources") or {}).get("image_shared")
+                ),
                 "expected_helper_exits": [
                     helper["pid"] for helper in candidate["docker_exec_helpers"]
                 ]
@@ -554,7 +789,52 @@ class DockerStartupOptimizer:
                     {**plan, "error": "post-action verification failed", **verification}
                 )
                 continue
-            result["changed"].append({**plan, **verification})
+            changed = {**plan, **verification}
+            if plan["remove"]:
+                self._apply_removal(candidate, changed)
+            result["changed"].append(changed)
 
         result["success"] = not result["failed"]
         return result
+
+    def _apply_removal(
+        self, candidate: dict[str, Any], changed: dict[str, Any]
+    ) -> None:
+        """Run ``docker rm``/``docker rmi`` for an already verified change.
+
+        Never removes a container that is still active, and never removes an
+        image the scan marked as shared with another container.
+        """
+        container_id = changed["id"]
+        changed["removed"] = False
+        changed["image_removed"] = None
+        if str(changed.get("status") or "") not in TERMINAL_CONTAINER_STATES:
+            changed["remove_error"] = (
+                "container still running; removal requires stop"
+            )
+            return
+        try:
+            removed = self._run(["docker", "rm", container_id])
+        except (OSError, subprocess.SubprocessError) as exc:
+            changed["remove_error"] = str(exc)
+            return
+        if removed.returncode != 0:
+            changed["remove_error"] = self._error(removed, "docker rm failed")
+            return
+        changed["removed"] = True
+        changed["status"] = "removed"
+
+        resources = candidate.get("resources") or {}
+        image_id = resources.get("image_id")
+        if not changed["remove_image"] or not image_id:
+            return
+        try:
+            rmi = self._run(["docker", "rmi", image_id])
+        except (OSError, subprocess.SubprocessError) as exc:
+            changed["image_error"] = str(exc)
+            return
+        if rmi.returncode == 0:
+            changed["image_removed"] = True
+        else:
+            changed["image_removed"] = False
+            changed["image_error"] = self._error(rmi, "docker rmi failed")
