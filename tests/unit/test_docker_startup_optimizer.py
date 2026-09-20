@@ -9,7 +9,6 @@ from pathlib import Path
 
 from fixos.diagnostics.docker_startup_optimizer import DockerStartupOptimizer
 
-
 NOW = datetime(2026, 8, 20, 8, 0, tzinfo=timezone.utc)
 OLD_COMMIT = int(datetime(2026, 8, 1, tzinfo=timezone.utc).timestamp())
 RECENT_COMMIT = int(datetime(2026, 8, 18, tzinfo=timezone.utc).timestamp())
@@ -212,7 +211,7 @@ def test_scan_protects_dirty_recent_unmapped_and_non_startup_containers(tmp_path
             dirty={str(dirty_repo)},
             commits={str(recent_repo): RECENT_COMMIT},
         ),
-        process_iter=lambda: [],
+        process_iter=list,
         now=lambda: NOW,
     )
 
@@ -243,7 +242,7 @@ def test_scan_fails_closed_when_bind_mounts_resolve_to_multiple_repositories(tmp
         runner=_runner_for(
             [container], {str(first): str(first), str(second): str(second)}
         ),
-        process_iter=lambda: [],
+        process_iter=list,
         now=lambda: NOW,
     )
 
@@ -264,7 +263,7 @@ def test_dry_run_plans_exact_change_without_mutating_docker(tmp_path):
         runner=_runner_for(
             [container], {str(repository): str(repository)}, commands=commands
         ),
-        process_iter=lambda: [],
+        process_iter=list,
         now=lambda: NOW,
     )
 
@@ -290,7 +289,7 @@ def test_optimize_refuses_prefix_and_non_candidate_selection(tmp_path):
             commits={str(repository): RECENT_COMMIT},
             commands=commands,
         ),
-        process_iter=lambda: [],
+        process_iter=list,
         now=lambda: NOW,
     )
 
@@ -315,7 +314,7 @@ def test_apply_disables_restart_policy_but_does_not_stop_by_default(tmp_path):
             commands=commands,
             mutable=mutable,
         ),
-        process_iter=lambda: [],
+        process_iter=list,
         now=lambda: NOW,
     )
 
@@ -341,7 +340,7 @@ def test_stop_is_separate_opt_in_and_uses_bounded_timeout(tmp_path):
             commands=commands,
             mutable=mutable,
         ),
-        process_iter=lambda: [],
+        process_iter=list,
         now=lambda: NOW,
     )
 
@@ -369,7 +368,7 @@ def test_stop_opt_in_also_closes_a_restarting_container(tmp_path):
             commands=commands,
             mutable=mutable,
         ),
-        process_iter=lambda: [],
+        process_iter=list,
         now=lambda: NOW,
     )
 
@@ -406,7 +405,7 @@ def test_scan_checks_shared_repository_activity_only_once(tmp_path):
             {str(repository): str(repository)},
             commands=commands,
         ),
-        process_iter=lambda: [],
+        process_iter=list,
         now=lambda: NOW,
     )
 
@@ -445,7 +444,7 @@ def test_scan_collects_candidate_resources_and_potential_savings(tmp_path):
             },
             images={image_id: 200 * 1024**2},
         ),
-        process_iter=lambda: [],
+        process_iter=list,
         now=lambda: NOW,
     )
 
@@ -486,7 +485,7 @@ def test_scan_marks_shared_image_as_not_fully_reclaimable(tmp_path):
             containers,
             {str(repository): str(repository), str(other_repo): str(other_repo)},
         ),
-        process_iter=lambda: [],
+        process_iter=list,
         now=lambda: NOW,
     )
 
@@ -512,7 +511,7 @@ def test_remove_is_opt_in_and_removes_container_and_exclusive_image(tmp_path):
             commands=commands,
             mutable=mutable,
         ),
-        process_iter=lambda: [],
+        process_iter=list,
         now=lambda: NOW,
     )
 
@@ -546,7 +545,7 @@ def test_remove_is_skipped_when_container_still_running(tmp_path):
             commands=commands,
             mutable=mutable,
         ),
-        process_iter=lambda: [],
+        process_iter=list,
         now=lambda: NOW,
     )
 
@@ -566,7 +565,7 @@ def test_remove_images_requires_remove_containers(tmp_path):
     repository.mkdir()
     optimizer = DockerStartupOptimizer(
         runner=_runner_for([], {}),
-        process_iter=lambda: [],
+        process_iter=list,
         now=lambda: NOW,
     )
 
@@ -600,7 +599,7 @@ def test_shared_image_is_never_removed(tmp_path):
             commands=commands,
             mutable=mutable,
         ),
-        process_iter=lambda: [],
+        process_iter=list,
         now=lambda: NOW,
     )
 

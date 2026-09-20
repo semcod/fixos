@@ -21,7 +21,6 @@ import psutil
 
 from fixos.constants import DEFAULT_COMMAND_TIMEOUT
 
-
 STARTUP_RESTART_POLICIES = frozenset({"always", "unless-stopped"})
 COMPOSE_WORKING_DIR_LABEL = "com.docker.compose.project.working_dir"
 TERMINAL_CONTAINER_STATES = frozenset({"created", "dead", "exited", "removing"})
@@ -157,7 +156,7 @@ class DockerStartupOptimizer:
         except json.JSONDecodeError as exc:
             raise RuntimeError("docker inspect returned invalid JSON") from exc
         if not isinstance(payload, list):
-            raise RuntimeError("docker inspect returned a non-list payload")
+            raise TypeError("docker inspect returned a non-list payload")
         return [item for item in payload if isinstance(item, dict)]
 
     def _git_root(self, candidate: str) -> str | None:

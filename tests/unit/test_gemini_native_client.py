@@ -6,7 +6,6 @@ import io
 import json
 import urllib.error
 from dataclasses import dataclass
-from typing import List, Optional
 from unittest import mock
 
 import pytest
@@ -19,7 +18,7 @@ from fixos.providers.llm import LLMAuthError, LLMClient, LLMError
 class _FakeGeminiConfig:
     provider: str = "gemini"
     model: str = "gemini-2.0-flash"
-    model_fallbacks: Optional[List[str]] = None
+    model_fallbacks: list[str] | None = None
     api_key: str = "test-key"
     base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai/"
     gemini_transport: str = "native"

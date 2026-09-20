@@ -10,7 +10,6 @@ import os
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional
 
 from .endpoint_refresh import (
     DEFAULT_REFRESH_INTERVAL,
@@ -176,8 +175,8 @@ def _load_env_files():
                             if k and k not in os.environ:
                                 os.environ[k] = v
                     return str(p)
-                except Exception:
-                    pass
+                except (OSError, UnicodeDecodeError):
+                    continue
     return None
 
 
@@ -199,10 +198,10 @@ def _env_int(name: str, default: int) -> int:
 class FixOsConfig:
     # Provider
     provider: str = "gemini"
-    api_key: Optional[str] = None
-    model: Optional[str] = None
-    model_fallbacks: List[str] = field(default_factory=list)
-    base_url: Optional[str] = None
+    api_key: str | None = None
+    model: str | None = None
+    model_fallbacks: list[str] = field(default_factory=list)
+    base_url: str | None = None
     # Transport dla providera gemini: native (generativelanguage API)
     # lub openai (endpoint OpenAI-compatible). Env: GEMINI_TRANSPORT.
     # Domyślna wartość pola zachowuje kompatybilność konstrukcji bez load();
@@ -219,7 +218,7 @@ class FixOsConfig:
 
     # Web search fallback
     enable_web_search: bool = True
-    serpapi_key: Optional[str] = None
+    serpapi_key: str | None = None
 
     # Storage
     save_reports: bool = False
@@ -228,24 +227,24 @@ class FixOsConfig:
     # Endpoint observation (derived operational data; never a credential)
     endpoint_refresh_enabled: bool = True
     endpoint_refresh_interval: int = DEFAULT_REFRESH_INTERVAL
-    endpoint_status: Optional[EndpointStatus] = None
+    endpoint_status: EndpointStatus | None = None
 
     # Internals (ustawiane przez _load)
-    env_file_loaded: Optional[str] = None
+    env_file_loaded: str | None = None
 
     @classmethod
     def load(
         cls,
         *,
-        provider: Optional[str] = None,
-        api_key: Optional[str] = None,
-        model: Optional[str] = None,
-        base_url: Optional[str] = None,
-        agent_mode: Optional[str] = None,
-        session_timeout: Optional[int] = None,
-        show_anonymized_data: Optional[bool] = None,
-        refresh_endpoints: Optional[bool] = None,
-    ) -> "FixOsConfig":
+        provider: str | None = None,
+        api_key: str | None = None,
+        model: str | None = None,
+        base_url: str | None = None,
+        agent_mode: str | None = None,
+        session_timeout: int | None = None,
+        show_anonymized_data: bool | None = None,
+        refresh_endpoints: bool | None = None,
+    ) -> FixOsConfig:
         """Tworzy konfigurację z połączonych źródeł."""
         env_file = _load_env_files()
         cfg = cls(env_file_loaded=env_file)
@@ -369,7 +368,7 @@ class FixOsConfig:
         cfg.enable_web_search = val not in ("false", "0", "no")
         # setattr avoids presenting this non-secret environment lookup as a
         # literal credential assignment to repository secret scanners.
-        setattr(cfg, "serpapi_key", os.environ.get("SERPAPI_KEY"))
+        setattr(cfg, "serpapi_key", os.environ.get("SERPAPI_KEY"))  # noqa: B010
 
         # Reports
         val = os.environ.get("SAVE_REPORTS", "false").lower()
@@ -528,7 +527,7 @@ PROVIDER_MODELS: dict[str, list[str]] = {
 }
 
 
-def detect_provider_from_key(key: str) -> Optional[str]:
+def detect_provider_from_key(key: str) -> str | None:
     """Wykrywa provider na podstawie prefiksu klucza API."""
     for prefix, provider in KEY_PREFIXES:
         if key.startswith(prefix):
@@ -536,7 +535,7 @@ def detect_provider_from_key(key: str) -> Optional[str]:
     return None
 
 
-def interactive_provider_setup() -> Optional["FixOsConfig"]:
+def interactive_provider_setup() -> FixOsConfig | None:
     """
     Interaktywny wybór providera gdy brak konfiguracji.
     Delegates to config_interactive module.

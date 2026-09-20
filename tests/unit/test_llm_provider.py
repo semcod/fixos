@@ -4,7 +4,6 @@ błędzie "nieprawidłowy model" (np. 400 "not a valid model ID")."""
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Optional
 from unittest import mock
 
 import pytest
@@ -24,7 +23,7 @@ def _fake_openai_error(name: str, message: str) -> Exception:
 class _FakeConfig:
     provider: str = "openrouter"
     model: str = "openrouter/qwen/qwen3.7-plus"
-    model_fallbacks: Optional[List[str]] = None
+    model_fallbacks: list[str] | None = None
     api_key: str = "sk-test"
     base_url: str = "https://openrouter.ai/api/v1"
 

@@ -1,6 +1,7 @@
+from types import SimpleNamespace
+
 import click
 from click.testing import CliRunner
-from types import SimpleNamespace
 
 from fixos.cli import cleanup_cmd
 

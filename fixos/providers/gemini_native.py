@@ -18,8 +18,8 @@ from collections.abc import Iterator
 from typing import Any
 
 from .llm import (
-    LLMError,
     LLMAuthError,
+    LLMError,
     _ModelInvalidError,
     _ModelUnusableResponseError,
 )
@@ -45,8 +45,7 @@ class GeminiNativeClient:
             )
         root = str(getattr(config, "base_url", None) or self.DEFAULT_API_ROOT)
         root = root.rstrip("/")
-        if root.endswith("/openai"):
-            root = root[: -len("/openai")]
+        root = root.removesuffix("/openai")
         self._api_root = root or self.DEFAULT_API_ROOT
         self._total_tokens = 0
         self._model_candidates = [config.model] + [
