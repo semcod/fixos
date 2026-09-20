@@ -9,7 +9,6 @@ from pathlib import Path
 
 from fixos.diagnostics.docker_startup_optimizer import DockerStartupOptimizer
 
-
 NOW = datetime(2026, 8, 20, 8, 0, tzinfo=timezone.utc)
 OLD_COMMIT = int(datetime(2026, 8, 1, tzinfo=timezone.utc).timestamp())
 RECENT_COMMIT = int(datetime(2026, 8, 18, tzinfo=timezone.utc).timestamp())
@@ -27,6 +26,7 @@ def _container(
     policy: str = "unless-stopped",
     status: str = "running",
     mounts: list[dict] | None = None,
+    image: str = "sha256:" + "f" * 64,
 ) -> dict:
     labels = (
         {"com.docker.compose.project.working_dir": str(repository)}
@@ -36,6 +36,7 @@ def _container(
     return {
         "Id": container_id,
         "Name": f"/{name}",
+        "Image": image,
         "Created": "2026-04-01T08:00:00.123456789Z",
         "Config": {"Labels": labels},
         "HostConfig": {"RestartPolicy": {"Name": policy}},
@@ -60,9 +61,15 @@ def _runner_for(
     commits: dict[str, int] | None = None,
     commands: list[list[str]] | None = None,
     mutable: dict | None = None,
+    stats: dict[str, dict] | None = None,
+    sizes: dict[str, dict] | None = None,
+    images: dict[str, int] | None = None,
 ):
     dirty = dirty or set()
     commits = commits or {}
+    stats = stats or {}
+    sizes = sizes or {}
+    images = images or {}
     container_ids = [item["Id"] for item in containers]
 
     def runner(command, **kwargs):
@@ -77,6 +84,48 @@ def _runner_for(
             "--no-trunc",
         ]:
             return _completed(command, stdout="\n".join(container_ids))
+        if command[:2] == ["docker", "stats"]:
+            lines = []
+            for cid in command[5:]:
+                row = dict(
+                    stats.get(cid)
+                    or stats.get(cid[:12])
+                    or {
+                        "CPUPerc": "1.25%",
+                        "MemUsage": "64MiB / 1.5GiB",
+                        "MemPerc": "4.00%",
+                        "PIDs": "12",
+                    }
+                )
+                row.setdefault("Container", cid[:12])
+                lines.append(json.dumps(row))
+            return _completed(command, stdout="\n".join(lines))
+        if command[:3] == ["docker", "inspect", "--size"]:
+            requested = command[3:]
+            selected = [
+                json.loads(json.dumps(item))
+                for item in containers
+                if item["Id"] in requested
+            ]
+            for item in selected:
+                entry = sizes.get(item["Id"], {})
+                item["SizeRw"] = entry.get("size_rw", 5 * 1024**2)
+                item["SizeRootFs"] = entry.get("size_rootfs", 120 * 1024**2)
+            return _completed(command, stdout=json.dumps(selected))
+        if command[:3] == ["docker", "image", "inspect"]:
+            payload = [
+                {"Id": image_id, "Size": images.get(image_id, 100 * 1024**2)}
+                for image_id in command[3:]
+            ]
+            return _completed(command, stdout=json.dumps(payload))
+        if command[:2] == ["docker", "rm"]:
+            if mutable is not None:
+                mutable["status"] = "removed"
+            return _completed(command, stdout=f"{command[-1]}\n")
+        if command[:2] == ["docker", "rmi"]:
+            if mutable is not None:
+                mutable["image_removed"] = True
+            return _completed(command, stdout="Untagged\n")
         if command[:2] == ["docker", "inspect"]:
             requested = command[2:]
             selected = [item for item in containers if item["Id"] in requested]
@@ -162,7 +211,7 @@ def test_scan_protects_dirty_recent_unmapped_and_non_startup_containers(tmp_path
             dirty={str(dirty_repo)},
             commits={str(recent_repo): RECENT_COMMIT},
         ),
-        process_iter=lambda: [],
+        process_iter=list,
         now=lambda: NOW,
     )
 
@@ -193,7 +242,7 @@ def test_scan_fails_closed_when_bind_mounts_resolve_to_multiple_repositories(tmp
         runner=_runner_for(
             [container], {str(first): str(first), str(second): str(second)}
         ),
-        process_iter=lambda: [],
+        process_iter=list,
         now=lambda: NOW,
     )
 
@@ -214,7 +263,7 @@ def test_dry_run_plans_exact_change_without_mutating_docker(tmp_path):
         runner=_runner_for(
             [container], {str(repository): str(repository)}, commands=commands
         ),
-        process_iter=lambda: [],
+        process_iter=list,
         now=lambda: NOW,
     )
 
@@ -240,7 +289,7 @@ def test_optimize_refuses_prefix_and_non_candidate_selection(tmp_path):
             commits={str(repository): RECENT_COMMIT},
             commands=commands,
         ),
-        process_iter=lambda: [],
+        process_iter=list,
         now=lambda: NOW,
     )
 
@@ -265,7 +314,7 @@ def test_apply_disables_restart_policy_but_does_not_stop_by_default(tmp_path):
             commands=commands,
             mutable=mutable,
         ),
-        process_iter=lambda: [],
+        process_iter=list,
         now=lambda: NOW,
     )
 
@@ -291,7 +340,7 @@ def test_stop_is_separate_opt_in_and_uses_bounded_timeout(tmp_path):
             commands=commands,
             mutable=mutable,
         ),
-        process_iter=lambda: [],
+        process_iter=list,
         now=lambda: NOW,
     )
 
@@ -319,7 +368,7 @@ def test_stop_opt_in_also_closes_a_restarting_container(tmp_path):
             commands=commands,
             mutable=mutable,
         ),
-        process_iter=lambda: [],
+        process_iter=list,
         now=lambda: NOW,
     )
 
@@ -356,7 +405,7 @@ def test_scan_checks_shared_repository_activity_only_once(tmp_path):
             {str(repository): str(repository)},
             commands=commands,
         ),
-        process_iter=lambda: [],
+        process_iter=list,
         now=lambda: NOW,
     )
 
@@ -367,3 +416,204 @@ def test_scan_checks_shared_repository_activity_only_once(tmp_path):
     assert len(result["candidates"]) == 2
     assert len(git_statuses) == 1
     assert len(git_logs) == 1
+
+
+def test_scan_collects_candidate_resources_and_potential_savings(tmp_path):
+    repository = tmp_path / "old"
+    repository.mkdir()
+    container_id = "a" * 64
+    image_id = "sha256:" + "e" * 64
+    container = _container(container_id, repository, image=image_id)
+    optimizer = DockerStartupOptimizer(
+        runner=_runner_for(
+            [container],
+            {str(repository): str(repository)},
+            stats={
+                container_id[:12]: {
+                    "CPUPerc": "2.50%",
+                    "MemUsage": "128MiB / 2GiB",
+                    "MemPerc": "6.25%",
+                    "PIDs": "20",
+                }
+            },
+            sizes={
+                container_id: {
+                    "size_rw": 8 * 1024**2,
+                    "size_rootfs": 208 * 1024**2,
+                }
+            },
+            images={image_id: 200 * 1024**2},
+        ),
+        process_iter=list,
+        now=lambda: NOW,
+    )
+
+    result = optimizer.scan()
+    candidate = result["candidates"][0]
+
+    resources = candidate["resources"]
+    assert resources["cpu_percent"] == 2.5
+    assert resources["memory_bytes"] == 128 * 1024**2
+    assert resources["memory_limit_bytes"] == 2 * 1024**3
+    assert resources["size_rw_bytes"] == 8 * 1024**2
+    assert resources["image_size_bytes"] == 200 * 1024**2
+    assert resources["image_shared"] is False
+    assert resources["disk_reclaimable_bytes"] == 208 * 1024**2
+
+    savings = result["potential_savings"]
+    assert savings["candidates"] == 1
+    assert savings["running_candidates"] == 1
+    assert savings["memory_bytes"] == 128 * 1024**2
+    assert savings["cpu_percent"] == 2.5
+    assert savings["disk_bytes"] == 208 * 1024**2
+
+
+def test_scan_marks_shared_image_as_not_fully_reclaimable(tmp_path):
+    repository = tmp_path / "old"
+    repository.mkdir()
+    other_repo = tmp_path / "other"
+    other_repo.mkdir()
+    image_id = "sha256:" + "d" * 64
+    containers = [
+        _container("a" * 64, repository, name="api", image=image_id),
+        _container(
+            "b" * 64, other_repo, name="db", image=image_id, status="exited"
+        ),
+    ]
+    optimizer = DockerStartupOptimizer(
+        runner=_runner_for(
+            containers,
+            {str(repository): str(repository), str(other_repo): str(other_repo)},
+        ),
+        process_iter=list,
+        now=lambda: NOW,
+    )
+
+    result = optimizer.scan()
+    first = next(item for item in result["candidates"] if item["name"] == "api")
+
+    assert first["resources"]["image_shared"] is True
+    assert first["resources"]["disk_reclaimable_bytes"] == 5 * 1024**2
+
+
+def test_remove_is_opt_in_and_removes_container_and_exclusive_image(tmp_path):
+    repository = tmp_path / "old"
+    repository.mkdir()
+    container_id = "a" * 64
+    image_id = "sha256:" + "c" * 64
+    container = _container(container_id, repository, image=image_id)
+    commands = []
+    mutable = {"policy": "unless-stopped", "status": "running"}
+    optimizer = DockerStartupOptimizer(
+        runner=_runner_for(
+            [container],
+            {str(repository): str(repository)},
+            commands=commands,
+            mutable=mutable,
+        ),
+        process_iter=list,
+        now=lambda: NOW,
+    )
+
+    result = optimizer.optimize(
+        [container_id],
+        apply=True,
+        stop_running=True,
+        remove_containers=True,
+        remove_images=True,
+    )
+
+    assert result["success"] is True
+    changed = result["changed"][0]
+    assert changed["removed"] is True
+    assert changed["image_removed"] is True
+    assert ["docker", "rm", container_id] in commands
+    assert ["docker", "rmi", image_id] in commands
+
+
+def test_remove_is_skipped_when_container_still_running(tmp_path):
+    repository = tmp_path / "old"
+    repository.mkdir()
+    container_id = "a" * 64
+    container = _container(container_id, repository)
+    commands = []
+    mutable = {"policy": "unless-stopped", "status": "running"}
+    optimizer = DockerStartupOptimizer(
+        runner=_runner_for(
+            [container],
+            {str(repository): str(repository)},
+            commands=commands,
+            mutable=mutable,
+        ),
+        process_iter=list,
+        now=lambda: NOW,
+    )
+
+    result = optimizer.optimize(
+        [container_id], apply=True, remove_containers=True
+    )
+
+    assert result["success"] is True
+    changed = result["changed"][0]
+    assert changed["removed"] is False
+    assert "still running" in changed["remove_error"]
+    assert not any(command[:2] == ["docker", "rm"] for command in commands)
+
+
+def test_remove_images_requires_remove_containers(tmp_path):
+    repository = tmp_path / "old"
+    repository.mkdir()
+    optimizer = DockerStartupOptimizer(
+        runner=_runner_for([], {}),
+        process_iter=list,
+        now=lambda: NOW,
+    )
+
+    try:
+        optimizer.optimize(["a" * 64], remove_images=True)
+    except ValueError as exc:
+        assert "remove_images requires remove_containers" in str(exc)
+    else:
+        raise AssertionError("expected ValueError")
+
+
+def test_shared_image_is_never_removed(tmp_path):
+    repository = tmp_path / "old"
+    repository.mkdir()
+    other_repo = tmp_path / "other"
+    other_repo.mkdir()
+    image_id = "sha256:" + "b" * 64
+    container_id = "a" * 64
+    containers = [
+        _container(container_id, repository, name="api", image=image_id),
+        _container(
+            "b" * 64, other_repo, name="db", image=image_id, status="exited"
+        ),
+    ]
+    commands = []
+    mutable = {"policy": "unless-stopped", "status": "running"}
+    optimizer = DockerStartupOptimizer(
+        runner=_runner_for(
+            containers,
+            {str(repository): str(repository), str(other_repo): str(other_repo)},
+            commands=commands,
+            mutable=mutable,
+        ),
+        process_iter=list,
+        now=lambda: NOW,
+    )
+
+    result = optimizer.optimize(
+        [container_id],
+        apply=True,
+        stop_running=True,
+        remove_containers=True,
+        remove_images=True,
+    )
+
+    assert result["success"] is True
+    changed = result["changed"][0]
+    assert changed["removed"] is True
+    assert changed["remove_image"] is False
+    assert changed["image_removed"] is None
+    assert not any(command[:2] == ["docker", "rmi"] for command in commands)

@@ -1,0 +1,128 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-050",
+  "summary": "cleanup docker: szacunek zasobow, tabela, usuwanie + natywne Gemini API",
+  "workstream": "application",
+  "classification": {
+    "kind": "FEATURE",
+    "priority": "P2",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-050/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/cli/cleanup_cmd.py",
+    "fixos/config.py",
+    "fixos/diagnostics/docker_startup_optimizer.py",
+    "fixos/providers/gemini_native.py",
+    "fixos/providers/llm.py",
+    "tests/unit/test_cleanup_cmd.py",
+    "tests/unit/test_docker_startup_optimizer.py",
+    "tests/unit/test_gemini_native_client.py",
+    "tests/unit/test_llm_provider.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "c33584ba156d20008d620e97a847dfe2232bd8c1",
+    "targetBranch": "main",
+    "outcome": "fixos cleanup --docker-stale-services shows per-candidate CPU/RAM/disk savings in a table and can remove containers/images on explicit opt-in; provider gemini can use the native Google generateContent API via GEMINI_TRANSPORT; new AQ.* Google auth keys are detected as gemini, force the native transport, and generic LLM_API_KEY is honored as an API-key fallback",
+    "nonGoals": [
+      "No automatic removal without the two explicit removal confirmations",
+      "No removal of images shared with other containers",
+      "No change to other LLM providers or to the OpenAI-compatible path",
+      "No new runtime dependency",
+      "No remote publication of secrets or API keys"
+    ],
+    "complexity": "M",
+    "estimatedMinutes": 90,
+    "budgets": {
+      "maxImplementationFiles": 9,
+      "maxAffectedComponents": 3,
+      "maxPublicInterfaceChanges": 2,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Collect docker stats and inspect --size evidence for stale candidates only, keep removal behind separate opt-in flags, and route provider gemini through a transport switch on the existing LLMClient facade",
+      "components": [
+        {
+          "name": "docker-stale-resources",
+          "paths": [
+            "fixos/diagnostics/docker_startup_optimizer.py",
+            "fixos/cli/cleanup_cmd.py",
+            "tests/unit/test_docker_startup_optimizer.py",
+            "tests/unit/test_cleanup_cmd.py"
+          ]
+        },
+        {
+          "name": "gemini-native-transport",
+          "paths": [
+            "fixos/providers/gemini_native.py",
+            "fixos/providers/llm.py",
+            "fixos/config.py",
+            "tests/unit/test_gemini_native_client.py",
+            "tests/unit/test_llm_provider.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [
+        "DockerStartupOptimizer.optimize gains remove_containers/remove_images keyword flags",
+        "LLMClient becomes a facade delegating to _OpenAILLMClient or GeminiNativeClient"
+      ],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the touched source files and ticket metadata"
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "pytest -q tests/unit/test_docker_startup_optimizer.py"
+        ],
+        "evidence": "project/ticket-050/validation.txt"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "pytest -q tests/unit/test_cleanup_cmd.py"
+        ],
+        "evidence": "project/ticket-050/validation.txt"
+      },
+      {
+        "criterion": "AC-03",
+        "commands": [
+          "pytest -q tests/unit/test_docker_startup_optimizer.py"
+        ],
+        "evidence": "project/ticket-050/validation.txt"
+      },
+      {
+        "criterion": "AC-04",
+        "commands": [
+          "pytest -q tests/unit/test_gemini_native_client.py tests/unit/test_llm_provider.py"
+        ],
+        "evidence": "project/ticket-050/validation.txt"
+      },
+      {
+        "criterion": "AC-05",
+        "commands": [
+          "pytest -q tests/unit/",
+          "./project/governance-check.sh"
+        ],
+        "evidence": "project/ticket-050/validation.txt"
+      }
+    ]
+  }
+}
