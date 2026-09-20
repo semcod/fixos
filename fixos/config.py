@@ -42,7 +42,7 @@ ENV_SEARCH_PATHS = [
 PROVIDER_DEFAULTS = {
     "gemini": {
         "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
-        "model": "gemini-2.5-flash-preview-04-17",
+        "model": "gemini-3.8-flash",
         "key_env": "GEMINI_API_KEY",
         "key_url": "https://aistudio.google.com/app/apikey",
         "free_tier": True,
@@ -447,11 +447,11 @@ KEY_PREFIXES: list[tuple[str, str]] = [
 
 PROVIDER_MODELS: dict[str, list[str]] = {
     "gemini": [
-        "gemini-2.5-flash-preview-04-17",
-        "gemini-2.0-flash",
-        "gemini-2.0-flash-lite",
-        "gemini-1.5-flash",
-        "gemini-1.5-pro",
+        "gemini-3.8-flash",
+        "gemini-3.5-flash",
+        "gemini-3.5-flash-lite",
+        "gemini-3.1-flash-lite",
+        "gemini-3.1-pro-preview",
     ],
     "openai": [
         "gpt-4o-mini",
