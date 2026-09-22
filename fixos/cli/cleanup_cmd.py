@@ -7,6 +7,7 @@ Sub-modules (split from the original monolith):
   _cleanup_snap.py    – Snap package management
   _cleanup_home.py    – Home directory analysis
   _cleanup_system.py  – Full-system analysis, filtering, interactive select
+  _cleanup_space.py   – Disk-space reclaim (snap revs, journal, cache, VM/IDE)
 """
 
 import re
@@ -15,6 +16,15 @@ import click
 
 # Re-export public symbols used by fixos.cli (backward-compat)
 from fixos.cli._cleanup_flatpak import _cleanup_flatpak_detailed
+from fixos.cli._cleanup_space import (
+    _cleanup_docker_buildcache,
+    _cleanup_gitive,
+    _cleanup_jetbrains,
+    _cleanup_journal,
+    _cleanup_libvirt,
+    _cleanup_snap_old,
+    _cleanup_user_cache,
+)
 from fixos.cli._cleanup_system import _cleanup_full_system
 from fixos.cli._cleanup_utils import _format_bytes, _parse_numeric_range_set
 from fixos.constants import DEFAULT_CLEANUP_THRESHOLD_MB
@@ -1552,7 +1562,9 @@ def _execute_yes_cleanup(plan: dict, scanner, dry_run: bool = False) -> None:
     help=(
         "Wyczyść konkretną usługę "
         "(docker, docker-all, docker-old, docker-containers, docker-networks, "
-        "docker-stale-services, orphaned-projects, ollama-old, npm, ...)"
+        "docker-stale-services, orphaned-projects, ollama-old, snap-old, "
+        "journal, user-cache, jetbrains, libvirt, gitive, docker-buildcache, "
+        "npm, ...)"
     ),
 )
 @click.option(
@@ -1584,6 +1596,16 @@ def _execute_yes_cleanup(plan: dict, scanner, dry_run: bool = False) -> None:
     help=(
         "Usuń niestandardowe sieci Docker bez endpointów i sprawdź pulę adresową; "
         "chroni bridge/host/none oraz wszystkie sieci używane przez kontenery"
+    ),
+)
+@click.option(
+    "--docker-buildcache",
+    "docker_buildcache",
+    is_flag=True,
+    default=False,
+    help=(
+        "Wyczyść cache WSZYSTKICH builderów buildx (w tym docker-container, "
+        "których nie obejmuje docker-all) oraz wiszące obrazy <none>"
     ),
 )
 @click.option(
@@ -1650,6 +1672,66 @@ def _execute_yes_cleanup(plan: dict, scanner, dry_run: bool = False) -> None:
     ),
 )
 @click.option(
+    "--snap-old",
+    "snap_old",
+    is_flag=True,
+    default=False,
+    help=(
+        "Usuń wyłączone rewizje snapów (snap list --all + snap remove "
+        "--revision); aktywne rewizje są zawsze chronione"
+    ),
+)
+@click.option(
+    "--journal",
+    "journal_cleanup",
+    is_flag=True,
+    default=False,
+    help=(
+        "Pokaż rozmiar dziennika systemd i przytnij go przez "
+        "journalctl --vacuum-size/--vacuum-time"
+    ),
+)
+@click.option(
+    "--user-cache",
+    "user_cache",
+    is_flag=True,
+    default=False,
+    help=(
+        "Wybierz i usuń duże katalogi z ~/.cache; --yes usuwa tylko znane "
+        "regenerowalne cache; ~/Videos i ~/Downloads nigdy nie są ruszane"
+    ),
+)
+@click.option(
+    "--jetbrains",
+    "jetbrains",
+    is_flag=True,
+    default=False,
+    help=(
+        "Usuń stare wersje IDE z Toolbox (ch-*) i cache ~/.cache/JetBrains; "
+        "ustawienia IDE w ~/.local/share/JetBrains są chronione"
+    ),
+)
+@click.option(
+    "--libvirt",
+    "libvirt",
+    is_flag=True,
+    default=False,
+    help=(
+        "Usuń obrazy z ~/.local/share/libvirt/images niepodpięte pod żadną "
+        "domenę; bez dostępu do virsh usuwanie wymaga ręcznego wyboru"
+    ),
+)
+@click.option(
+    "--gitive",
+    "gitive",
+    is_flag=True,
+    default=False,
+    help=(
+        "Usuń izolowane workspace'y z ~/.local/share/gitive-isolated; "
+        "workspace'y powiązane z kontenerami wymagają ręcznego wyboru"
+    ),
+)
+@click.option(
     "--days",
     default=None,
     type=int,
@@ -1701,6 +1783,7 @@ def cleanup_services(
     cleanup,
     docker_old,
     docker_all,
+    docker_buildcache,
     docker_networks,
     docker_stale_services,
     orphaned_projects,
@@ -1709,6 +1792,12 @@ def cleanup_services(
     list_orphan_pins,
     process_hours,
     ollama_old,
+    snap_old,
+    journal_cleanup,
+    user_cache,
+    jetbrains,
+    libvirt,
+    gitive,
     days,
     dry_run,
     list_only,
@@ -1755,6 +1844,12 @@ def cleanup_services(
       fixos cleanup --ollama-old --days 90 --dry-run
       # modele Ollama niezmieniane od 90+ dni
       fixos cleanup -c ollama-old
+      fixos cleanup --snap-old          # wyłączone rewizje snapów
+      fixos cleanup --journal           # przycięcie dziennika systemd
+      fixos cleanup --user-cache --list # duże katalogi ~/.cache
+      fixos cleanup --jetbrains         # stare IDE Toolbox + cache JetBrains
+      fixos cleanup --libvirt           # obrazy VM niepodpięte pod domeny
+      fixos cleanup --gitive            # stare izolowane workspace'y gitive
       fixos cleanup --full              # pełna analiza systemu
     """
     pin_actions = sum(
@@ -1781,6 +1876,13 @@ def cleanup_services(
                 docker_stale_services,
                 orphaned_projects,
                 ollama_old,
+                docker_buildcache,
+                snap_old,
+                journal_cleanup,
+                user_cache,
+                jetbrains,
+                libvirt,
+                gitive,
                 days is not None,
                 dry_run,
             )
@@ -1816,6 +1918,46 @@ def cleanup_services(
     )
     want_orphaned_projects = orphaned_projects or cleanup == "orphaned-projects"
     want_ollama_old = ollama_old or (cleanup == "ollama-old")
+    space_actions = {
+        "snap-old": (snap_old, _cleanup_snap_old),
+        "journal": (journal_cleanup, _cleanup_journal),
+        "user-cache": (user_cache, _cleanup_user_cache),
+        "jetbrains": (jetbrains, _cleanup_jetbrains),
+        "libvirt": (libvirt, _cleanup_libvirt),
+        "gitive": (gitive, _cleanup_gitive),
+        "docker-buildcache": (docker_buildcache, _cleanup_docker_buildcache),
+    }
+    want_space = [
+        name for name, (flag, _handler) in space_actions.items() if flag or cleanup == name
+    ]
+    space_conflicts = (
+        len(want_space) > 1
+        or (want_space and cleanup and cleanup not in space_actions)
+        or (
+            want_space
+            and (
+                want_docker_old
+                or want_docker_all
+                or want_docker_containers
+                or want_docker_networks
+                or want_docker_stale_services
+                or want_orphaned_projects
+                or want_ollama_old
+            )
+        )
+    )
+    if space_conflicts:
+        click.echo(
+            click.style(
+                "Akcje odzyskiwania miejsca (snap/journal/cache/JetBrains/"
+                "libvirt/gitive) uruchom jako osobną, pojedynczą akcję.",
+                fg="red",
+            )
+        )
+        return
+    if want_space:
+        space_actions[want_space[0]][1](json_output, dry_run, list_only, yes)
+        return
     if want_docker_old and want_docker_all:
         click.echo(
             click.style(

@@ -1,0 +1,90 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-051",
+  "summary": "cleanup: odzyskiwanie miejsca - snap revizje, journal, cache, JetBrains, libvirt, gitive-isolated",
+  "workstream": "application",
+  "classification": {
+    "kind": "FEATURE",
+    "priority": "P2",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-051/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/cli/_cleanup_space.py",
+    "fixos/cli/cleanup_cmd.py",
+    "fixos/cli/main.py",
+    "tests/unit/test_cleanup_space.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "ee3015cc85228c011d19e49546115f26fe4c570d",
+    "targetBranch": "main",
+    "outcome": "fixos cleanup gains disk-space reclaim actions: --snap-old removes disabled snap revisions, --journal vacuums systemd journal, --user-cache selects oversized ~/.cache entries, --jetbrains removes stale Toolbox channels and IDE caches, --libvirt removes VM images not attached to any defined domain, --gitive removes stale gitive-isolated workspaces, --docker-buildcache prunes every buildx builder cache (including docker-container drivers not covered by --docker-all) plus dangling images; all are listed in the interactive command menu",
+    "nonGoals": [
+      "No removal of user documents — ~/Videos, ~/Downloads and similar are never scanned for deletion",
+      "No deletion of running/attached VM volumes, active snap revisions, or gitive workspaces bound to a container",
+      "No unattended removal without explicit selection or --yes",
+      "No new runtime dependency"
+    ],
+    "complexity": "M",
+    "estimatedMinutes": 120,
+    "budgets": {
+      "maxImplementationFiles": 6,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 1,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "New fixos/cli/_cleanup_space.py module holds six scan/select/confirm handlers reusing _cleanup_utils helpers; cleanup_cmd.py gains one flag per target routed through the existing single-action dispatch; main.py lists the new commands",
+      "components": [
+        {
+          "name": "disk-space-cleanup",
+          "paths": [
+            "fixos/cli/_cleanup_space.py",
+            "fixos/cli/cleanup_cmd.py",
+            "fixos/cli/main.py",
+            "tests/unit/test_cleanup_space.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [
+        "fixos cleanup gains --snap-old, --journal, --user-cache, --jetbrains, --libvirt, --gitive, --docker-buildcache options (plus matching -c names)"
+      ],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the touched source files and ticket metadata"
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "pytest -q tests/unit/test_cleanup_space.py"
+        ],
+        "evidence": "project/ticket-051/validation.txt"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "pytest -q tests/unit/",
+          "./project/governance-check.sh"
+        ],
+        "evidence": "project/ticket-051/validation.txt"
+      }
+    ]
+  }
+}

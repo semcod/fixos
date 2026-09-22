@@ -127,6 +127,11 @@ def _print_welcome() -> None:
             "Usuń nieużywane sieci i sprawdź pulę adresową",
         ),
         (
+            "fixos cleanup --docker-buildcache",
+            "",
+            "Cache wszystkich builderów buildx + wiszące obrazy <none>",
+        ),
+        (
             "fixos cleanup --docker-stale-services",
             "",
             "Wybierz stare usługi, wyłącz autostart i opcjonalnie zatrzymaj",
@@ -150,6 +155,36 @@ def _print_welcome() -> None:
             "fixos cleanup --ollama-old",
             "",
             "Usuń modele Ollama niezmieniane od 90+ dni",
+        ),
+        (
+            "fixos cleanup --snap-old",
+            "",
+            "Usuń wyłączone rewizje snapów (stare wersje .snap)",
+        ),
+        (
+            "fixos cleanup --journal",
+            "",
+            "Przytnij dziennik systemd (journalctl --vacuum)",
+        ),
+        (
+            "fixos cleanup --user-cache",
+            "",
+            "Wybierz i usuń duże katalogi z ~/.cache",
+        ),
+        (
+            "fixos cleanup --jetbrains",
+            "",
+            "Stare wersje IDE z Toolbox i cache JetBrains",
+        ),
+        (
+            "fixos cleanup --libvirt",
+            "",
+            "Obrazy VM niepodpięte pod żadną domenę libvirt",
+        ),
+        (
+            "fixos cleanup --gitive",
+            "",
+            "Stare izolowane workspace'y gitive-isolated",
         ),
         (
             "fixos projects",
