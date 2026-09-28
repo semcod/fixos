@@ -192,6 +192,21 @@ def test_menu_and_interactive_period(tmp_path, monkeypatch):
     assert r.exit_code == 0, r.output
     assert "okres: > 60 dni" in r.output and "Do usunięcia: 0" in r.output
 
+    @click.command()
+    def interactive_prompt_path():
+        monkeypatch.setattr(cli.sys.stdin, "isatty", lambda: True)
+        cli._cleanup_venvs(False, False, False, False)
+
+    r_path = CliRunner().invoke(interactive_prompt_path, input=f"60\n{tmp_path}\n")
+    assert r_path.exit_code == 0, r_path.output
+    assert "okres: > 60 dni" in r_path.output and "Do usunięcia: 0" in r_path.output
+    assert str(tmp_path) in r_path.output
+    assert "Ścieżka do katalogu projektów" in r_path.output
+
+    r_cancel = CliRunner().invoke(interactive_prompt_path, input=f"45\n{tmp_path}\n0\n")
+    assert r_cancel.exit_code == 0, r_cancel.output
+    assert "Do usunięcia: 1" in r_cancel.output and "Anulowano" in r_cancel.output
+
 
 def test_measure_sparse_hardlinks_exclusions(tmp_path):
     root = project(tmp_path)
