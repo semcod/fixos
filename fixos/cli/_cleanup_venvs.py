@@ -60,7 +60,8 @@ def _cleanup_venvs(json_output, dry_run, list_only, yes, *, days=None, path=None
             click.echo(f"  Chronione {item['path']!a}: {', '.join(item['reasons'])}")
     if report["errors"]:
         click.echo(
-            f"Niepełna obserwacja procesów ({len(report['errors'])}); usuwanie zablokowane."
+            f"Ostrzeżenie: częściowa obserwacja ({len(report['errors'])}); "
+            "skanowano dalej, błędy lokalne chronią odpowiadające im ścieżki."
         )
     if dry_run or list_only:
         click.echo("DRY-RUN — bez usuwania." if dry_run else "LISTA — bez usuwania.")

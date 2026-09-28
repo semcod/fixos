@@ -1,0 +1,109 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-054",
+  "summary": "Continue venv cleanup with partial observations",
+  "workstream": "application",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P1",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "fixos/cli/_cleanup_venvs.py",
+    "fixos/diagnostics/venv_cleanup.py",
+    "project/ticket-054/**",
+    "tests/unit/test_venv_cleanup.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [
+    "python"
+  ],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "111e434c75acf8751922c1acb81372d47879f05a",
+    "targetBranch": "main",
+    "outcome": "Venv cleanup continues across fully observed projects and reports candidates independently; errors protect only the affected project or environment, while inaccessible process fields do not suppress usable process paths or unrelated scan results.",
+    "nonGoals": [
+      "No cleanup is executed on user projects during implementation.",
+      "No candidate with a project or environment tree observation error, recent activity, symlink, missing virtualenv marker, or known active process is removed.",
+      "No claim that process observations provide a complete history of use."
+    ],
+    "complexity": "M",
+    "estimatedMinutes": 80,
+    "budgets": {
+      "maxImplementationFiles": 3,
+      "maxAffectedComponents": 3,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Observe process fields independently, aggregate errors as partial-observation diagnostics, keep filesystem errors scoped to the affected tree, report partial results honestly in the CLI, and revalidate each selected project before deletion.",
+      "components": [
+        {
+          "name": "venv-cleanup-observation",
+          "paths": [
+            "fixos/diagnostics/venv_cleanup.py"
+          ]
+        },
+        {
+          "name": "cleanup-cli-reporting",
+          "paths": [
+            "fixos/cli/_cleanup_venvs.py"
+          ]
+        },
+        {
+          "name": "regression-tests",
+          "paths": [
+            "tests/unit/test_venv_cleanup.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "multi-state",
+        "states": [
+          "loading",
+          "empty",
+          "error",
+          "success"
+        ],
+        "evidence": [
+          "tests/unit/test_venv_cleanup.py"
+        ]
+      },
+      "rollback": "Revert ticket-054 source and regression-test changes."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "pytest -q tests/unit/test_venv_cleanup.py"
+        ],
+        "evidence": "Focused regression test output."
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "ruff check fixos/cli/_cleanup_venvs.py fixos/diagnostics/venv_cleanup.py tests/unit/test_venv_cleanup.py",
+          "./project/governance-check.sh"
+        ],
+        "evidence": "Lint and managed governance output."
+      },
+      {
+        "criterion": "AC-05",
+        "commands": [
+          "OneDev protected CI and independent Validator against the frozen exact head"
+        ],
+        "evidence": "Protected delivery receipts."
+      }
+    ]
+  }
+}

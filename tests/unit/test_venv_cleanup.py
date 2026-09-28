@@ -78,7 +78,8 @@ def test_recent_active_or_unknown_projects_are_protected(tmp_path, monkeypatch, 
         monkeypatch.setattr(vc, "active_paths", lambda: (set(), ["denied"]))
     if change == "marker":
         (root / ".venv/pyvenv.cfg").unlink()
-    assert vc.scan_venvs(tmp_path)["eligible"] == 0
+    expected_eligible = 1 if change == "unknown" else 0
+    assert vc.scan_venvs(tmp_path)["eligible"] == expected_eligible
 
 
 def test_period_is_applied_to_project_and_environment(tmp_path):
@@ -333,11 +334,15 @@ def test_process_observer_detects_actual_activity_signals(
     monkeypatch.setattr(vc.psutil, "Process", Process)
     monkeypatch.setattr(vc.psutil, "process_iter", lambda: iter([Process()]))
     monkeypatch.setattr(vc, "active_paths", _REAL_ACTIVE_PATHS)
-    assert vc.scan_venvs(tmp_path)["eligible"] == 0
+    report = vc.scan_venvs(tmp_path)
+    assert report["eligible"] == (1 if signal == "denied" else 0)
+    if signal == "denied":
+        assert report["errors"]
 
 
 def test_unreadable_tree_does_not_become_deletable(tmp_path, monkeypatch):
     root = project(tmp_path)
+    other = project(tmp_path, "readable")
     real_scandir = ns.os.scandir
 
     def denied(path):
@@ -347,15 +352,94 @@ def test_unreadable_tree_does_not_become_deletable(tmp_path, monkeypatch):
 
     monkeypatch.setattr(ns.os, "scandir", denied)
     result = vc.scan_venvs(tmp_path)
-    assert result["found"] == 1 and result["eligible"] == 0
-    assert "niepełna" in " ".join(result["items"][0]["reasons"])
+    assert result["found"] == 2 and result["eligible"] == 1
+    assert result["unknown_sizes"] == 1
+    unreadable = next(item for item in result["items"] if item["project"] == str(root))
+    assert not unreadable["eligible"]
+    assert "niepełna" in " ".join(unreadable["reasons"])
+    assert next(item for item in result["items"] if item["project"] == str(other))["eligible"]
 
 
 def test_exact_cutoff_is_not_older(tmp_path):
     root = project(tmp_path)
     latest = ns.measure_python(root)["mtime_ns"]
     now = latest + 30 * 86400 * 10**9
-    assert not vc.inspect_project(root, 30, set(), [], now_ns=now)[0]["eligible"]
+    assert not vc.inspect_project(root, 30, set(), now_ns=now)[0]["eligible"]
+
+
+def test_partial_process_observation_keeps_readable_paths_and_other_projects(
+    tmp_path, monkeypatch
+):
+    first = project(tmp_path, "active")
+    second = project(tmp_path, "old")
+    monkeypatch.setattr(
+        vc,
+        "active_paths",
+        lambda: ({first / ".venv/bin/python"}, ["PID 4 cwd: AccessDenied"]),
+    )
+
+    report = vc.scan_venvs(tmp_path)
+
+    assert report["found"] == 2
+    assert report["eligible"] == 1
+    assert report["errors"] == ["PID 4 cwd: AccessDenied"]
+    protected = next(item for item in report["items"] if item["project"] == str(first))
+    candidate = next(item for item in report["items"] if item["project"] == str(second))
+    assert not protected["eligible"]
+    assert "projekt lub środowisko używane przez proces" in protected["reasons"]
+    assert candidate["eligible"]
+
+    vc.remove_venv(candidate, 30)
+    assert not (second / ".venv").exists()
+    assert (first / ".venv").exists()
+
+
+def test_process_fields_are_observed_independently(tmp_path, monkeypatch):
+    root = project(tmp_path)
+    current_user = vc.psutil.Process().username()
+
+    class Process:
+        pid = 17
+
+        def username(self):
+            return current_user
+
+        def cwd(self):
+            raise vc.psutil.AccessDenied(self.pid)
+
+        def exe(self):
+            return "/usr/bin/python3"
+
+        def cmdline(self):
+            return ["python", str(root / "src/app.py")]
+
+        def open_files(self):
+            raise vc.psutil.AccessDenied(self.pid)
+
+        def environ(self):
+            raise vc.psutil.AccessDenied(self.pid)
+
+    monkeypatch.setattr(vc.psutil, "process_iter", lambda: iter([Process()]))
+    monkeypatch.setattr(vc, "active_paths", _REAL_ACTIVE_PATHS)
+    paths, errors = vc.active_paths()
+
+    assert root / "src/app.py" in paths
+    assert len(errors) == 3
+    assert all("AccessDenied" in error for error in errors)
+
+
+def test_cli_reports_partial_observation_without_blocking_all_candidates(
+    tmp_path, monkeypatch
+):
+    project(tmp_path)
+    monkeypatch.setattr(vc, "active_paths", lambda: (set(), ["PID 4 cwd: AccessDenied"]))
+
+    result = CliRunner().invoke(cleanup_services, args(tmp_path, "--dry-run"))
+
+    assert result.exit_code == 0, result.output
+    assert "Do usunięcia: 1" in result.output
+    assert "skanowano dalej" in result.output
+    assert "usuwanie zablokowane" not in result.output
 
 
 def test_native_discovery_rejects_escape_and_symlink(tmp_path, monkeypatch):
