@@ -25,27 +25,55 @@ def _plain_path(path: Path) -> bool:
 
 
 def active_paths() -> tuple[set[Path], list[str]]:
-    """Observe this user's processes; unreadable user processes block deletion."""
+    """Collect visible process paths without discarding other readable fields."""
     paths = {Path(sys.prefix).absolute(), Path.cwd()}
     errors = []
     if os.environ.get("VIRTUAL_ENV"):
         paths.add(Path(os.environ["VIRTUAL_ENV"]).absolute())
     user = psutil.Process().username()
     for process in psutil.process_iter():
+        process_pid = process.pid
+
+        def observe(field, callback, pid=process_pid):
+            try:
+                return callback()
+            except (psutil.NoSuchProcess, psutil.ZombieProcess):
+                raise
+            except (psutil.AccessDenied, OSError) as exc:
+                errors.append(f"PID {pid} {field}: {type(exc).__name__}")
+                return None
+
         try:
-            if process.username() != user:
+            owner = observe("username", process.username)
+            if owner is None:
+                uids = observe("uids", process.uids)
+                if uids is None or uids.real != os.getuid():
+                    continue
+            elif owner != user:
                 continue
-            values = [process.cwd(), process.exe(), *process.cmdline()]
-            values += [f.path for f in process.open_files()]
-            env = process.environ()
-            values.append(env.get("VIRTUAL_ENV", ""))
+
+            values = []
+            for field, callback in (
+                ("cwd", process.cwd),
+                ("exe", process.exe),
+                ("cmdline", process.cmdline),
+                ("open_files", process.open_files),
+                ("environ", process.environ),
+            ):
+                value = observe(field, callback)
+                if field == "cmdline" and value is not None:
+                    values.extend(value)
+                elif field == "open_files" and value is not None:
+                    values.extend(item.path for item in value)
+                elif field == "environ" and value is not None:
+                    values.append(value.get("VIRTUAL_ENV", ""))
+                elif field != "cmdline" and field != "open_files" and field != "environ":
+                    values.append(value or "")
             for value in values:
                 if value and os.path.isabs(value):
                     paths.add(Path(os.path.normpath(value)))
         except (psutil.NoSuchProcess, psutil.ZombieProcess):
             continue
-        except (psutil.AccessDenied, OSError) as exc:
-            errors.append(f"PID {process.pid}: {type(exc).__name__}")
     return paths, errors
 
 
@@ -57,7 +85,6 @@ def inspect_project(
     project: Path,
     days: int,
     paths: set[Path],
-    errors: list[str],
     *,
     now_ns: int | None = None,
 ) -> list[dict]:
@@ -88,7 +115,7 @@ def inspect_project(
         if not _plain_path(project):
             reasons.append("projekt zawiera dowiązanie w ścieżce")
         measurement = measure_tree(env) if not reasons else None
-        if source["errors"] or errors or (measurement and measurement["errors"]):
+        if source["errors"] or (measurement and measurement["errors"]):
             reasons.append("niepełna obserwacja plików lub procesów")
         if max(source["mtime_ns"], source["atime_ns"]) >= cutoff:
             reasons.append("projekt ma nowszą aktywność")
@@ -129,11 +156,12 @@ def scan_venvs(base: Path, days: int = 30) -> dict:
     base = base.expanduser().absolute()
     if not _plain_path(base) or not base.is_dir():
         raise ValueError("Katalog projektów musi istnieć i nie może zawierać dowiązań")
-    paths, errors = active_paths()
+    paths, process_errors = active_paths()
     items = []
-    projects = discover_project_roots(base, errors=errors)
+    discovery_errors = []
+    projects = discover_project_roots(base, errors=discovery_errors)
     for project in projects:
-        items.extend(inspect_project(project, days, paths, errors))
+        items.extend(inspect_project(project, days, paths))
     eligible = [item for item in items if item["eligible"]]
     return {
         "base": str(base),
@@ -144,7 +172,7 @@ def scan_venvs(base: Path, days: int = 30) -> dict:
         "eligible": len(eligible),
         "bytes": sum(item["bytes"] for item in eligible),
         "items": items,
-        "errors": errors,
+        "errors": process_errors + discovery_errors,
     }
 
 
@@ -181,8 +209,8 @@ def remove_venvs(items: list[dict], days: int):
         raise ValueError(
             "Platforma nie obsługuje bezpiecznego usuwania przez deskryptor"
         )
-    paths, errors = active_paths()
-    fresh = {v["path"]: v for v in inspect_project(project, days, paths, errors)}
+    paths, _errors = active_paths()
+    fresh = {v["path"]: v for v in inspect_project(project, days, paths)}
     for item in items:
         current = fresh.get(item["path"])
         if (
@@ -203,10 +231,10 @@ def remove_venvs(items: list[dict], days: int):
             raise ValueError("Projekt zmienił się po skanowaniu")
         for item in items:
             env = Path(item["path"])
-            paths, errors = active_paths()
-            if errors or any(_within(p, project) for p in paths):
+            paths, _errors = active_paths()
+            if any(_within(p, project) for p in paths):
                 raise ValueError(
-                    "Projekt stał się aktywny lub obserwacja jest niepełna"
+                    "Projekt stał się aktywny"
                 )
             if not _plain_path(env) or measure_tree(env) != item["measurement"]:
                 raise ValueError("Środowisko zmieniło się po skanowaniu")
