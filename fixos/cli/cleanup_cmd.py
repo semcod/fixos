@@ -27,6 +27,7 @@ from fixos.cli._cleanup_space import (
 )
 from fixos.cli._cleanup_system import _cleanup_full_system
 from fixos.cli._cleanup_utils import _format_bytes, _parse_numeric_range_set
+from fixos.cli._cleanup_venvs import _cleanup_venvs
 from fixos.constants import DEFAULT_CLEANUP_THRESHOLD_MB
 from fixos.diagnostics.docker_startup_optimizer import (
     DEFAULT_DOCKER_STALE_SERVICE_DAYS,
@@ -806,7 +807,7 @@ def _shorten_path(path: object) -> str:
     text = str(path)
     home = str(Path.home())
     if text.startswith(home):
-        return "~" + text[len(home):]
+        return "~" + text[len(home) :]
     return text
 
 
@@ -870,8 +871,10 @@ def _display_stale_docker_candidates(candidates: list[dict], days: int) -> None:
         )
 
     console.print(table)
-    click.echo("  * Dysk = warstwa zapisu + obraz, jeśli niewspółdzielony; "
-               "odzyskiwalny dopiero po usunięciu kontenera.")
+    click.echo(
+        "  * Dysk = warstwa zapisu + obraz, jeśli niewspółdzielony; "
+        "odzyskiwalny dopiero po usunięciu kontenera."
+    )
 
 
 def _display_savings_summary(savings: dict | None) -> None:
@@ -899,8 +902,7 @@ def _display_savings_summary(savings: dict | None) -> None:
     if isinstance(disk, (int, float)) and disk:
         click.echo(
             click.style(
-                f"  Szacunek: usunięcie odzyska dodatkowo {_format_bytes(disk)} "
-                "dysku.",
+                f"  Szacunek: usunięcie odzyska dodatkowo {_format_bytes(disk)} dysku.",
                 fg="green",
             )
         )
@@ -1563,7 +1565,7 @@ def _execute_yes_cleanup(plan: dict, scanner, dry_run: bool = False) -> None:
         "Wyczyść konkretną usługę "
         "(docker, docker-all, docker-old, docker-containers, docker-networks, "
         "docker-stale-services, orphaned-projects, ollama-old, snap-old, "
-        "journal, user-cache, jetbrains, libvirt, gitive, docker-buildcache, "
+        "journal, user-cache, jetbrains, libvirt, gitive, docker-buildcache, venvs-old, "
         "npm, ...)"
     ),
 )
@@ -1732,11 +1734,21 @@ def _execute_yes_cleanup(plan: dict, scanner, dry_run: bool = False) -> None:
     ),
 )
 @click.option(
+    "--venvs-old",
+    is_flag=True,
+    help="Stare venv/.venv w nieaktywnych projektach; domyślnie 30 dni",
+)
+@click.option(
+    "--projects-path",
+    type=click.Path(file_okay=False),
+    help="Katalog projektów dla --venvs-old (domyślnie ~/github)",
+)
+@click.option(
     "--days",
     default=None,
     type=int,
     help=(
-        "Wiek w dniach dla --docker-old "
+        "Wiek w dniach dla --venvs-old (domyślnie 30) lub --docker-old "
         f"(domyślnie {DEFAULT_DOCKER_OLD_UNUSED_DAYS}), --docker-networks "
         f"(domyślnie {DEFAULT_DOCKER_NETWORK_AGE_DAYS}, czyli wszystkie nieużywane), "
         "--docker-stale-services "
@@ -1798,6 +1810,8 @@ def cleanup_services(
     jetbrains,
     libvirt,
     gitive,
+    venvs_old,
+    projects_path,
     days,
     dry_run,
     list_only,
@@ -1850,8 +1864,40 @@ def cleanup_services(
       fixos cleanup --jetbrains         # stare IDE Toolbox + cache JetBrains
       fixos cleanup --libvirt           # obrazy VM niepodpięte pod domeny
       fixos cleanup --gitive            # stare izolowane workspace'y gitive
+      fixos cleanup --venvs-old --days 30 --dry-run
+      fixos cleanup --venvs-old --projects-path ~/work --days 60
       fixos cleanup --full              # pełna analiza systemu
     """
+    if venvs_old or cleanup == "venvs-old":
+        if any(
+            (
+                full_analysis,
+                services,
+                docker_old,
+                docker_all,
+                docker_buildcache,
+                docker_networks,
+                docker_stale_services,
+                orphaned_projects,
+                pin_orphan_project,
+                unpin_orphan_project,
+                list_orphan_pins,
+                ollama_old,
+                snap_old,
+                journal_cleanup,
+                user_cache,
+                jetbrains,
+                libvirt,
+                gitive,
+            )
+        ) or cleanup not in (None, "venvs-old"):
+            raise click.UsageError("--venvs-old uruchom jako osobną akcję")
+        _cleanup_venvs(
+            json_output, dry_run, list_only, yes, days=days, path=projects_path
+        )
+        return
+    if projects_path is not None:
+        raise click.UsageError("--projects-path wymaga --venvs-old")
     pin_actions = sum(
         value is not None and value is not False
         for value in (pin_orphan_project, unpin_orphan_project, list_orphan_pins)
@@ -1928,7 +1974,9 @@ def cleanup_services(
         "docker-buildcache": (docker_buildcache, _cleanup_docker_buildcache),
     }
     want_space = [
-        name for name, (flag, _handler) in space_actions.items() if flag or cleanup == name
+        name
+        for name, (flag, _handler) in space_actions.items()
+        if flag or cleanup == name
     ]
     space_conflicts = (
         len(want_space) > 1

@@ -60,6 +60,11 @@ def print_interactive_menu() -> None:
         ("6", "ask", "Zadaj pytanie / polecenie w języku naturalnym"),
         ("7", "config show", "Podgląd konfiguracji i aktywny model"),
         ("8", "commands", "Pełna lista wszystkich komend i opcji"),
+        (
+            "9",
+            "cleanup --venvs-old",
+            "Stare venv/.venv: liczba, rozmiar i wybór okresu",
+        ),
     ]
     for num, cmd, desc in menu_items:
         num_styled = click.style(f"[{num}]", fg="yellow", bold=True)
@@ -71,7 +76,7 @@ def print_interactive_menu() -> None:
     click.echo()
     click.echo(
         click.style(
-            "  💡 Wskazówka: wpisz numer [1-8], komendę lub zapytanie naturalne.",
+            "  💡 Wskazówka: wpisz numer [1-9], komendę lub zapytanie naturalne.",
             fg="bright_black",
         )
     )
@@ -95,7 +100,7 @@ def print_command_catalog() -> None:
         command = cli.commands[name]
         try:
             short = command.get_short_help_str().splitlines()[0]
-        except Exception:
+        except (AttributeError, IndexError):
             short = ""
         name_styled = click.style(f"{name:<14}", fg="green")
         click.echo(f"  {name_styled} {short}")
@@ -104,7 +109,7 @@ def print_command_catalog() -> None:
                 sub = command.commands[sub_name]
                 try:
                     sub_short = sub.get_short_help_str().splitlines()[0]
-                except Exception:
+                except (AttributeError, IndexError):
                     sub_short = ""
                 click.echo(f"    {sub_name:<12} {sub_short}")
     click.echo()
@@ -126,6 +131,7 @@ MENU_SHORTCUTS = {
     "6": "ask",
     "7": "config show",
     "8": "commands",
+    "9": "cleanup --venvs-old",
 }
 
 
@@ -215,6 +221,6 @@ def run_interactive_shell(ctx: click.Context | None = None) -> None:
         except click.ClickException as e:
             e.show()
             click.echo()
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — keep the interactive shell alive after command failure
             click.echo(click.style(f"Błąd wykonania: {e}", fg="red"))
             click.echo()
