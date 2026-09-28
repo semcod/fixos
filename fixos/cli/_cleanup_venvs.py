@@ -26,7 +26,12 @@ def _cleanup_venvs(json_output, dry_run, list_only, yes, *, days=None, path=None
         raise click.BadParameter(
             "Okres musi wynosić co najmniej 1 dzień", param_hint="--days"
         )
-    base = Path(path or "~/github").expanduser()
+    if path is None and interactive:
+        path = click.prompt(
+            "Ścieżka do katalogu projektów", default="~/github", type=str
+        )
+    raw_path = path.strip() if isinstance(path, str) else path
+    base = Path(raw_path or "~/github").expanduser()
     if not json_output:
         click.echo(f"Skanowanie projektów w {base}, okres: > {days} dni…")
     try:

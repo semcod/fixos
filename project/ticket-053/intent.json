@@ -1,0 +1,77 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-053",
+  "summary": "Interactive projects path prompt in stale venvs cleanup",
+  "workstream": "application",
+  "classification": {
+    "kind": "FEATURE",
+    "priority": "P2",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-053/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/cli/_cleanup_venvs.py",
+    "tests/unit/test_venv_cleanup.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "1e156dfaace78f95da6df96a3dbe6e6ef104f65c",
+    "targetBranch": "main",
+    "outcome": "Interactive stale venvs cleanup prompts for custom projects directory after days prompt, defaulting to ~/github, and handles user-provided path safely.",
+    "nonGoals": [
+      "No destructive actions during tests",
+      "No breaking changes to CLI flags",
+      "No new runtime dependencies"
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 30,
+    "budgets": {
+      "maxImplementationFiles": 2,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 1,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Interactive CLI helper prompts for project path if omitted, keeping ~/github as default. CLI flags and non-interactive invocations retain existing behavior.",
+      "components": [
+        {
+          "name": "cleanup-cli",
+          "paths": [
+            "fixos/cli/_cleanup_venvs.py",
+            "tests/unit/test_venv_cleanup.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [
+        "Interactive prompt for projects path in _cleanup_venvs"
+      ],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the touched source files and ticket metadata"
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "pytest -q tests/unit/test_venv_cleanup.py"
+        ],
+        "evidence": "Local test execution"
+      }
+    ]
+  }
+}
