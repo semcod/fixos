@@ -76,8 +76,8 @@ def cli(ctx, dry_run, interactive_mode, version) -> None:
         import sys
 
         is_tty = sys.stdin.isatty() if hasattr(sys.stdin, "isatty") else False
-        should_run_interactive = (
-            interactive_mode is True or (interactive_mode is None and is_tty)
+        should_run_interactive = interactive_mode is True or (
+            interactive_mode is None and is_tty
         )
         if should_run_interactive:
             from fixos.cli.shell_cmd import run_interactive_shell
@@ -185,6 +185,11 @@ def _print_welcome() -> None:
             "fixos cleanup --gitive",
             "",
             "Stare izolowane workspace'y gitive-isolated",
+        ),
+        (
+            "fixos cleanup --venvs-old",
+            "",
+            "Stare venv/.venv: podsumowanie i wybór okresu (30 dni)",
         ),
         (
             "fixos projects",

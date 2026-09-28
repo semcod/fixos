@@ -1,0 +1,119 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-052",
+  "summary": "Stale venv cleanup menu and Rust scanning extraction",
+  "workstream": "application",
+  "classification": {
+    "kind": "FEATURE",
+    "priority": "P2",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-052/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/cli/_cleanup_venvs.py",
+    "fixos/cli/cleanup_cmd.py",
+    "fixos/cli/main.py",
+    "fixos/diagnostics/project_scanner.py",
+    "fixos/diagnostics/venv_cleanup.py",
+    "tests/unit/test_project_scanner.py",
+    "tests/unit/test_venv_cleanup.py",
+    "fixos/diagnostics/native_scan.py",
+    "fixos/cli/shell_cmd.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [
+    "python"
+  ],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "fcb4eb31519b4d78ab329f85b36ccdbea7a65cde",
+    "targetBranch": "main",
+    "outcome": "Startup menu exposes stale venv cleanup, default 30 days with configurable age, inventory counts and bytes before explicit deletion; extract filesystem traversal and measurement into Rust packages in semcod/fixos-native and integrate a bounded optional native backend with Python fallback.",
+    "nonGoals": [
+      "No cleanup is executed on user projects during implementation",
+      "No automatic deletion from ambiguous, unreadable or active projects",
+      "No remote repository creation or publication in this session"
+    ],
+    "complexity": "L",
+    "estimatedMinutes": 120,
+    "budgets": {
+      "maxImplementationFiles": 10,
+      "maxAffectedComponents": 3,
+      "maxPublicInterfaceChanges": 3,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Separate read-only scanning from confirmation and revalidated deletion. Native CLI protocol provides reusable project discovery and tree measurement without taking deletion authority. Python fallback preserves installation compatibility. Rust packages have a separate repository ticket and owner. Component ownership, discovery policy and deletion authority remain in FixOS; native code is an optional read-only primitive and Python implementations are retained.",
+      "components": [
+        {
+          "name": "cleanup-cli",
+          "paths": [
+            "fixos/cli/main.py",
+            "fixos/cli/cleanup_cmd.py",
+            "fixos/cli/_cleanup_venvs.py",
+            "fixos/cli/shell_cmd.py"
+          ]
+        },
+        {
+          "name": "project-scanning",
+          "paths": [
+            "fixos/diagnostics/venv_cleanup.py",
+            "fixos/diagnostics/native_scan.py",
+            "fixos/diagnostics/project_scanner.py"
+          ]
+        },
+        {
+          "name": "regression-tests",
+          "paths": [
+            "tests/unit/test_venv_cleanup.py",
+            "tests/unit/test_project_scanner.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [
+        "cleanup --venvs-old --days --projects-path",
+        "Optional fixos-native JSON scanner protocol"
+      ],
+      "dataChanges": [],
+      "ui": {
+        "impact": "multi-state",
+        "states": [
+          "loading",
+          "empty",
+          "error",
+          "success"
+        ],
+        "evidence": [
+          "tests/unit/test_venv_cleanup.py"
+        ]
+      },
+      "rollback": "Revert ticket source changes; optional native executable can be uninstalled independently."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "pytest -q tests/unit/test_venv_cleanup.py tests/unit/test_project_scanner.py"
+        ],
+        "evidence": "Local test output and checkpoint receipts"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "./project/governance-check.sh",
+          "pytest -q tests/unit/"
+        ],
+        "evidence": "Local validation receipts"
+      }
+    ]
+  }
+}
