@@ -221,22 +221,27 @@ def test_native_failure_and_malformed_data_fall_back(tmp_path, monkeypatch):
         assert ns.measure_tree(tmp_path) == ns.measure_python(tmp_path)
 
 
-def test_native_parity_when_binary_is_available(tmp_path, monkeypatch):
+def test_native_backend_parity_or_python_fallback(tmp_path, monkeypatch):
     binary = os.environ.get("FIXOS_TEST_NATIVE_BIN")
-    if not binary:
-        pytest.skip("set FIXOS_TEST_NATIVE_BIN for cross-repository parity")
     root = project(tmp_path, 'quote"-ż')
-    os.link(root / ".venv/lib/package.py", root / ".venv/lib/hard.py")
-    (root / ".venv/lib/symlink").symlink_to(root, target_is_directory=True)
-    monkeypatch.setenv("FIXOS_NATIVE", "auto")
-    monkeypatch.setenv("FIXOS_NATIVE_BIN", binary)
-    monkeypatch.setenv("FIXOS_NATIVE_DISCOVERY", "1")
-    direct = json.loads(
-        subprocess.check_output([binary, "measure", str(root)], text=True)
-    )
-    assert direct == ns.measure_python(root)
-    assert ns.measure_tree(root) == direct
     from fixos.diagnostics.project_scanner import discover_project_roots
+
+    if binary:
+        os.link(root / ".venv/lib/package.py", root / ".venv/lib/hard.py")
+        (root / ".venv/lib/symlink").symlink_to(root, target_is_directory=True)
+        monkeypatch.setenv("FIXOS_NATIVE", "auto")
+        monkeypatch.setenv("FIXOS_NATIVE_BIN", binary)
+        monkeypatch.setenv("FIXOS_NATIVE_DISCOVERY", "1")
+        direct = json.loads(
+            subprocess.check_output([binary, "measure", str(root)], text=True)
+        )
+        assert direct == ns.measure_python(root)
+        assert ns.measure_tree(root) == direct
+    else:
+        monkeypatch.setenv("FIXOS_NATIVE", "auto")
+        monkeypatch.setenv("FIXOS_NATIVE_BIN", "/missing/fixos-native")
+        monkeypatch.setenv("FIXOS_NATIVE_DISCOVERY", "1")
+        assert ns.measure_tree(root) == ns.measure_python(root)
 
     assert discover_project_roots(tmp_path) == [root]
 
