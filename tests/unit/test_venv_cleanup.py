@@ -78,7 +78,7 @@ def test_recent_active_or_unknown_projects_are_protected(tmp_path, monkeypatch, 
         monkeypatch.setattr(vc, "active_paths", lambda: (set(), ["denied"]))
     if change == "marker":
         (root / ".venv/pyvenv.cfg").unlink()
-    expected_eligible = 1 if change == "unknown" else 0
+    expected_eligible = 1 if change in ("unknown", "access") else 0
     assert vc.scan_venvs(tmp_path)["eligible"] == expected_eligible
 
 
@@ -481,3 +481,98 @@ def test_mounts_and_bind_mounts_are_protected(tmp_path, monkeypatch, nested):
     result = vc.scan_venvs(tmp_path)
     assert result["eligible"] == 0
     assert "montowania" in " ".join(result["items"][0]["reasons"])
+
+
+def test_access_time_does_not_falsely_protect_stale_venv(tmp_path):
+    root = project(tmp_path)
+    # Simulate desktop indexer / IDE reading files (bumping atime to now)
+    p = root / "src/app.py"
+    os.utime(p, ns=(time.time_ns(), p.stat().st_mtime_ns))
+    pkg = root / ".venv/lib/package.py"
+    os.utime(pkg, ns=(time.time_ns(), pkg.stat().st_mtime_ns))
+    cfg = root / ".venv/pyvenv.cfg"
+    os.utime(cfg, ns=(time.time_ns(), cfg.stat().st_mtime_ns))
+
+    report = vc.scan_venvs(tmp_path, 30)
+    assert report["eligible"] == 1
+
+
+def test_metadata_and_governance_sync_does_not_protect_stale_project(tmp_path):
+    root = project(tmp_path)
+    # Touch .git, .idea, .cursor, .planfile, .github, .aider.conf.yml, CLAUDE.md, GEMINI.md, AGENTS.md
+    for d in (".git", ".idea", ".cursor", ".planfile", ".github"):
+        (root / d).mkdir(parents=True, exist_ok=True)
+        (root / d / "recent.log").write_text("recent")
+    for f in (".aider.conf.yml", "CLAUDE.md", "GEMINI.md", "AGENTS.md"):
+        (root / f).write_text("recent policy")
+
+    report = vc.scan_venvs(tmp_path, 30)
+    assert report["eligible"] == 1
+
+
+def test_revalidation_survives_benign_access_time_change(tmp_path):
+    root = project(tmp_path)
+    item = vc.scan_venvs(tmp_path)["items"][0]
+    # Simulate a file being read after scan (updating atime)
+    p = root / ".venv/lib/package.py"
+    os.utime(p, ns=(time.time_ns(), p.stat().st_mtime_ns))
+
+    vc.remove_venv(item, 30)
+    assert not (root / ".venv").exists()
+
+
+def test_process_observer_ignores_zombies_and_non_user_processes(monkeypatch):
+    class ZombieProcess:
+        pid = 101
+
+        def status(self):
+            return vc.psutil.STATUS_ZOMBIE
+
+    class OtherUserProcess:
+        pid = 102
+
+        def status(self):
+            return vc.psutil.STATUS_RUNNING
+
+        def uids(self):
+            class Uids:
+                real = os.getuid() + 999
+            return Uids()
+
+    class MyRunningProcess:
+        pid = 103
+
+        def status(self):
+            return vc.psutil.STATUS_RUNNING
+
+        def uids(self):
+            class Uids:
+                real = os.getuid()
+            return Uids()
+
+        def cwd(self):
+            return "/home/tom/github/semcod"
+
+        def exe(self):
+            return "/usr/bin/python3"
+
+        def cmdline(self):
+            return ["python3"]
+
+        def open_files(self):
+            return []
+
+        def environ(self):
+            return {}
+
+    monkeypatch.setattr(
+        vc.psutil,
+        "process_iter",
+        lambda: iter([ZombieProcess(), OtherUserProcess(), MyRunningProcess()]),
+    )
+    monkeypatch.setattr(vc, "active_paths", _REAL_ACTIVE_PATHS)
+
+    paths, errors = vc.active_paths()
+    assert Path("/home/tom/github/semcod") in paths
+    assert errors == []
+

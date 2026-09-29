@@ -19,6 +19,31 @@ from fixos.diagnostics.project_scanner import (
 
 VENV_NAMES = ("venv", ".venv")
 
+PROJECT_SOURCE_EXCLUDE: tuple[str, ...] = tuple(
+    sorted(
+        set(REMOVABLE_ARTIFACTS)
+        | {
+            ".git",
+            ".hg",
+            ".svn",
+            ".idea",
+            ".vscode",
+            ".cursor",
+            ".planfile",
+            ".koru",
+            ".governance",
+            ".subactor",
+            ".nlp2dsl",
+            ".github",
+            ".githooks",
+            ".aider.conf.yml",
+            "CLAUDE.md",
+            "GEMINI.md",
+            "AGENTS.md",
+        }
+    )
+)
+
 
 def _plain_path(path: Path) -> bool:
     return path.is_absolute() and all(not p.is_symlink() for p in (path, *path.parents))
@@ -34,6 +59,30 @@ def active_paths() -> tuple[set[Path], list[str]]:
     for process in psutil.process_iter():
         process_pid = process.pid
 
+        # Skip dead/zombie processes
+        try:
+            if getattr(process, "status", lambda: None)() == psutil.STATUS_ZOMBIE:
+                continue
+        except (psutil.NoSuchProcess, psutil.ZombieProcess):
+            continue
+        except (psutil.AccessDenied, OSError):
+            pass
+
+        # Skip processes not owned by current user without logging errors
+        try:
+            if hasattr(process, "uids") and process.uids().real != os.getuid():
+                continue
+            if (
+                not hasattr(process, "uids")
+                and hasattr(process, "username")
+                and process.username() != user
+            ):
+                continue
+        except (psutil.NoSuchProcess, psutil.ZombieProcess):
+            continue
+        except (psutil.AccessDenied, OSError):
+            continue
+
         def observe(field, callback, pid=process_pid):
             try:
                 return callback()
@@ -44,14 +93,6 @@ def active_paths() -> tuple[set[Path], list[str]]:
                 return None
 
         try:
-            owner = observe("username", process.username)
-            if owner is None:
-                uids = observe("uids", process.uids)
-                if uids is None or uids.real != os.getuid():
-                    continue
-            elif owner != user:
-                continue
-
             values = []
             for field, callback in (
                 ("cwd", process.cwd),
@@ -81,6 +122,33 @@ def _within(path: Path, parent: Path) -> bool:
     return path == parent or parent in path.parents
 
 
+def _measure_project_source(project: Path, exclude: tuple[str, ...]) -> dict:
+    result = {
+        "protocol": "fixos-scan/v1",
+        "path": str(project),
+        "bytes": 0,
+        "entries": 0,
+        "mtime_ns": 0,
+        "atime_ns": 0,
+        "errors": [],
+    }
+    try:
+        with os.scandir(project) as entries:
+            for entry in entries:
+                if entry.name in exclude:
+                    continue
+                child_path = Path(entry.path)
+                m = measure_tree(child_path, exclude)
+                result["bytes"] += m.get("bytes", 0)
+                result["entries"] += m.get("entries", 0)
+                result["mtime_ns"] = max(result["mtime_ns"], m.get("mtime_ns", 0))
+                result["atime_ns"] = max(result["atime_ns"], m.get("atime_ns", 0))
+                result["errors"].extend(m.get("errors", []))
+    except OSError as exc:
+        result["errors"].append(f"{project}: {exc}")
+    return result
+
+
 def inspect_project(
     project: Path,
     days: int,
@@ -89,7 +157,7 @@ def inspect_project(
     now_ns: int | None = None,
 ) -> list[dict]:
     cutoff = (now_ns if now_ns is not None else time.time_ns()) - days * 86400 * 10**9
-    source = measure_tree(project, tuple(REMOVABLE_ARTIFACTS))
+    source = _measure_project_source(project, PROJECT_SOURCE_EXCLUDE)
     project_active = any(_within(p, project) for p in paths)
     items = []
     parent_info = project.stat(follow_symlinks=False)
@@ -117,11 +185,11 @@ def inspect_project(
         measurement = measure_tree(env) if not reasons else None
         if source["errors"] or (measurement and measurement["errors"]):
             reasons.append("niepełna obserwacja plików lub procesów")
-        if max(source["mtime_ns"], source["atime_ns"]) >= cutoff:
+        if source["mtime_ns"] >= cutoff:
             reasons.append("projekt ma nowszą aktywność")
         if (
             measurement
-            and max(measurement["mtime_ns"], measurement["atime_ns"]) >= cutoff
+            and measurement["mtime_ns"] >= cutoff
         ):
             reasons.append("środowisko ma nowszą aktywność")
         if project_active:
@@ -180,6 +248,12 @@ def _identity(info):
     return [info.st_dev, info.st_ino, info.st_mtime_ns, info.st_ctime_ns]
 
 
+def _canonical_measurement(meas):
+    if not isinstance(meas, dict):
+        return meas
+    return {k: v for k, v in meas.items() if k != "atime_ns"}
+
+
 def remove_venvs(items: list[dict], days: int):
     """Revalidate one selected project batch, then delete through pinned fds.
 
@@ -217,7 +291,8 @@ def remove_venvs(items: list[dict], days: int):
             not current
             or not current["eligible"]
             or any(
-                current[k] != item[k]
+                _canonical_measurement(current[k])
+                != _canonical_measurement(item[k])
                 for k in ("identity", "project_identity", "measurement", "source")
             )
         ):
@@ -236,7 +311,11 @@ def remove_venvs(items: list[dict], days: int):
                 raise ValueError(
                     "Projekt stał się aktywny"
                 )
-            if not _plain_path(env) or measure_tree(env) != item["measurement"]:
+            if (
+                not _plain_path(env)
+                or _canonical_measurement(measure_tree(env))
+                != _canonical_measurement(item["measurement"])
+            ):
                 raise ValueError("Środowisko zmieniło się po skanowaniu")
             env_fd = os.open(
                 env.name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd
