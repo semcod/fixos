@@ -1,0 +1,109 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-055",
+  "summary": "Fix stale venvs cleanup false positives from atime and unexcluded metadata",
+  "workstream": "application",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P1",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "fixos/cli/_cleanup_venvs.py",
+    "fixos/diagnostics/venv_cleanup.py",
+    "project/ticket-055/**",
+    "tests/unit/test_venv_cleanup.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [
+    "python"
+  ],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "97d51069359b50120a7f25a62a403bca34876709",
+    "targetBranch": "main",
+    "outcome": "Fix stale venvs cleanup false positives by relying on mtime instead of atime for staleness, excluding non-source metadata/governance files from project activity measurement, and filtering non-user/zombie processes during active path collection.",
+    "nonGoals": [
+      "No cleanup is executed on user projects during implementation.",
+      "No candidate with a project or environment tree observation error, recent mtime activity, symlink, missing virtualenv marker, or known active process is removed.",
+      "No change to fixos-native protocol structure."
+    ],
+    "complexity": "M",
+    "estimatedMinutes": 60,
+    "budgets": {
+      "maxImplementationFiles": 3,
+      "maxAffectedComponents": 3,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Use modification time (mtime_ns) for virtual environment and project source activity checks instead of volatile access time (atime_ns). Define PROJECT_SOURCE_EXCLUDE to omit VCS (.git), IDE (.idea, .vscode, .cursor), daemon telemetry (.planfile, .koru, .governance, .subactor, .nlp2dsl), and globally synced governance files (.aider.conf.yml, CLAUDE.md, GEMINI.md, AGENTS.md, .github). Filter zombie and foreign-user processes in active_paths() to avoid spurious AccessDenied errors.",
+      "components": [
+        {
+          "name": "venv-cleanup-observation",
+          "paths": [
+            "fixos/diagnostics/venv_cleanup.py"
+          ]
+        },
+        {
+          "name": "cleanup-cli-reporting",
+          "paths": [
+            "fixos/cli/_cleanup_venvs.py"
+          ]
+        },
+        {
+          "name": "regression-tests",
+          "paths": [
+            "tests/unit/test_venv_cleanup.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "multi-state",
+        "states": [
+          "loading",
+          "empty",
+          "error",
+          "success"
+        ],
+        "evidence": [
+          "tests/unit/test_venv_cleanup.py"
+        ]
+      },
+      "rollback": "Revert ticket-055 source and regression-test changes."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "pytest -q tests/unit/test_venv_cleanup.py"
+        ],
+        "evidence": "Focused regression test output."
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "ruff check fixos/cli/_cleanup_venvs.py fixos/diagnostics/venv_cleanup.py tests/unit/test_venv_cleanup.py",
+          "./project/governance-check.sh"
+        ],
+        "evidence": "Lint and managed governance output."
+      },
+      {
+        "criterion": "AC-05",
+        "commands": [
+          "OneDev protected CI and independent Validator against the frozen exact head"
+        ],
+        "evidence": "Protected delivery receipts."
+      }
+    ]
+  }
+}
