@@ -23,13 +23,22 @@ from fixos.cli._cleanup_space import (
     _cleanup_journal,
     _cleanup_libvirt,
     _cleanup_snap_old,
+    _cleanup_thumbnails,
     _cleanup_tmp,
+    _cleanup_trash,
     _cleanup_user_cache,
+    _display_cleanup_policies,
+    parse_retention_days,
 )
 from fixos.cli._cleanup_system import _cleanup_full_system
 from fixos.cli._cleanup_utils import _format_bytes, _parse_numeric_range_set
 from fixos.cli._cleanup_venvs import _cleanup_venvs
-from fixos.constants import DEFAULT_CLEANUP_THRESHOLD_MB
+from fixos.constants import (
+    DEFAULT_CLEANUP_THRESHOLD_MB,
+    DEFAULT_THUMBNAILS_UNUSED_DAYS,
+    DEFAULT_TMP_UNUSED_DAYS,
+    DEFAULT_TRASH_UNUSED_DAYS,
+)
 from fixos.diagnostics.docker_startup_optimizer import (
     DEFAULT_DOCKER_STALE_SERVICE_DAYS,
     DockerStartupOptimizer,
@@ -209,8 +218,14 @@ def _execute_planned_cleanup(scanner, svc: dict, *, dry_run: bool = False) -> di
     if kind == "docker-buildcache":
         return cleaner.cleanup_docker_buildcache(dry_run=dry_run)
     if kind == "tmp":
-        days = float(svc.get("days") or 1.0)
+        days = float(svc.get("days") or DEFAULT_TMP_UNUSED_DAYS)
         return cleaner.cleanup_tmp(days=days, dry_run=dry_run)
+    if kind == "trash":
+        days = float(svc.get("days") or DEFAULT_TRASH_UNUSED_DAYS)
+        return cleaner.cleanup_trash(days=days, dry_run=dry_run)
+    if kind == "thumbnails":
+        days = float(svc.get("days") or DEFAULT_THUMBNAILS_UNUSED_DAYS)
+        return cleaner.cleanup_thumbnails(days=days, dry_run=dry_run)
     return scanner.cleanup_service(
         svc["service_type"],
         dry_run=dry_run,
@@ -1751,7 +1766,21 @@ def _execute_yes_cleanup(plan: dict, scanner, dry_run: bool = False) -> None:
     "tmp_cleanup",
     is_flag=True,
     default=False,
-    help="Usuń pliki i katalogi w /tmp starsze niż --days (domyślnie 1 dzień)",
+    help="Usuń pliki i katalogi w /tmp starsze niż retencja (domyślnie 24h / 1 dzień)",
+)
+@click.option(
+    "--trash",
+    "trash_cleanup",
+    is_flag=True,
+    default=False,
+    help="Usuń pliki z kosza użytkownika (~/.local/share/Trash) starsze niż retencja (domyślnie 14 dni)",
+)
+@click.option(
+    "--thumbnails",
+    "thumbnails_cleanup",
+    is_flag=True,
+    default=False,
+    help="Usuń wygenerowane miniaturki (~/.cache/thumbnails) starsze niż retencja (domyślnie 30 dni)",
 )
 @click.option(
     "--venvs-old",
@@ -1768,7 +1797,8 @@ def _execute_yes_cleanup(plan: dict, scanner, dry_run: bool = False) -> None:
     default=None,
     type=int,
     help=(
-        "Wiek w dniach dla --tmp (domyślnie 1) lub --venvs-old (domyślnie 30) lub --docker-old "
+        "Wiek w dniach dla --tmp (domyślnie 1) lub --trash (domyślnie 14) lub --thumbnails (domyślnie 30) "
+        "lub --venvs-old (domyślnie 30) lub --docker-old "
         f"(domyślnie {DEFAULT_DOCKER_OLD_UNUSED_DAYS}), --docker-networks "
         f"(domyślnie {DEFAULT_DOCKER_NETWORK_AGE_DAYS}, czyli wszystkie nieużywane), "
         "--docker-stale-services "
@@ -1778,6 +1808,26 @@ def _execute_yes_cleanup(plan: dict, scanner, dry_run: bool = False) -> None:
         "lub --ollama-old "
         f"(domyślnie {DEFAULT_OLLAMA_OLD_UNUSED_DAYS})"
     ),
+)
+@click.option(
+    "--retention",
+    default=None,
+    type=str,
+    help="Retencja wiekowa dla czyszczenia, np. 24h, 12h, 1d, 7d, 30d, 90d (nadpisuje --days)",
+)
+@click.option(
+    "--hours",
+    default=None,
+    type=float,
+    help="Retencja w godzinach (np. 24 dla 24h, 12 dla 12h; alternatywa dla --days)",
+)
+@click.option(
+    "--policy",
+    "--retention-policy",
+    "policy_matrix",
+    is_flag=True,
+    default=False,
+    help="Wyświetl tabelę przejrzystości retencji i bezpośrednich opcji czyszczenia",
 )
 @click.option(
     "--dry-run",
@@ -1832,9 +1882,14 @@ def cleanup_services(
     libvirt,
     gitive,
     tmp_cleanup,
+    trash_cleanup,
+    thumbnails_cleanup,
     venvs_old,
     projects_path,
     days,
+    retention,
+    hours,
+    policy_matrix,
     dry_run,
     list_only,
     yes,
@@ -1886,6 +1941,10 @@ def cleanup_services(
       fixos cleanup --jetbrains         # stare IDE Toolbox + cache JetBrains
       fixos cleanup --libvirt           # obrazy VM niepodpięte pod domeny
       fixos cleanup --gitive            # stare izolowane workspace'y gitive
+      fixos cleanup --policy            # przejrzysta tabela retencji i bezpośrednich opcji
+      fixos cleanup --tmp --retention 24h # pliki w /tmp starsze niż 24 godziny
+      fixos cleanup --trash --retention 14d # pliki w koszu starsze niż 14 dni
+      fixos cleanup --thumbnails --retention 30d # miniaturki starsze niż 30 dni
       fixos cleanup --tmp --days 1 --dry-run # pliki i katalogi w /tmp starsze niż 1 dzień
       fixos cleanup --venvs-old --days 30 --dry-run
       fixos cleanup --venvs-old --projects-path ~/work --days 60
@@ -1893,6 +1952,23 @@ def cleanup_services(
     """
     if threshold_gb is not None:
         threshold = int(threshold_gb * 1024)
+
+    if policy_matrix:
+        _display_cleanup_policies(json_output=json_output)
+        return
+
+    parsed_days: float | None = None
+    if retention is not None:
+        try:
+            parsed_days = parse_retention_days(retention)
+        except ValueError as exc:
+            raise click.UsageError(str(exc)) from exc
+    elif hours is not None:
+        parsed_days = float(hours) / 24.0
+    elif days is not None:
+        parsed_days = float(days)
+
+    effective_days = parsed_days
 
     if venvs_old or cleanup == "venvs-old":
         if any(
@@ -1916,11 +1992,19 @@ def cleanup_services(
                 libvirt,
                 gitive,
                 tmp_cleanup,
+                trash_cleanup,
+                thumbnails_cleanup,
             )
         ) or cleanup not in (None, "venvs-old"):
             raise click.UsageError("--venvs-old uruchom jako osobną akcję")
+        venvs_days = int(effective_days) if effective_days is not None else None
         _cleanup_venvs(
-            json_output, dry_run, list_only, yes, days=days, path=projects_path
+            json_output,
+            dry_run,
+            list_only,
+            yes,
+            days=venvs_days,
+            path=projects_path,
         )
         return
     if projects_path is not None:
@@ -1957,7 +2041,11 @@ def cleanup_services(
                 libvirt,
                 gitive,
                 tmp_cleanup,
+                trash_cleanup,
+                thumbnails_cleanup,
                 days is not None,
+                retention is not None,
+                hours is not None,
                 dry_run,
             )
         )
@@ -2003,7 +2091,37 @@ def cleanup_services(
         "tmp": (
             tmp_cleanup,
             lambda j, d, lst, y: _cleanup_tmp(
-                j, d, lst, y, days=float(days) if days is not None else 1.0
+                j,
+                d,
+                lst,
+                y,
+                days=effective_days
+                if effective_days is not None
+                else DEFAULT_TMP_UNUSED_DAYS,
+            ),
+        ),
+        "trash": (
+            trash_cleanup,
+            lambda j, d, lst, y: _cleanup_trash(
+                j,
+                d,
+                lst,
+                y,
+                days=effective_days
+                if effective_days is not None
+                else DEFAULT_TRASH_UNUSED_DAYS,
+            ),
+        ),
+        "thumbnails": (
+            thumbnails_cleanup,
+            lambda j, d, lst, y: _cleanup_thumbnails(
+                j,
+                d,
+                lst,
+                y,
+                days=effective_days
+                if effective_days is not None
+                else DEFAULT_THUMBNAILS_UNUSED_DAYS,
             ),
         ),
     }
@@ -2032,7 +2150,7 @@ def cleanup_services(
         click.echo(
             click.style(
                 "Akcje odzyskiwania miejsca (snap/journal/cache/JetBrains/"
-                "libvirt/gitive/docker-buildcache/tmp) uruchom jako osobną, pojedynczą akcję.",
+                "libvirt/gitive/docker-buildcache/tmp/trash/thumbnails) uruchom jako osobną, pojedynczą akcję.",
                 fg="red",
             )
         )
@@ -2116,26 +2234,26 @@ def cleanup_services(
         _cleanup_docker_containers(scanner, json_output, dry_run)
         return
     if want_docker_old:
-        effective_days = days if days is not None else DEFAULT_DOCKER_OLD_UNUSED_DAYS
-        _cleanup_docker_old_unused(scanner, effective_days, json_output, dry_run)
+        days_val = int(effective_days) if effective_days is not None else DEFAULT_DOCKER_OLD_UNUSED_DAYS
+        _cleanup_docker_old_unused(scanner, days_val, json_output, dry_run)
         return
     if want_docker_networks:
-        effective_days = days if days is not None else DEFAULT_DOCKER_NETWORK_AGE_DAYS
-        _cleanup_docker_networks(scanner, effective_days, json_output, dry_run)
+        days_val = int(effective_days) if effective_days is not None else DEFAULT_DOCKER_NETWORK_AGE_DAYS
+        _cleanup_docker_networks(scanner, days_val, json_output, dry_run)
         return
     if want_docker_stale_services:
-        effective_days = days if days is not None else DEFAULT_DOCKER_STALE_SERVICE_DAYS
+        days_val = int(effective_days) if effective_days is not None else DEFAULT_DOCKER_STALE_SERVICE_DAYS
         _cleanup_docker_stale_services(
-            effective_days,
+            days_val,
             json_output,
             dry_run,
             list_only,
         )
         return
     if want_orphaned_projects:
-        effective_days = days if days is not None else DEFAULT_ORPHANED_PROJECT_DAYS
+        days_val = int(effective_days) if effective_days is not None else DEFAULT_ORPHANED_PROJECT_DAYS
         _cleanup_orphaned_projects(
-            effective_days,
+            days_val,
             process_hours,
             json_output,
             dry_run,
@@ -2143,8 +2261,8 @@ def cleanup_services(
         )
         return
     if want_ollama_old:
-        effective_days = days if days is not None else DEFAULT_OLLAMA_OLD_UNUSED_DAYS
-        _cleanup_ollama_old_unused(scanner, effective_days, json_output, dry_run)
+        days_val = int(effective_days) if effective_days is not None else DEFAULT_OLLAMA_OLD_UNUSED_DAYS
+        _cleanup_ollama_old_unused(scanner, days_val, json_output, dry_run)
         return
 
     if cleanup:
