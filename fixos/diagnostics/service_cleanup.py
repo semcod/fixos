@@ -7,6 +7,7 @@ import json
 import os
 import re
 import shlex
+import shutil
 import subprocess
 import urllib.error
 import urllib.request
@@ -37,6 +38,10 @@ DEFAULT_DOCKER_NETWORK_AGE_DAYS = 0
 DEFAULT_OLLAMA_OLD_UNUSED_DAYS = 90
 # Stale files and directories in /tmp older than this many days (``fixos cleanup --tmp``).
 DEFAULT_TMP_UNUSED_DAYS = 1.0
+# Trash items older than this many days (``fixos cleanup --trash``).
+DEFAULT_TRASH_UNUSED_DAYS = 14.0
+# Thumbnail cache older than this many days (``fixos cleanup --thumbnails``).
+DEFAULT_THUMBNAILS_UNUSED_DAYS = 30.0
 
 
 class ServiceCleaner:
@@ -104,6 +109,138 @@ class ServiceCleaner:
                 result["success"] = False
         result["output"] = (
             f"Usunięto {removed_count} pozycji z /tmp (zwolniono ~{freed_gb:.2f} GB)"
+        )
+        return result
+
+    def scan_trash_candidates(
+        self,
+        days: float = DEFAULT_TRASH_UNUSED_DAYS,
+        trash_dir: Path | str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Scan Trash for items older than `days`."""
+        try:
+            from fixos.cli._cleanup_space import _scan_trash
+
+            return _scan_trash(days=days, trash_dir=trash_dir)
+        except Exception:  # noqa: BLE001 - best-effort scan
+            return []
+
+    def cleanup_trash(
+        self,
+        days: float = DEFAULT_TRASH_UNUSED_DAYS,
+        dry_run: bool = False,
+        trash_dir: Path | str | None = None,
+    ) -> dict[str, Any]:
+        """Prune items from Trash older than `days`."""
+        candidates = self.scan_trash_candidates(days=days, trash_dir=trash_dir)
+        total_bytes = sum(c.get("size_bytes", 0) for c in candidates)
+        freed_gb = round(total_bytes / (1024**3), 3)
+        result: dict[str, Any] = {
+            "service": "trash",
+            "dry_run": dry_run,
+            "success": True,
+            "space_freed_gb": freed_gb,
+            "output": "",
+            "error": "",
+            "items_count": len(candidates),
+        }
+        if dry_run or not candidates:
+            result["output"] = (
+                f"[DRY RUN] Would remove {len(candidates)} items from Trash (~{freed_gb:.2f} GB)"
+                if dry_run
+                else "Brak pozycji do usunięcia w koszu."
+            )
+            return result
+
+        removed_count = 0
+        errors = []
+        for c in candidates:
+            path = Path(c["path"])
+            try:
+                if path.is_symlink() or path.is_file():
+                    path.unlink()
+                elif path.is_dir():
+                    shutil.rmtree(path)
+                info_path = c.get("info_path")
+                if info_path and isinstance(info_path, Path) and info_path.exists():
+                    info_path.unlink()
+                removed_count += 1
+            except OSError as exc:
+                errors.append(f"{path.name}: {exc}")
+
+        result["items_removed"] = removed_count
+        if errors:
+            result["error"] = "; ".join(errors[:3])
+            if removed_count == 0:
+                result["success"] = False
+        result["output"] = (
+            f"Usunięto {removed_count} pozycji z kosza (zwolniono ~{freed_gb:.2f} GB)"
+        )
+        return result
+
+    def scan_thumbnails_candidates(
+        self,
+        days: float = DEFAULT_THUMBNAILS_UNUSED_DAYS,
+        thumbnails_dir: Path | str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Scan ~/.cache/thumbnails for files older than `days`."""
+        try:
+            from fixos.cli._cleanup_space import _scan_thumbnails
+
+            return _scan_thumbnails(days=days, thumbnails_dir=thumbnails_dir)
+        except Exception:  # noqa: BLE001 - best-effort scan
+            return []
+
+    def cleanup_thumbnails(
+        self,
+        days: float = DEFAULT_THUMBNAILS_UNUSED_DAYS,
+        dry_run: bool = False,
+        thumbnails_dir: Path | str | None = None,
+    ) -> dict[str, Any]:
+        """Prune cached thumbnails older than `days`."""
+        candidates = self.scan_thumbnails_candidates(days=days, thumbnails_dir=thumbnails_dir)
+        total_bytes = sum(c.get("size_bytes", 0) for c in candidates)
+        total_files = sum(c.get("items_count", 1) for c in candidates)
+        freed_gb = round(total_bytes / (1024**3), 3)
+        result: dict[str, Any] = {
+            "service": "thumbnails",
+            "dry_run": dry_run,
+            "success": True,
+            "space_freed_gb": freed_gb,
+            "output": "",
+            "error": "",
+            "items_count": total_files,
+        }
+        if dry_run or not candidates:
+            result["output"] = (
+                f"[DRY RUN] Would remove {total_files} cached thumbnails (~{freed_gb:.2f} GB)"
+                if dry_run
+                else "Brak miniaturek do usunięcia."
+            )
+            return result
+
+        removed_count = 0
+        errors = []
+        for c in candidates:
+            paths = c.get("paths") or [c["path"]]
+            for p in paths:
+                p_obj = Path(p)
+                try:
+                    if p_obj.is_symlink() or p_obj.is_file():
+                        p_obj.unlink()
+                    elif p_obj.is_dir():
+                        shutil.rmtree(p_obj)
+                    removed_count += 1
+                except OSError as exc:
+                    errors.append(f"{p_obj.name}: {exc}")
+
+        result["items_removed"] = removed_count
+        if errors:
+            result["error"] = "; ".join(errors[:3])
+            if removed_count == 0:
+                result["success"] = False
+        result["output"] = (
+            f"Usunięto {removed_count} miniaturek (zwolniono ~{freed_gb:.2f} GB)"
         )
         return result
 
@@ -1105,6 +1242,87 @@ class ServiceCleaner:
                             "candidates_count": len(tmp_candidates),
                         },
                         "days": DEFAULT_TMP_UNUSED_DAYS,
+                    }
+                )
+
+        if (
+            (selected_services and any(k in allow for k in ("trash", "kosz")))
+            or (selected_services is None and has_real_scanner)
+        ):
+            try:
+                trash_candidates = self.scan_trash_candidates(
+                    days=DEFAULT_TRASH_UNUSED_DAYS
+                )
+            except Exception:  # noqa: BLE001 - best-effort probe; falls back to empty candidates
+                trash_candidates = []
+            if trash_candidates:
+                total_bytes = sum(c["size_bytes"] for c in trash_candidates)
+                size_gb = round(total_bytes / (1024**3), 3)
+                actions.append(
+                    {
+                        "service_type": "trash",
+                        "cleanup_kind": "trash",
+                        "name": f"Kosz użytkownika (pliki >{int(DEFAULT_TRASH_UNUSED_DAYS)}d)",
+                        "path": str(Path("~/.local/share/Trash").expanduser()),
+                        "size_mb": round(total_bytes / (1024**2), 1),
+                        "size_gb": size_gb,
+                        "description": (
+                            f"Pliki w koszu starsze niż {int(DEFAULT_TRASH_UNUSED_DAYS)} dni "
+                            f"({len(trash_candidates)} pozycji)"
+                        ),
+                        "can_cleanup": True,
+                        "cleanup_command": f"fixos cleanup --trash --days {int(DEFAULT_TRASH_UNUSED_DAYS)} --yes",
+                        "preview_command": f"fixos cleanup --trash --days {int(DEFAULT_TRASH_UNUSED_DAYS)} --list",
+                        "safe_to_cleanup": True,
+                        "risk_level": "safe",
+                        "impact": "low",
+                        "items_count": len(trash_candidates),
+                        "details": {
+                            "days": DEFAULT_TRASH_UNUSED_DAYS,
+                            "candidates_count": len(trash_candidates),
+                        },
+                        "days": DEFAULT_TRASH_UNUSED_DAYS,
+                    }
+                )
+
+        if (
+            (selected_services and any(k in allow for k in ("thumbnails", "miniaturki")))
+            or (selected_services is None and has_real_scanner)
+        ):
+            try:
+                thumb_candidates = self.scan_thumbnails_candidates(
+                    days=DEFAULT_THUMBNAILS_UNUSED_DAYS
+                )
+            except Exception:  # noqa: BLE001 - best-effort probe; falls back to empty candidates
+                thumb_candidates = []
+            if thumb_candidates:
+                total_bytes = sum(c["size_bytes"] for c in thumb_candidates)
+                total_files = sum(c.get("items_count", 1) for c in thumb_candidates)
+                size_gb = round(total_bytes / (1024**3), 3)
+                actions.append(
+                    {
+                        "service_type": "thumbnails",
+                        "cleanup_kind": "thumbnails",
+                        "name": f"Cache miniaturek (pliki >{int(DEFAULT_THUMBNAILS_UNUSED_DAYS)}d)",
+                        "path": str(Path("~/.cache/thumbnails").expanduser()),
+                        "size_mb": round(total_bytes / (1024**2), 1),
+                        "size_gb": size_gb,
+                        "description": (
+                            f"Wygenerowane miniaturki w ~/.cache/thumbnails starsze niż {int(DEFAULT_THUMBNAILS_UNUSED_DAYS)} dni "
+                            f"({total_files} plików)"
+                        ),
+                        "can_cleanup": True,
+                        "cleanup_command": f"fixos cleanup --thumbnails --days {int(DEFAULT_THUMBNAILS_UNUSED_DAYS)} --yes",
+                        "preview_command": f"fixos cleanup --thumbnails --days {int(DEFAULT_THUMBNAILS_UNUSED_DAYS)} --list",
+                        "safe_to_cleanup": True,
+                        "risk_level": "safe",
+                        "impact": "low",
+                        "items_count": total_files,
+                        "details": {
+                            "days": DEFAULT_THUMBNAILS_UNUSED_DAYS,
+                            "files_count": total_files,
+                        },
+                        "days": DEFAULT_THUMBNAILS_UNUSED_DAYS,
                     }
                 )
 

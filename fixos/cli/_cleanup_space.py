@@ -14,10 +14,16 @@ import re
 import shutil
 import subprocess
 from pathlib import Path
+from typing import Any
 
 import click
 
 from fixos.cli._cleanup_utils import _format_bytes, _parse_selection
+from fixos.constants import (
+    DEFAULT_THUMBNAILS_UNUSED_DAYS,
+    DEFAULT_TMP_UNUSED_DAYS,
+    DEFAULT_TRASH_UNUSED_DAYS,
+)
 
 _JOURNAL_DEFAULT_SIZE = "500M"
 _IMAGE_SUFFIXES = {".qcow2", ".img", ".iso", ".raw"}
@@ -855,7 +861,7 @@ _EXCLUDED_TMP_PREFIXES = (
 
 
 def _scan_tmp(
-    days: float = 1.0,
+    days: float = DEFAULT_TMP_UNUSED_DAYS,
     tmp_dir: Path | str | None = None,
 ) -> list[dict]:
     """Scan and return files/directories in /tmp older than `days` (default 1 day).
@@ -912,7 +918,7 @@ def _cleanup_tmp(
     dry_run: bool,
     list_only: bool,
     yes: bool,
-    days: float = 1.0,
+    days: float = DEFAULT_TMP_UNUSED_DAYS,
     tmp_dir: Path | str | None = None,
 ) -> None:
     """Scan and remove files/directories in /tmp older than `days` (default 1 day).
@@ -967,4 +973,591 @@ def _cleanup_tmp(
         return
 
     _remove_selected(candidates, selected)
+
+
+# ── Retention duration parser ────────────────────────────────────────────
+
+
+def parse_retention_days(
+    retention: str | float | None,
+    default_days: float = 1.0,
+) -> float:
+    """Parse a human retention string into float days.
+
+    Supports formats like:
+      - '24h', '12h', '1.5h' (hours -> days / 24)
+      - '1d', '7d', '30d', '0.5d' (days)
+      - '2w' (weeks -> days * 7)
+      - '30m' (minutes -> days / 1440)
+      - Plain number: treated as days
+    """
+    if retention is None:
+        return default_days
+    if isinstance(retention, (int, float)):
+        return max(0.0, float(retention))
+    text = str(retention).strip().lower()
+    if not text:
+        return default_days
+
+    match = re.match(r"^([0-9]+(?:\.[0-9]+)?)\s*([a-z]*)$", text)
+    if not match:
+        try:
+            return max(0.0, float(text))
+        except ValueError:
+            raise ValueError(
+                f"Nieprawidłowy format retencji: {retention!r} (oczekiwano np. 24h, 7d, 30d)"
+            )
+
+    val = float(match.group(1))
+    unit = match.group(2)
+    if not unit or unit in ("d", "day", "days", "dni", "doba", "doby"):
+        return max(0.0, val)
+    if unit in ("h", "hr", "hrs", "hour", "hours", "godz", "godzina", "godziny"):
+        return max(0.0, val / 24.0)
+    if unit in ("m", "min", "mins", "minute", "minutes", "minut", "minuta", "minuty"):
+        return max(0.0, val / 1440.0)
+    if unit in ("w", "wk", "wks", "week", "weeks", "tydz", "tygodni", "tygodnie"):
+        return max(0.0, val * 7.0)
+    if unit in ("s", "sec", "secs", "second", "seconds", "sekund", "sekunda", "sekundy"):
+        return max(0.0, val / 86400.0)
+
+    raise ValueError(
+        f"Nieznana jednostka retencji: {unit!r} w {retention!r} (dozwolone: h, d, w, m)"
+    )
+
+
+# ── Trash (~/.local/share/Trash) ──────────────────────────────────────────
+
+
+def _scan_trash(
+    days: float = DEFAULT_TRASH_UNUSED_DAYS,
+    trash_dir: Path | str | None = None,
+) -> list[dict]:
+    """Scan and return items in Trash older than `days`.
+
+    Inspects ~/.local/share/Trash/files and matching info files.
+    """
+    import time
+
+    now = time.time()
+    cutoff_seconds = days * 86400.0
+    trash_path = (
+        Path(trash_dir).expanduser()
+        if trash_dir is not None
+        else Path("~/.local/share/Trash").expanduser()
+    )
+    candidates = []
+
+    files_dir = trash_path / "files"
+    info_dir = trash_path / "info"
+
+    scan_dirs = [files_dir] if files_dir.is_dir() else ([trash_path] if trash_path.is_dir() else [])
+
+    for target_dir in scan_dirs:
+        try:
+            for item in sorted(target_dir.iterdir()):
+                try:
+                    stat_val = item.lstat()
+                    mtime = stat_val.st_mtime
+                    age_seconds = now - mtime
+                    if age_seconds >= cutoff_seconds or days <= 0:
+                        size = (
+                            stat_val.st_size if not item.is_dir() else _dir_size(item)
+                        )
+                        age_days = age_seconds / 86400.0
+                        info_file = info_dir / f"{item.name}.trashinfo"
+                        candidates.append({
+                            "description": f"{item.name} (wiek: {age_days:.1f} dni)",
+                            "path": item,
+                            "info_path": info_file if info_file.exists() else None,
+                            "name": item.name,
+                            "size_bytes": size,
+                            "note": f"{age_days:.1f} dni",
+                            "age_days": age_days,
+                        })
+                except (OSError, PermissionError):
+                    continue
+        except (OSError, PermissionError):
+            pass
+
+    return candidates
+
+
+def _cleanup_trash(
+    json_output: bool,
+    dry_run: bool,
+    list_only: bool,
+    yes: bool,
+    days: float = DEFAULT_TRASH_UNUSED_DAYS,
+    trash_dir: Path | str | None = None,
+) -> None:
+    """Scan and remove files/directories in Trash older than `days`."""
+    candidates = _scan_trash(days=days, trash_dir=trash_dir)
+
+    if json_output:
+        _echo_json({
+            "days": days,
+            "candidates": [
+                {
+                    "description": c["description"],
+                    "path": str(c["path"]),
+                    "size_bytes": c["size_bytes"],
+                    "note": c["note"],
+                }
+                for c in candidates
+            ],
+            "total_bytes": sum(c["size_bytes"] for c in candidates),
+        })
+        return
+
+    if not candidates:
+        click.echo(
+            click.style(f"Brak plików w koszu starszych niż {days:.1f} dni.", fg="green")
+        )
+        return
+
+    _display_candidates(f"Kosz użytkownika — pliki starsze niż {days:.1f} dni:", candidates)
+    if list_only:
+        return
+
+    selected = (
+        list(range(len(candidates)))
+        if yes
+        else _choose(candidates, "Numery pozycji do usunięcia z kosza (np. 1,2, all)")
+    )
+    if not selected:
+        click.echo("Pominięto.")
+        return
+
+    if dry_run:
+        _show_dry_run_commands(
+            [["rm", "-rf", str(candidates[i]["path"])] for i in selected]
+        )
+        return
+
+    if not yes and not _confirm_remove():
+        click.echo("Anulowano.")
+        return
+
+    for index in selected:
+        item = candidates[index]
+        ok, detail = _remove_path(item["path"])
+        info_path = item.get("info_path")
+        if info_path and isinstance(info_path, Path) and info_path.exists():
+            _remove_path(info_path)
+        style = "green" if ok else "red"
+        click.echo(click.style(f"  {item['description']}: {detail}", fg=style))
+
+
+# ── Thumbnails (~/.cache/thumbnails) ──────────────────────────────────────
+
+
+def _scan_thumbnails(
+    days: float = DEFAULT_THUMBNAILS_UNUSED_DAYS,
+    thumbnails_dir: Path | str | None = None,
+) -> list[dict]:
+    """Scan and return thumbnail cache candidates in ~/.cache/thumbnails older than `days`."""
+    import time
+
+    now = time.time()
+    cutoff_seconds = days * 86400.0
+    thumb_path = (
+        Path(thumbnails_dir).expanduser()
+        if thumbnails_dir is not None
+        else Path("~/.cache/thumbnails").expanduser()
+    )
+    candidates = []
+
+    if not thumb_path.is_dir():
+        return candidates
+
+    subdirs = ["normal", "large", "x-large", "xx-large", "fail"]
+    found_subdirs = [thumb_path / s for s in subdirs if (thumb_path / s).is_dir()]
+    if not found_subdirs:
+        found_subdirs = [thumb_path]
+
+    for sdir in found_subdirs:
+        try:
+            old_files = []
+            total_size = 0
+            for item in sdir.iterdir():
+                try:
+                    if item.is_file():
+                        stat_val = item.lstat()
+                        mtime = stat_val.st_mtime
+                        age_seconds = now - mtime
+                        if age_seconds >= cutoff_seconds or days <= 0:
+                            old_files.append(item)
+                            total_size += stat_val.st_size
+                except (OSError, PermissionError):
+                    continue
+            if old_files:
+                sub_name = sdir.name
+                candidates.append({
+                    "description": f"{sub_name} ({len(old_files)} plików)",
+                    "name": sub_name,
+                    "path": sdir,
+                    "paths": old_files,
+                    "items_count": len(old_files),
+                    "size_bytes": total_size,
+                    "note": f"{len(old_files)} plików, starsze niż {days:.1f} dni",
+                    "age_days": days,
+                })
+        except (OSError, PermissionError):
+            continue
+
+    return candidates
+
+
+def _cleanup_thumbnails(
+    json_output: bool,
+    dry_run: bool,
+    list_only: bool,
+    yes: bool,
+    days: float = DEFAULT_THUMBNAILS_UNUSED_DAYS,
+    thumbnails_dir: Path | str | None = None,
+) -> None:
+    """Scan and remove cached thumbnails older than `days`."""
+    candidates = _scan_thumbnails(days=days, thumbnails_dir=thumbnails_dir)
+
+    if json_output:
+        _echo_json({
+            "days": days,
+            "candidates": [
+                {
+                    "description": c["description"],
+                    "path": str(c["path"]),
+                    "items_count": c.get("items_count", 0),
+                    "size_bytes": c["size_bytes"],
+                    "note": c["note"],
+                }
+                for c in candidates
+            ],
+            "total_bytes": sum(c["size_bytes"] for c in candidates),
+        })
+        return
+
+    if not candidates:
+        click.echo(
+            click.style(
+                f"Brak miniaturek w ~/.cache/thumbnails starszych niż {days:.1f} dni.",
+                fg="green",
+            )
+        )
+        return
+
+    _display_candidates(
+        f"Miniaturki ~/.cache/thumbnails starsze niż {days:.1f} dni:", candidates
+    )
+    if list_only:
+        return
+
+    selected = (
+        list(range(len(candidates)))
+        if yes
+        else _choose(candidates, "Numery kategorii miniaturek do usunięcia (np. 1,2, all)")
+    )
+    if not selected:
+        click.echo("Pominięto.")
+        return
+
+    if dry_run:
+        _show_dry_run_commands(
+            [
+                ["rm", "-f", f"{len(candidates[i].get('paths', []))} plików w {candidates[i]['path']}"]
+                for i in selected
+            ]
+        )
+        return
+
+    if not yes and not _confirm_remove():
+        click.echo("Anulowano.")
+        return
+
+    for index in selected:
+        item = candidates[index]
+        paths = item.get("paths", [])
+        removed_count = 0
+        for p in paths:
+            ok, _ = _remove_path(p)
+            if ok:
+                removed_count += 1
+        click.echo(
+            click.style(
+                f"  {item['description']}: usunięto {removed_count}/{len(paths)} plików",
+                fg="green",
+            )
+        )
+
+
+# ── Policy & Retention Transparency Matrix ───────────────────────────────
+
+
+CLEANUP_POLICIES: list[dict[str, Any]] = [
+    {
+        "id": "tmp",
+        "flag": "--tmp",
+        "name": "Pliki tymczasowe (/tmp)",
+        "direct": True,
+        "default_retention": "24h (1.0 d)",
+        "default_days": 1.0,
+        "risk_level": "safe",
+        "default_safe": True,
+        "description": "Przedawnione pliki i katalogi w /tmp",
+        "protected": "Gniazda unix (is_socket), potoki FIFO (is_fifo), prefiksy systemowe (.X11-unix, .ICE-unix, .tmux-*, ssh-*, systemd-private-*, snap.*), pliki < retencja",
+        "example": "fixos cleanup --tmp --retention 24h",
+    },
+    {
+        "id": "trash",
+        "flag": "--trash",
+        "name": "Kosz użytkownika (~/.local/share/Trash)",
+        "direct": True,
+        "default_retention": "14d",
+        "default_days": 14.0,
+        "risk_level": "safe",
+        "default_safe": True,
+        "description": "Pliki w koszu starsze niż zadana retencja",
+        "protected": "Pliki w koszu nowsze niż retencja",
+        "example": "fixos cleanup --trash --retention 7d",
+    },
+    {
+        "id": "thumbnails",
+        "flag": "--thumbnails",
+        "name": "Cache miniaturek (~/.cache/thumbnails)",
+        "direct": True,
+        "default_retention": "30d",
+        "default_days": 30.0,
+        "risk_level": "safe",
+        "default_safe": True,
+        "description": "Wygenerowane miniaturki obrazów i wideo w ~/.cache/thumbnails",
+        "protected": "Miniaturki nowsze niż retencja; pamięć regenerowalna na żądanie",
+        "example": "fixos cleanup --thumbnails --retention 30d",
+    },
+    {
+        "id": "docker-buildcache",
+        "flag": "--docker-buildcache",
+        "name": "Docker buildx builder cache",
+        "direct": True,
+        "default_retention": "7d",
+        "default_days": 7.0,
+        "risk_level": "safe",
+        "default_safe": True,
+        "description": "Cache builderów buildx (w tym docker-container) oraz wiszące obrazy <none>",
+        "protected": "Nazwane obrazy, aktywne kontenery, wolumeny danych",
+        "example": "fixos cleanup --docker-buildcache",
+    },
+    {
+        "id": "docker-old",
+        "flag": "--docker-old",
+        "name": "Stare obrazy i cache Docker",
+        "direct": True,
+        "default_retention": "30d",
+        "default_days": 30.0,
+        "risk_level": "safe",
+        "default_safe": True,
+        "description": "Nieużywane obrazy Docker i build cache starsze niż retencja",
+        "protected": "Aktywne kontenery, powiązane obrazy, wolumeny danych",
+        "example": "fixos cleanup --docker-old --retention 30d",
+    },
+    {
+        "id": "docker-networks",
+        "flag": "--docker-networks",
+        "name": "Osierocone sieci Docker",
+        "direct": True,
+        "default_retention": "0d (wszystkie nieużywane)",
+        "default_days": 0.0,
+        "risk_level": "safe",
+        "default_safe": True,
+        "description": "Niestandardowe sieci bez aktywnych endpointów",
+        "protected": "Sieci domyślne (bridge, host, none) oraz sieci przypięte do kontenerów",
+        "example": "fixos cleanup --docker-networks",
+    },
+    {
+        "id": "docker-stale-services",
+        "flag": "--docker-stale-services",
+        "name": "Usługi z nieaktywnych repozytoriów Git",
+        "direct": True,
+        "default_retention": "3d",
+        "default_days": 3.0,
+        "risk_level": "review",
+        "default_safe": False,
+        "description": "Usługi z czystych repozytoriów Git nieaktywnych od zadanego czasu",
+        "protected": "Brudne repozytoria, aktywne commity; zatrzymanie wymaga potwierdzenia",
+        "example": "fixos cleanup --docker-stale-services --retention 7d",
+    },
+    {
+        "id": "orphaned-projects",
+        "flag": "--orphaned-projects",
+        "name": "Osierocone kontenery Compose i procesy IDE",
+        "direct": True,
+        "default_retention": "3d / 12h",
+        "default_days": 3.0,
+        "risk_level": "review",
+        "default_safe": False,
+        "description": "Kontenery z brakującym katalogiem projektu i stare drzewa agentów IDE",
+        "protected": "Przypięte projekty (--pin-orphan-project), bieżące IDE i procesy robocze",
+        "example": "fixos cleanup --orphaned-projects --retention 3d",
+    },
+    {
+        "id": "venvs-old",
+        "flag": "--venvs-old",
+        "name": "Stare środowiska venv w nieaktywnych projektach",
+        "direct": True,
+        "default_retention": "30d",
+        "default_days": 30.0,
+        "risk_level": "review",
+        "default_safe": False,
+        "description": "Katalogi venv/.venv w projektach bez aktywności przez zadany czas",
+        "protected": "Aktywne procesy, otwarte pliki, bind-mounts, świeże commity",
+        "example": "fixos cleanup --venvs-old --retention 30d",
+    },
+    {
+        "id": "ollama-old",
+        "flag": "--ollama-old",
+        "name": "Nieużywane modele Ollama",
+        "direct": True,
+        "default_retention": "90d",
+        "default_days": 90.0,
+        "risk_level": "review",
+        "default_safe": False,
+        "description": "Modele LLM niezmieniane od 90 dni",
+        "protected": "Aktualnie załadowane modele w pamięci",
+        "example": "fixos cleanup --ollama-old --retention 60d",
+    },
+    {
+        "id": "journal",
+        "flag": "--journal",
+        "name": "Dziennik systemowy systemd",
+        "direct": True,
+        "default_retention": "500M (rozmiar)",
+        "default_days": 0.0,
+        "risk_level": "safe",
+        "default_safe": True,
+        "description": "Przycięcie journalctl do ustalonego rozmiaru",
+        "protected": "Ostatnie wpisy dziennika systemowego",
+        "example": "fixos cleanup --journal",
+    },
+    {
+        "id": "snap-old",
+        "flag": "--snap-old",
+        "name": "Wyłączone rewizje pakietów snap",
+        "direct": True,
+        "default_retention": "wyłączone (od ręki)",
+        "default_days": 0.0,
+        "risk_level": "safe",
+        "default_safe": True,
+        "description": "Stare, wyłączone rewizje pakietów snap",
+        "protected": "Aktywne rewizje pakietów snap",
+        "example": "fixos cleanup --snap-old",
+    },
+    {
+        "id": "user-cache",
+        "flag": "--user-cache",
+        "name": "Pamięć podręczna użytkownika (~/.cache)",
+        "direct": True,
+        "default_retention": "regenerowalna (od ręki)",
+        "default_days": 0.0,
+        "risk_level": "safe",
+        "default_safe": True,
+        "description": "Katalogi cache narzędzi (pip, uv, npm, yarn, pnpm, go-build, itp.)",
+        "protected": "~/Videos, ~/Downloads, pliki autorskie użytkownika",
+        "example": "fixos cleanup --user-cache",
+    },
+    {
+        "id": "jetbrains",
+        "flag": "--jetbrains",
+        "name": "Stare IDE JetBrains i cache Toolbox",
+        "direct": True,
+        "default_retention": "stare wersje",
+        "default_days": 0.0,
+        "risk_level": "safe",
+        "default_safe": True,
+        "description": "Stare wersje IDE z Toolbox oraz ~/.cache/JetBrains",
+        "protected": "Ustawienia i konfiguracja w ~/.local/share/JetBrains",
+        "example": "fixos cleanup --jetbrains",
+    },
+    {
+        "id": "libvirt",
+        "flag": "--libvirt",
+        "name": "Nieprzypisane obrazy maszyn wirtualnych",
+        "direct": True,
+        "default_retention": "niepodpięte (od ręki)",
+        "default_days": 0.0,
+        "risk_level": "review",
+        "default_safe": False,
+        "description": "Obrazy w ~/.local/share/libvirt/images niepodpięte pod żadną domenę",
+        "protected": "Obrazy podpięte pod zdefiniowane domeny libvirt",
+        "example": "fixos cleanup --libvirt",
+    },
+    {
+        "id": "gitive",
+        "flag": "--gitive",
+        "name": "Izolowane przestrzenie robocze gitive",
+        "direct": True,
+        "default_retention": "osierocone (od ręki)",
+        "default_days": 0.0,
+        "risk_level": "safe",
+        "default_safe": True,
+        "description": "Stare katalogi w ~/.local/share/gitive-isolated",
+        "protected": "Workspace'y powiązane z działającymi kontenerami",
+        "example": "fixos cleanup --gitive",
+    },
+]
+
+
+def _display_cleanup_policies(json_output: bool = False) -> None:
+    """Display the transparency policy matrix of cleanable targets, retention and risk levels."""
+    if json_output:
+        _echo_json({"policies": CLEANUP_POLICIES})
+        return
+
+    header = (
+        f"{'Flaga':<20} {'Bezpośrednio':<13} {'Domyślna retencja':<22} "
+        f"{'Ryzyko':<11} {'Auto (-y)':<10} {'Zasób'}"
+    )
+    divider = "=" * 100
+
+    click.echo(
+        click.style(
+            "\nPOLITYKA RETENCJI I BEZPOŚREDNIEGO CZYSZCZENIA (fixOS)",
+            fg="cyan",
+            bold=True,
+        )
+    )
+    click.echo(divider)
+    click.echo(click.style(header, bold=True))
+    click.echo("-" * 100)
+
+    for p in CLEANUP_POLICIES:
+        direct_str = "TAK" if p["direct"] else "NIE"
+        auto_str = "TAK" if p["default_safe"] else "NIE"
+        risk_color = (
+            "green"
+            if p["risk_level"] == "safe"
+            else ("yellow" if p["risk_level"] == "review" else "red")
+        )
+        risk_styled = click.style(f"{p['risk_level']:<11}", fg=risk_color)
+        click.echo(
+            f"{click.style(p['flag'], fg='cyan'):<29} "
+            f"{direct_str:<13} "
+            f"{p['default_retention']:<22} "
+            f"{risk_styled} "
+            f"{auto_str:<10} "
+            f"{p['name']}"
+        )
+
+    click.echo(divider)
+    click.echo(
+        click.style(
+            "\nPrzykłady użycia z retencją czasową (h=godziny, d=dni, w=tygodnie):",
+            fg="magenta",
+            bold=True,
+        )
+    )
+    click.echo("  fixos cleanup --tmp --retention 24h         # czyści pliki w /tmp starsze niż 24 godziny")
+    click.echo("  fixos cleanup --trash --retention 7d        # czyści kosz starszy niż 7 dni")
+    click.echo("  fixos cleanup --thumbnails --retention 30d  # czyści miniaturki starsze niż 30 dni")
+    click.echo("  fixos cleanup --docker-old --retention 14d  # czyści nieużywane obrazy Dockera starsze niż 14 dni")
+    click.echo("  fixos cleanup --policy                      # wyświetla tę tabelę polityk i retencji\n")
+
 

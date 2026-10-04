@@ -1,0 +1,104 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-057",
+  "summary": "Add cleanup retention transparency and direct options",
+  "workstream": "application",
+  "classification": {
+    "kind": "FEATURE",
+    "priority": "P2",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "fixos/constants.py",
+    "fixos/cli/_cleanup_space.py",
+    "fixos/cli/cleanup_cmd.py",
+    "fixos/diagnostics/service_cleanup.py",
+    "project/ticket-057/**",
+    "tests/unit/test_cleanup_retention.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [
+    "python"
+  ],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "77338a63a621e1dbe22f4f28f1c90d232b4d89ca",
+    "targetBranch": "main",
+    "outcome": "Add retention duration parsing (--retention 24h, 7d), more direct cleanup options (--trash, --thumbnails), and a transparent policy matrix (--policy) in fixos cleanup.",
+    "nonGoals": [
+      "Do not delete files in Trash or thumbnails newer than the specified retention.",
+      "Do not delete user documents or non-cache personal files."
+    ],
+    "complexity": "M",
+    "estimatedMinutes": 30,
+    "budgets": {
+      "maxImplementationFiles": 5,
+      "maxAffectedComponents": 3,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Implement retention duration parsing and new handlers (_cleanup_trash, _cleanup_thumbnails) in fixos/cli/_cleanup_space.py, integrate with ServiceCleaner in fixos/diagnostics/service_cleanup.py, and expose --policy, --retention, --trash, --thumbnails in fixos/cli/cleanup_cmd.py.",
+      "components": [
+        {
+          "name": "space-cleanup",
+          "paths": [
+            "fixos/cli/_cleanup_space.py",
+            "fixos/diagnostics/service_cleanup.py"
+          ]
+        },
+        {
+          "name": "cleanup-cli",
+          "paths": [
+            "fixos/cli/cleanup_cmd.py",
+            "fixos/constants.py"
+          ]
+        },
+        {
+          "name": "unit-tests",
+          "paths": [
+            "tests/unit/test_cleanup_retention.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "multi-state",
+        "states": [
+          "loading",
+          "empty",
+          "error",
+          "success"
+        ],
+        "evidence": [
+          "tests/unit/test_cleanup_retention.py"
+        ]
+      },
+      "rollback": "Revert ticket-057 commits."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "pytest -q tests/unit/test_cleanup_retention.py"
+        ],
+        "evidence": "Unit test output."
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "./project/governance-check.sh"
+        ],
+        "evidence": "Governance check output."
+      }
+    ]
+  }
+}
