@@ -1,0 +1,105 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-056",
+  "summary": "Add tmp cleanup option to fixos cleanup",
+  "workstream": "application",
+  "classification": {
+    "kind": "FEATURE",
+    "priority": "P2",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "fixos/constants.py",
+    "fixos/cli/_cleanup_space.py",
+    "fixos/cli/cleanup_cmd.py",
+    "fixos/diagnostics/service_cleanup.py",
+    "project/ticket-056/**",
+    "tests/unit/test_cleanup_tmp.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [
+    "python"
+  ],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "e16e612e04e47c67d0897a07315b8b8ead091310",
+    "targetBranch": "main",
+    "outcome": "Add --tmp option and integrate safe cleanups (/tmp stale files and buildx buildcache) into default safe cleanup plan in fixos.",
+    "nonGoals": [
+      "Do not delete active system sockets or X11 lock files (.X11-unix, .ICE-unix, .XIM-unix, .font-unix, .X*-lock, ssh, tmux).",
+      "Do not delete files newer than the threshold days.",
+      "Do not delete active Docker containers or named images."
+    ],
+    "complexity": "M",
+    "estimatedMinutes": 30,
+    "budgets": {
+      "maxImplementationFiles": 5,
+      "maxAffectedComponents": 3,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Implement _cleanup_tmp in fixos/cli/_cleanup_space.py, integrate tmp and docker-buildcache into ServiceCleaner.build_safe_age_actions in fixos/diagnostics/service_cleanup.py, and expose --tmp and --threshold-gb in fixos/cli/cleanup_cmd.py.",
+      "components": [
+        {
+          "name": "space-cleanup",
+          "paths": [
+            "fixos/cli/_cleanup_space.py",
+            "fixos/diagnostics/service_cleanup.py"
+          ]
+        },
+        {
+          "name": "cleanup-cli",
+          "paths": [
+            "fixos/cli/cleanup_cmd.py",
+            "fixos/constants.py"
+          ]
+        },
+        {
+          "name": "unit-tests",
+          "paths": [
+            "tests/unit/test_cleanup_tmp.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "multi-state",
+        "states": [
+          "loading",
+          "empty",
+          "error",
+          "success"
+        ],
+        "evidence": [
+          "tests/unit/test_cleanup_tmp.py"
+        ]
+      },
+      "rollback": "Revert ticket-056 commits."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "pytest -q tests/unit/test_cleanup_tmp.py"
+        ],
+        "evidence": "Unit test output."
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "./project/governance-check.sh"
+        ],
+        "evidence": "Governance check output."
+      }
+    ]
+  }
+}

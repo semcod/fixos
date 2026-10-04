@@ -43,7 +43,7 @@ _USER_CACHE_SAFE = {
 
 def _run_cmd(argv: list[str], timeout: int = 60) -> subprocess.CompletedProcess:
     """Execute a command; module-level seam so tests can stub it."""
-    return subprocess.run(argv, capture_output=True, text=True, timeout=timeout)
+    return subprocess.run(argv, capture_output=True, text=True, timeout=timeout, check=False)
 
 
 def _dir_size(path: Path) -> int:
@@ -836,3 +836,135 @@ def _cleanup_docker_buildcache(
             )
         else:
             click.echo(click.style(f"  {label}: błąd — {output[:200]}", fg="red"))
+
+
+# ── /tmp stale files and directories ─────────────────────────────────────
+
+_EXCLUDED_TMP_PREFIXES = (
+    ".X11-unix",
+    ".ICE-unix",
+    ".XIM-unix",
+    ".font-unix",
+    ".X",
+    ".tmux-",
+    "ssh-",
+    "systemd-private-",
+    "snap.",
+    "snap-",
+)
+
+
+def _scan_tmp(
+    days: float = 1.0,
+    tmp_dir: Path | str | None = None,
+) -> list[dict]:
+    """Scan and return files/directories in /tmp older than `days` (default 1 day).
+
+    System sockets, FIFOs, and protected directories (.X11-unix, .ICE-unix, .X*-lock,
+    .tmux-*, ssh-*, systemd-private-*, etc.) are excluded.
+    """
+    import stat as stat_module
+    import time
+
+    now = time.time()
+    cutoff_seconds = days * 86400
+    tmp_path = Path(tmp_dir) if tmp_dir is not None else Path("/tmp")
+    candidates = []
+
+    if tmp_path.is_dir():
+        try:
+            for item in sorted(tmp_path.iterdir()):
+                name = item.name
+                if any(name.startswith(p) for p in _EXCLUDED_TMP_PREFIXES):
+                    continue
+                try:
+                    stat_val = item.lstat()
+                    # Skip unix domain sockets and named pipes (FIFOs)
+                    if stat_module.S_ISSOCK(stat_val.st_mode) or stat_module.S_ISFIFO(
+                        stat_val.st_mode
+                    ):
+                        continue
+                    mtime = stat_val.st_mtime
+                    age_seconds = now - mtime
+                    if age_seconds >= cutoff_seconds:
+                        size = (
+                            stat_val.st_size if not item.is_dir() else _dir_size(item)
+                        )
+                        age_days = age_seconds / 86400
+                        candidates.append({
+                            "description": f"{name} (wiek: {age_days:.1f} dni)",
+                            "path": item,
+                            "name": name,
+                            "size_bytes": size,
+                            "note": f"{age_days:.1f} dni",
+                            "age_days": age_days,
+                        })
+                except (OSError, PermissionError):
+                    continue
+        except (OSError, PermissionError):
+            pass
+
+    return candidates
+
+
+def _cleanup_tmp(
+    json_output: bool,
+    dry_run: bool,
+    list_only: bool,
+    yes: bool,
+    days: float = 1.0,
+    tmp_dir: Path | str | None = None,
+) -> None:
+    """Scan and remove files/directories in /tmp older than `days` (default 1 day).
+
+    System sockets and locks like .X11-unix, .ICE-unix, .X*-lock are excluded.
+    """
+    candidates = _scan_tmp(days=days, tmp_dir=tmp_dir)
+
+    if json_output:
+        _echo_json({
+            "days": days,
+            "candidates": [
+                {
+                    "description": c["description"],
+                    "path": str(c["path"]),
+                    "size_bytes": c["size_bytes"],
+                    "note": c["note"],
+                }
+                for c in candidates
+            ],
+            "total_bytes": sum(c["size_bytes"] for c in candidates),
+        })
+        return
+
+    if not candidates:
+        click.echo(
+            click.style(f"Brak plików w /tmp starszych niż {days:.1f} dni.", fg="green")
+        )
+        return
+
+    _display_candidates(f"/tmp — pliki i katalogi starsze niż {days:.1f} dni:", candidates)
+    if list_only:
+        return
+
+    selected = (
+        list(range(len(candidates)))
+        if yes
+        else _choose(candidates, "Numery pozycji do usunięcia (np. 1,2, all)")
+    )
+    if not selected:
+        click.echo("Pominięto.")
+        return
+
+    if dry_run:
+        _show_dry_run_commands(
+            [["rm", "-rf", str(candidates[i]["path"])] for i in selected]
+        )
+        return
+
+    if not yes and not _confirm_remove():
+        click.echo("Anulowano.")
+        return
+
+    _remove_selected(candidates, selected)
+

@@ -23,6 +23,7 @@ from fixos.cli._cleanup_space import (
     _cleanup_journal,
     _cleanup_libvirt,
     _cleanup_snap_old,
+    _cleanup_tmp,
     _cleanup_user_cache,
 )
 from fixos.cli._cleanup_system import _cleanup_full_system
@@ -205,6 +206,11 @@ def _execute_planned_cleanup(scanner, svc: dict, *, dry_run: bool = False) -> di
             dry_run=dry_run,
             network_ids=[network["id"] for network in planned_networks] or None,
         )
+    if kind == "docker-buildcache":
+        return cleaner.cleanup_docker_buildcache(dry_run=dry_run)
+    if kind == "tmp":
+        days = float(svc.get("days") or 1.0)
+        return cleaner.cleanup_tmp(days=days, dry_run=dry_run)
     return scanner.cleanup_service(
         svc["service_type"],
         dry_run=dry_run,
@@ -1549,6 +1555,13 @@ def _execute_yes_cleanup(plan: dict, scanner, dry_run: bool = False) -> None:
     help=f"Próg wielkości w MB (domyślnie {DEFAULT_CLEANUP_THRESHOLD_MB}MB)",
 )
 @click.option(
+    "--threshold-gb",
+    "threshold_gb",
+    default=None,
+    type=float,
+    help="Próg wielkości w GB (nadpisuje --threshold)",
+)
+@click.option(
     "--services",
     "-s",
     default=None,
@@ -1565,7 +1578,7 @@ def _execute_yes_cleanup(plan: dict, scanner, dry_run: bool = False) -> None:
         "Wyczyść konkretną usługę "
         "(docker, docker-all, docker-old, docker-containers, docker-networks, "
         "docker-stale-services, orphaned-projects, ollama-old, snap-old, "
-        "journal, user-cache, jetbrains, libvirt, gitive, docker-buildcache, venvs-old, "
+        "journal, user-cache, jetbrains, libvirt, gitive, docker-buildcache, tmp, venvs-old, "
         "npm, ...)"
     ),
 )
@@ -1734,6 +1747,13 @@ def _execute_yes_cleanup(plan: dict, scanner, dry_run: bool = False) -> None:
     ),
 )
 @click.option(
+    "--tmp",
+    "tmp_cleanup",
+    is_flag=True,
+    default=False,
+    help="Usuń pliki i katalogi w /tmp starsze niż --days (domyślnie 1 dzień)",
+)
+@click.option(
     "--venvs-old",
     is_flag=True,
     help="Stare venv/.venv w nieaktywnych projektach; domyślnie 30 dni",
@@ -1748,7 +1768,7 @@ def _execute_yes_cleanup(plan: dict, scanner, dry_run: bool = False) -> None:
     default=None,
     type=int,
     help=(
-        "Wiek w dniach dla --venvs-old (domyślnie 30) lub --docker-old "
+        "Wiek w dniach dla --tmp (domyślnie 1) lub --venvs-old (domyślnie 30) lub --docker-old "
         f"(domyślnie {DEFAULT_DOCKER_OLD_UNUSED_DAYS}), --docker-networks "
         f"(domyślnie {DEFAULT_DOCKER_NETWORK_AGE_DAYS}, czyli wszystkie nieużywane), "
         "--docker-stale-services "
@@ -1790,6 +1810,7 @@ def _execute_yes_cleanup(plan: dict, scanner, dry_run: bool = False) -> None:
 )
 def cleanup_services(
     threshold,
+    threshold_gb,
     services,
     json_output,
     cleanup,
@@ -1810,6 +1831,7 @@ def cleanup_services(
     jetbrains,
     libvirt,
     gitive,
+    tmp_cleanup,
     venvs_old,
     projects_path,
     days,
@@ -1864,10 +1886,14 @@ def cleanup_services(
       fixos cleanup --jetbrains         # stare IDE Toolbox + cache JetBrains
       fixos cleanup --libvirt           # obrazy VM niepodpięte pod domeny
       fixos cleanup --gitive            # stare izolowane workspace'y gitive
+      fixos cleanup --tmp --days 1 --dry-run # pliki i katalogi w /tmp starsze niż 1 dzień
       fixos cleanup --venvs-old --days 30 --dry-run
       fixos cleanup --venvs-old --projects-path ~/work --days 60
       fixos cleanup --full              # pełna analiza systemu
     """
+    if threshold_gb is not None:
+        threshold = int(threshold_gb * 1024)
+
     if venvs_old or cleanup == "venvs-old":
         if any(
             (
@@ -1889,6 +1915,7 @@ def cleanup_services(
                 jetbrains,
                 libvirt,
                 gitive,
+                tmp_cleanup,
             )
         ) or cleanup not in (None, "venvs-old"):
             raise click.UsageError("--venvs-old uruchom jako osobną akcję")
@@ -1929,6 +1956,7 @@ def cleanup_services(
                 jetbrains,
                 libvirt,
                 gitive,
+                tmp_cleanup,
                 days is not None,
                 dry_run,
             )
@@ -1972,6 +2000,12 @@ def cleanup_services(
         "libvirt": (libvirt, _cleanup_libvirt),
         "gitive": (gitive, _cleanup_gitive),
         "docker-buildcache": (docker_buildcache, _cleanup_docker_buildcache),
+        "tmp": (
+            tmp_cleanup,
+            lambda j, d, l, y: _cleanup_tmp(
+                j, d, l, y, days=float(days) if days is not None else 1.0
+            ),
+        ),
     }
     want_space = [
         name
@@ -1998,7 +2032,7 @@ def cleanup_services(
         click.echo(
             click.style(
                 "Akcje odzyskiwania miejsca (snap/journal/cache/JetBrains/"
-                "libvirt/gitive) uruchom jako osobną, pojedynczą akcję.",
+                "libvirt/gitive/docker-buildcache/tmp) uruchom jako osobną, pojedynczą akcję.",
                 fg="red",
             )
         )

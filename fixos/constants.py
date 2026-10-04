@@ -102,6 +102,7 @@ GENERIC_CACHE_THRESHOLD_MB = 1024
 MAX_HOME_LARGE_FILES_DISPLAY = 30
 MAX_HOME_LARGE_DIRS_DISPLAY = 20
 MIN_STALE_DAYS = 90
+DEFAULT_TMP_UNUSED_DAYS = 1.0
 
 # Developer project artifact scanner (venvs, node_modules, build caches, ...)
 PROJECT_SCAN_DEFAULT_PATH = "~/github"
