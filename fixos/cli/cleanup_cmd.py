@@ -2002,8 +2002,8 @@ def cleanup_services(
         "docker-buildcache": (docker_buildcache, _cleanup_docker_buildcache),
         "tmp": (
             tmp_cleanup,
-            lambda j, d, l, y: _cleanup_tmp(
-                j, d, l, y, days=float(days) if days is not None else 1.0
+            lambda j, d, lst, y: _cleanup_tmp(
+                j, d, lst, y, days=float(days) if days is not None else 1.0
             ),
         ),
     }
