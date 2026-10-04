@@ -113,7 +113,7 @@ class ServiceCleaner:
             from fixos.cli._cleanup_space import _docker_buildcache_scan
 
             return _docker_buildcache_scan()
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - stored in result["error"] for the caller to display
             return {"error": str(exc), "targets": []}
 
     def cleanup_docker_buildcache(self, dry_run: bool = False) -> dict[str, Any]:
@@ -165,7 +165,7 @@ class ServiceCleaner:
                     outputs.append(f"{target['name']}: ok")
                 else:
                     errors.append(f"{target['name']}: {proc.stderr.strip()[:100]}")
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 - stored in errors for caller
                 errors.append(f"{target['name']}: {exc}")
 
         if errors:
@@ -1020,7 +1020,7 @@ class ServiceCleaner:
             docker_available = bool(
                 self.scanner and self.scanner.scan_service(ServiceType.DOCKER)
             )
-        except Exception:
+        except Exception:  # noqa: BLE001, S110 - probe is best-effort; caller treats a miss as absent data
             pass
 
         if (
@@ -1032,7 +1032,7 @@ class ServiceCleaner:
         ):
             try:
                 buildcache_scan = self.scan_docker_buildcache()
-            except Exception:
+            except Exception:  # noqa: BLE001 - best-effort probe; falls back to empty targets
                 buildcache_scan = {"error": None, "targets": []}
             targets = buildcache_scan.get("targets") or []
             total_reclaimable = sum(
@@ -1076,7 +1076,7 @@ class ServiceCleaner:
                 tmp_candidates = self.scan_tmp_candidates(
                     days=DEFAULT_TMP_UNUSED_DAYS
                 )
-            except Exception:
+            except Exception:  # noqa: BLE001 - best-effort probe; falls back to empty candidates
                 tmp_candidates = []
             if tmp_candidates:
                 total_bytes = sum(c["size_bytes"] for c in tmp_candidates)

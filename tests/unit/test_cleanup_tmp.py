@@ -169,7 +169,9 @@ def test_service_cleaner_tmp_and_buildcache_in_safe_actions(monkeypatch, tmp_pat
 
     class FakeScanner:
         threshold_mb = 500
-        SERVICE_PATHS = {}
+
+        def __init__(self):
+            self.SERVICE_PATHS = {}
 
         def scan_all_services(self):
             return []
