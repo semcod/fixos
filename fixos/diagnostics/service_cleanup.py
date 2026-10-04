@@ -35,6 +35,8 @@ DEFAULT_DOCKER_OLD_UNUSED_DAYS = 30
 DEFAULT_DOCKER_NETWORK_AGE_DAYS = 0
 # Ollama models not modified for this many days (``fixos cleanup --ollama-old``).
 DEFAULT_OLLAMA_OLD_UNUSED_DAYS = 90
+# Stale files and directories in /tmp older than this many days (``fixos cleanup --tmp``).
+DEFAULT_TMP_UNUSED_DAYS = 1.0
 
 
 class ServiceCleaner:
@@ -43,6 +45,136 @@ class ServiceCleaner:
     def __init__(self, scanner):
         """Initialize with a ServiceDataScanner instance."""
         self.scanner = scanner
+
+    def scan_tmp_candidates(
+        self,
+        days: float = DEFAULT_TMP_UNUSED_DAYS,
+        tmp_dir: Path | str | None = None,
+    ) -> list[dict]:
+        """Scan /tmp for stale files and directories older than `days`."""
+        from fixos.cli._cleanup_space import _scan_tmp
+
+        return _scan_tmp(days=days, tmp_dir=tmp_dir)
+
+    def cleanup_tmp(
+        self,
+        days: float = DEFAULT_TMP_UNUSED_DAYS,
+        dry_run: bool = False,
+        tmp_dir: Path | str | None = None,
+    ) -> dict[str, Any]:
+        """Remove stale files and directories in /tmp older than `days`."""
+        import shutil
+
+        candidates = self.scan_tmp_candidates(days=days, tmp_dir=tmp_dir)
+        total_bytes = sum(c.get("size_bytes", 0) for c in candidates)
+        freed_gb = round(total_bytes / (1024**3), 3)
+        result: dict[str, Any] = {
+            "service": "tmp",
+            "dry_run": dry_run,
+            "success": True,
+            "space_freed_gb": freed_gb,
+            "candidates_count": len(candidates),
+            "output": "",
+            "error": "",
+        }
+        if dry_run:
+            result["output"] = (
+                f"[DRY RUN] Would remove {len(candidates)} items from /tmp "
+                f"older than {days:.1f} days"
+            )
+            return result
+
+        removed_count = 0
+        errors = []
+        for c in candidates:
+            p = c["path"] if isinstance(c["path"], Path) else Path(c["path"])
+            try:
+                if p.is_symlink() or p.is_file():
+                    p.unlink()
+                elif p.is_dir():
+                    shutil.rmtree(p)
+                removed_count += 1
+            except OSError as exc:
+                errors.append(f"{p}: {exc}")
+
+        result["items_removed"] = removed_count
+        if errors:
+            result["error"] = "; ".join(errors[:3])
+            if removed_count == 0:
+                result["success"] = False
+        result["output"] = (
+            f"Usunięto {removed_count} pozycji z /tmp (zwolniono ~{freed_gb:.2f} GB)"
+        )
+        return result
+
+    def scan_docker_buildcache(self) -> dict[str, Any]:
+        """Scan buildx builders and dangling images for reclaimable build cache."""
+        try:
+            from fixos.cli._cleanup_space import _docker_buildcache_scan
+
+            return _docker_buildcache_scan()
+        except Exception as exc:  # noqa: BLE001 - stored in result["error"] for the caller to display
+            return {"error": str(exc), "targets": []}
+
+    def cleanup_docker_buildcache(self, dry_run: bool = False) -> dict[str, Any]:
+        """Prune build cache across all buildx builders and dangling images."""
+        scan = self.scan_docker_buildcache()
+        if scan.get("error"):
+            return {
+                "service": "docker-buildcache",
+                "dry_run": dry_run,
+                "success": False,
+                "space_freed_gb": 0.0,
+                "output": "",
+                "error": str(scan["error"]),
+            }
+        targets = scan.get("targets") or []
+        total_reclaimable = sum(
+            t.get("reclaimable_bytes") or t.get("total_bytes") or 0
+            for t in targets
+        )
+        freed_gb = round(total_reclaimable / (1024**3), 3)
+        result: dict[str, Any] = {
+            "service": "docker-buildcache",
+            "dry_run": dry_run,
+            "success": True,
+            "space_freed_gb": freed_gb,
+            "output": "",
+            "error": "",
+            "targets_count": len(targets),
+        }
+        if dry_run:
+            commands_str = " && ".join(" ".join(t["command"]) for t in targets)
+            result["output"] = (
+                f"[DRY RUN] Would prune {len(targets)} buildx builders/dangling images: {commands_str}"
+            )
+            return result
+
+        outputs = []
+        errors = []
+        for target in targets:
+            try:
+                proc = subprocess.run(
+                    target["command"],
+                    capture_output=True,
+                    text=True,
+                    timeout=DEFAULT_COMMAND_TIMEOUT,
+                    check=False,
+                )
+                if proc.returncode == 0:
+                    outputs.append(f"{target['name']}: ok")
+                else:
+                    errors.append(f"{target['name']}: {proc.stderr.strip()[:100]}")
+            except Exception as exc:  # noqa: BLE001 - stored in errors for caller
+                errors.append(f"{target['name']}: {exc}")
+
+        if errors:
+            result["error"] = "; ".join(errors)
+            if not outputs:
+                result["success"] = False
+        result["output"] = "; ".join(outputs)
+        return result
+
 
     @staticmethod
     def docker_old_unused_until_hours(
@@ -878,6 +1010,101 @@ class ServiceCleaner:
                                 for network in network_candidates
                             ],
                         },
+                    }
+                )
+
+        docker_available = False
+        try:
+            from .service_scanner import ServiceType
+
+            docker_available = bool(
+                self.scanner and self.scanner.scan_service(ServiceType.DOCKER)
+            )
+        except Exception:  # noqa: BLE001, S110 - probe is best-effort; caller treats a miss as absent data
+            pass
+
+        if (
+            (
+                selected_services
+                and any(k in allow for k in ("docker-buildcache", "docker-all"))
+            )
+            or (selected_services is None and docker_available)
+        ):
+            try:
+                buildcache_scan = self.scan_docker_buildcache()
+            except Exception:  # noqa: BLE001 - best-effort probe; falls back to empty targets
+                buildcache_scan = {"error": None, "targets": []}
+            targets = buildcache_scan.get("targets") or []
+            total_reclaimable = sum(
+                t.get("reclaimable_bytes") or t.get("total_bytes") or 0
+                for t in targets
+            )
+            if targets and total_reclaimable > 0:
+                size_gb = round(total_reclaimable / (1024**3), 3)
+                commands = [" ".join(t["command"]) for t in targets]
+                actions.append(
+                    {
+                        "service_type": "docker-buildcache",
+                        "cleanup_kind": "docker-buildcache",
+                        "name": "Docker (cache wszystkich builderów buildx)",
+                        "path": "/var/lib/docker",
+                        "size_mb": round(total_reclaimable / (1024**2), 1),
+                        "size_gb": size_gb,
+                        "description": (
+                            f"Cache {len(targets)} builderów buildx i wiszące obrazy <none> "
+                            "(w tym buildery docker-container)"
+                        ),
+                        "can_cleanup": True,
+                        "cleanup_command": " && ".join(commands),
+                        "preview_command": "docker buildx ls; docker images -f dangling=true",
+                        "safe_to_cleanup": True,
+                        "risk_level": "safe",
+                        "impact": "low",
+                        "items_count": len(targets),
+                        "details": {
+                            "targets": [t["name"] for t in targets],
+                        },
+                    }
+                )
+
+        has_real_scanner = hasattr(self.scanner, "SERVICE_PATHS")
+        if (
+            (selected_services and any(k in allow for k in ("tmp", "temp")))
+            or (selected_services is None and has_real_scanner)
+        ):
+            try:
+                tmp_candidates = self.scan_tmp_candidates(
+                    days=DEFAULT_TMP_UNUSED_DAYS
+                )
+            except Exception:  # noqa: BLE001 - best-effort probe; falls back to empty candidates
+                tmp_candidates = []
+            if tmp_candidates:
+                total_bytes = sum(c["size_bytes"] for c in tmp_candidates)
+                size_gb = round(total_bytes / (1024**3), 3)
+                actions.append(
+                    {
+                        "service_type": "tmp",
+                        "cleanup_kind": "tmp",
+                        "name": f"/tmp (stare pliki >{int(DEFAULT_TMP_UNUSED_DAYS)}d)",
+                        "path": "/tmp",
+                        "size_mb": round(total_bytes / (1024**2), 1),
+                        "size_gb": size_gb,
+                        "description": (
+                            f"Pliki i katalogi w /tmp starsze niż {int(DEFAULT_TMP_UNUSED_DAYS)} dzień "
+                            "(z wyłączeniem gniazd systemowych i blokad)"
+                        ),
+                        "can_cleanup": True,
+                        "cleanup_command": f"fixos cleanup --tmp --days {int(DEFAULT_TMP_UNUSED_DAYS)} --yes",
+                        "preview_command": f"fixos cleanup --tmp --days {int(DEFAULT_TMP_UNUSED_DAYS)} --list",
+                        "safe_to_cleanup": True,
+                        "risk_level": "safe",
+                        "impact": "low",
+                        "items_count": len(tmp_candidates),
+                        "details": {
+                            "days": DEFAULT_TMP_UNUSED_DAYS,
+                            "candidates_count": len(tmp_candidates),
+                        },
+                        "days": DEFAULT_TMP_UNUSED_DAYS,
                     }
                 )
 
