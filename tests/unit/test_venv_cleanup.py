@@ -170,11 +170,11 @@ def test_menu_and_interactive_period(tmp_path, monkeypatch):
     from fixos.cli import _cleanup_venvs as cli
     from fixos.cli.shell_cmd import MENU_SHORTCUTS, print_interactive_menu
 
-    assert MENU_SHORTCUTS["9"] == "cleanup --venvs-old"
+    assert MENU_SHORTCUTS["23"] == "cleanup --venvs-old"
     output = StringIO()
     with redirect_stdout(output):
         print_interactive_menu()
-    assert "[9]" in output.getvalue() and "venvs-old" in output.getvalue()
+    assert "[23]" in output.getvalue() and "venvs-old" in output.getvalue()
     project(tmp_path)
     monkeypatch.setattr(cli.sys.stdin, "isatty", lambda: True)
     import click

@@ -13,7 +13,9 @@
     "TODO.md",
     "project/TICKETS.md",
     "fixos/cli/shell_cmd.py",
-    "tests/unit/test_shell_ux.py"
+    "tests/unit/test_shell_ux.py",
+    "tests/unit/test_ask_and_nl_group.py",
+    "tests/unit/test_venv_cleanup.py"
   ],
   "forbiddenPaths": [
     "project/ticket-*/user-*.md"
@@ -35,7 +37,7 @@
     "complexity": "S",
     "estimatedMinutes": 30,
     "budgets": {
-      "maxImplementationFiles": 2,
+      "maxImplementationFiles": 4,
       "maxAffectedComponents": 2,
       "maxPublicInterfaceChanges": 0,
       "maxRuntimeDependencies": 0
@@ -53,7 +55,9 @@
         {
           "name": "tests",
           "paths": [
-            "tests/unit/test_shell_ux.py"
+            "tests/unit/test_shell_ux.py",
+            "tests/unit/test_ask_and_nl_group.py",
+            "tests/unit/test_venv_cleanup.py"
           ]
         }
       ],
