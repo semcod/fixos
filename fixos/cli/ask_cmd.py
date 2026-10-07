@@ -2,6 +2,7 @@
 Natural language command (ask) for fixOS CLI
 """
 
+import re
 import subprocess
 from contextlib import suppress
 
@@ -39,6 +40,7 @@ _PACKAGE_ACTION_TERMS = (
     "triage",
 )
 _PACKAGE_TRIAGE_COMMAND = ("fixos", ["cleanup", "--full", "--dry-run", "--json"])
+_TMP_CLEANUP_COMMAND = ("fixos", ["cleanup", "--tmp", "--retention", "24h"])
 
 
 def _is_package_triage_request(prompt_lower: str) -> bool:
@@ -64,6 +66,13 @@ def _match_heuristic_command(prompt_lower: str) -> object | None:
         - tuple: (program, args) for subprocess
         - None: No match found
     """
+    if re.fullmatch(
+        r"(?:wyczysc|wyczyść|posprzataj|posprzątaj|clean|cleanup|clear)"
+        r"(?:\s+(?:katalog|directory))?\s+/tmp/?",
+        prompt_lower.strip(),
+    ):
+        return _TMP_CLEANUP_COMMAND
+
     is_docker = any(
         kw in prompt_lower
         for kw in ["docker", "kontener", "kontenery", "container", "containers"]
@@ -418,8 +427,9 @@ Przykłady:
         output = {
             "status": "error",
             "reason": "llm_error",
+            "prompt": prompt,
             "message": str(e),
-            "hint": 'fixos ask "wylacz wszystkie kontenery docker"',
+            "hint": "fixos --help",
         }
         click.echo(yaml.dump(output, default_flow_style=False, allow_unicode=True))
 
@@ -435,6 +445,24 @@ def _handle_natural_command(prompt: str, dry_run: bool = False) -> None:
     # Stage 1: Try heuristic matching
     matched_cmd = _match_heuristic_command(prompt_lower)
 
+    if matched_cmd == _TMP_CLEANUP_COMMAND:
+        command = _format_command(matched_cmd)
+        if dry_run:
+            click.echo(yaml.dump(_build_output_dict(
+                status="dry_run", prompt=prompt, source="heuristics",
+                command=command,
+            ), default_flow_style=False, allow_unicode=True))
+        else:
+            from fixos.cli.cleanup_cmd import cleanup_services
+
+            click.echo(f"→ {command}")
+            # Invoke in this terminal: the existing cleaner owns selection,
+            # retention and confirmation, without shell capture or LLM calls.
+            click.get_current_context().invoke(
+                cleanup_services, tmp_cleanup=True, retention="24h", yes=False,
+            )
+        return
+
     if matched_cmd:
         # Heuristic match found - execute directly
         cmd_str = _format_command(matched_cmd)
@@ -448,8 +476,9 @@ def _handle_natural_command(prompt: str, dry_run: bool = False) -> None:
         output = {
             "status": "error",
             "reason": "no_api_key",
+            "prompt": prompt,
             "message": "Brak klucza API. Użyj: fixos token set <KLUCZ>",
-            "hint": 'fixos ask "wylacz wszystkie kontenery docker"',
+            "hint": "fixos --help",
         }
         click.echo(yaml.dump(output, default_flow_style=False, allow_unicode=True))
         return

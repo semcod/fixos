@@ -15,6 +15,20 @@ from prompt_toolkit.completion import NestedCompleter
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.styles import Style
 
+MENU_ITEMS = (
+    ("1", "quick", "Szybka analiza systemu (CPU/RAM/dysk)"),
+    ("2", "fix", "Diagnoza i sesja naprawcza z AI (HITL)"),
+    ("3", "cleanup", "Czyszczenie dysku i usług (Docker, cache, logi)"),
+    ("4", "scan", "Diagnostyka systemu bez AI"),
+    ("5", "jetbrains doctor", "Diagnoza PyCharm, WebStorm, IDEA"),
+    ("6", "ask", "Zadaj pytanie / polecenie w języku naturalnym"),
+    ("7", "config show", "Podgląd konfiguracji i aktywny model"),
+    ("8", "commands", "Pełna lista wszystkich komend i opcji"),
+    ("9", "cleanup --venvs-old", "Stare venv/.venv: liczba, rozmiar i wybór okresu"),
+    ("10", "cleanup --tmp --retention 24h", "Wybór starych plików z /tmp i potwierdzenie"),
+)
+MENU_SHORTCUTS = {number: command for number, command, _ in MENU_ITEMS}
+
 
 def _command_completion_words(command: click.Command) -> dict[str, Any] | None:
     """Collect subcommand and option words for one click command."""
@@ -51,22 +65,7 @@ def print_interactive_menu() -> None:
     click.echo(click.style("  🎮 FIXOS INTERACTIVE SHELL", fg="cyan", bold=True))
     click.echo(click.style("═" * 60, fg="cyan"))
     click.echo()
-    menu_items = [
-        ("1", "quick", "Szybka analiza systemu (CPU/RAM/dysk)"),
-        ("2", "fix", "Diagnoza i sesja naprawcza z AI (HITL)"),
-        ("3", "cleanup", "Czyszczenie dysku i usług (Docker, cache, logi)"),
-        ("4", "scan", "Diagnostyka systemu bez AI"),
-        ("5", "jetbrains doctor", "Diagnoza PyCharm, WebStorm, IDEA"),
-        ("6", "ask", "Zadaj pytanie / polecenie w języku naturalnym"),
-        ("7", "config show", "Podgląd konfiguracji i aktywny model"),
-        ("8", "commands", "Pełna lista wszystkich komend i opcji"),
-        (
-            "9",
-            "cleanup --venvs-old",
-            "Stare venv/.venv: liczba, rozmiar i wybór okresu",
-        ),
-    ]
-    for num, cmd, desc in menu_items:
+    for num, cmd, desc in MENU_ITEMS:
         num_styled = click.style(f"[{num}]", fg="yellow", bold=True)
         cmd_styled = click.style(f"{cmd:<18}", fg="green")
         click.echo(f"  {num_styled} {cmd_styled} {desc}")
@@ -76,7 +75,7 @@ def print_interactive_menu() -> None:
     click.echo()
     click.echo(
         click.style(
-            "  💡 Wskazówka: wpisz numer [1-9], komendę lub zapytanie naturalne.",
+            f"  💡 Wskazówka: wpisz numer [1-{len(MENU_ITEMS)}], komendę lub zapytanie naturalne.",
             fg="bright_black",
         )
     )
@@ -120,19 +119,6 @@ def print_command_catalog() -> None:
         )
     )
     click.echo()
-
-
-MENU_SHORTCUTS = {
-    "1": "quick",
-    "2": "fix",
-    "3": "cleanup",
-    "4": "scan",
-    "5": "jetbrains doctor",
-    "6": "ask",
-    "7": "config show",
-    "8": "commands",
-    "9": "cleanup --venvs-old",
-}
 
 
 @click.command("shell")
