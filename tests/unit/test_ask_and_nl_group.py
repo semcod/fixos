@@ -329,8 +329,8 @@ class TestInteractiveShell:
         from fixos.cli.main import cli
         from fixos.cli.shell_cmd import run_interactive_shell
 
-        # User chooses "7" (config show), then "q"
-        with patch("prompt_toolkit.PromptSession.prompt", side_effect=["7", "q"]), patch.object(
+        # User chooses "33" (config show), then "q"
+        with patch("prompt_toolkit.PromptSession.prompt", side_effect=["33", "q"]), patch.object(
             cli, "main"
         ) as mock_cli_main:
             run_interactive_shell(None)
