@@ -71,6 +71,43 @@ class TestMenuShortcuts:
         for name in cli.commands:
             assert name in out, f"'{name}' absent from printed catalog"
 
+    def test_displayed_numbers_execute_the_displayed_commands(self, capsys):
+        import re
+
+        from fixos.cli.shell_cmd import print_interactive_menu
+
+        print_interactive_menu()
+        out = capsys.readouterr().out
+        for number, target in MENU_SHORTCUTS.items():
+            assert re.search(rf"\[{number}\]\s+{re.escape(target)}\s", out)
+        assert "[1-10]" in out
+        assert MENU_SHORTCUTS["9"] == "cleanup --venvs-old"
+        assert MENU_SHORTCUTS["10"] == "cleanup --tmp --retention 24h"
+
+    def test_tmp_menu_number_dispatches_to_tmp_cleanup(self, monkeypatch):
+        import importlib
+        shell = importlib.import_module("fixos.cli.shell_cmd")
+        inputs = iter(["10", "q"])
+        class Session:
+            def __init__(self, **kwargs):
+                pass
+            def prompt(self, *args):
+                return next(inputs)
+        called = []
+        monkeypatch.setattr(shell, "PromptSession", Session)
+        monkeypatch.setattr(cli, "main", lambda args, **kwargs: called.append(args))
+        shell.run_interactive_shell()
+        assert called == [["cleanup", "--tmp", "--retention", "24h"]]
+
+    def test_welcome_lists_tmp_cleanup_and_policy(self, monkeypatch, capsys):
+        import importlib
+        main = importlib.import_module("fixos.cli.main")
+        monkeypatch.setattr(main, "_print_quick_status", lambda: None)
+        main._print_welcome()
+        out = capsys.readouterr().out
+        assert "fixos cleanup --tmp --retention 24h" in out
+        assert "fixos cleanup --policy" in out
+
 
 class TestParseSelection:
     @pytest.mark.parametrize(

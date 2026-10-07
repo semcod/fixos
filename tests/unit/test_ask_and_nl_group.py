@@ -5,6 +5,7 @@ Unit tests for NaturalLanguageGroup typo detection and ask_cmd heuristic matchin
 from unittest.mock import MagicMock, patch
 
 import pytest
+import yaml
 from click.testing import CliRunner, _NamedTextIOWrapper
 
 from fixos.agent.session_core import package_cleanup_guard
@@ -100,6 +101,66 @@ class TestAskHeuristics:
         assert _match_heuristic_command("diagnostyka") == ("fixos", ["scan"])
         assert _match_heuristic_command("zlap bledy") == ("fixos", ["scan"])
         assert _match_heuristic_command("naprawa") == ("fixos", ["fix"])
+
+    @pytest.mark.parametrize("prompt", [
+        "wyczysc /tmp", "wyczyść /tmp", "clean /tmp/", "posprzątaj katalog /tmp",
+    ])
+    def test_tmp_cleanup_dry_run_never_loads_api_config(self, runner, prompt):
+        with patch("fixos.config.FixOsConfig.load") as config, patch(
+            "fixos.providers.llm.LLMClient"
+        ) as llm, patch("fixos.cli.ask_cmd.subprocess.run") as run:
+            result = runner.invoke(cli, ["ask", prompt, "--dry-run"])
+
+        assert result.exit_code == 0, result.output
+        data = yaml.safe_load(result.output)
+        assert data["status"] == "dry_run"
+        assert data["command"] == "fixos cleanup --tmp --retention 24h"
+        assert data["prompt"] == prompt
+        config.assert_not_called()
+        llm.assert_not_called()
+        run.assert_not_called()
+
+    @pytest.mark.parametrize("prompt", [
+        "wyczysc /tmp2", "wyczysc /tmp/project", "nie wyczysc /tmp",
+        "wyczysc /tmp i docker", "wyczysc /var/tmp",
+    ])
+    def test_tmp_cleanup_does_not_claim_other_targets(self, prompt):
+        assert _match_heuristic_command(prompt) != (
+            "fixos", ["cleanup", "--tmp", "--retention", "24h"]
+        )
+
+    @pytest.mark.parametrize("answer,removed", [("n", False), ("y", True)])
+    def test_tmp_request_retains_interactive_selection_and_confirmation(
+        self, runner, tmp_path, answer, removed,
+    ):
+        candidate = tmp_path / "stale.tmp"
+        candidate.write_text("old temporary content")
+        item = {"path": candidate, "description": "stale.tmp", "size_bytes": 21,
+                "note": "older than 24h"}
+        with patch("fixos.cli._cleanup_space._scan_tmp", return_value=[item]) as scan, patch(
+            "fixos.config.FixOsConfig.load"
+        ) as config, patch("fixos.providers.llm.LLMClient") as llm:
+            result = runner.invoke(cli, ["ask", "wyczysc /tmp"], input=f"1\n{answer}\n")
+
+        assert result.exit_code == 0, result.output
+        scan.assert_called_once_with(days=1.0, tmp_dir=None)
+        assert "Numery pozycji" in result.output
+        assert "Wykonać usunięcie wybranych pozycji?" in result.output
+        assert candidate.exists() is not removed
+        config.assert_not_called()
+        llm.assert_not_called()
+
+    def test_api_failure_hint_preserves_request_without_docker_mapping(self, runner):
+        with patch("fixos.config.FixOsConfig.load", return_value=MagicMock(api_key="test")), patch(
+            "fixos.providers.llm.LLMClient"
+        ) as llm:
+            llm.return_value.chat.side_effect = RuntimeError("Error code: 402 Insufficient credits")
+            result = runner.invoke(cli, ["ask", "sprawdz temperature"])
+        data = yaml.safe_load(result.output)
+        assert data["reason"] == "llm_error"
+        assert data["prompt"] == "sprawdz temperature"
+        assert data["hint"] == "fixos --help"
+        assert "docker" not in result.output.lower()
 
 
 class TestAskSafety:
