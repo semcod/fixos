@@ -74,20 +74,20 @@ class TestMenuShortcuts:
     def test_displayed_numbers_execute_the_displayed_commands(self, capsys):
         import re
 
-        from fixos.cli.shell_cmd import print_interactive_menu
+        from fixos.cli.shell_cmd import MENU_ITEMS, print_interactive_menu
 
         print_interactive_menu()
         out = capsys.readouterr().out
         for number, target in MENU_SHORTCUTS.items():
-            assert re.search(rf"\[{number}\]\s+{re.escape(target)}\s", out)
-        assert "[1-10]" in out
-        assert MENU_SHORTCUTS["9"] == "cleanup --venvs-old"
-        assert MENU_SHORTCUTS["10"] == "cleanup --tmp --retention 24h"
+            assert re.search(rf"\[\s*{number}\]\s+{re.escape(target)}\s", out)
+        assert f"[1-{len(MENU_ITEMS)}]" in out
+        assert MENU_SHORTCUTS["6"] == "cleanup --tmp --retention 24h"
+        assert MENU_SHORTCUTS["23"] == "cleanup --venvs-old"
 
     def test_tmp_menu_number_dispatches_to_tmp_cleanup(self, monkeypatch):
         import importlib
         shell = importlib.import_module("fixos.cli.shell_cmd")
-        inputs = iter(["10", "q"])
+        inputs = iter(["6", "q"])
         class Session:
             def __init__(self, **kwargs):
                 pass

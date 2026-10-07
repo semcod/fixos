@@ -16,16 +16,98 @@ from prompt_toolkit.history import FileHistory
 from prompt_toolkit.styles import Style
 
 MENU_ITEMS = (
-    ("1", "quick", "Szybka analiza systemu (CPU/RAM/dysk)"),
-    ("2", "fix", "Diagnoza i sesja naprawcza z AI (HITL)"),
-    ("3", "cleanup", "Czyszczenie dysku i usług (Docker, cache, logi)"),
-    ("4", "scan", "Diagnostyka systemu bez AI"),
-    ("5", "jetbrains doctor", "Diagnoza PyCharm, WebStorm, IDEA"),
-    ("6", "ask", "Zadaj pytanie / polecenie w języku naturalnym"),
-    ("7", "config show", "Podgląd konfiguracji i aktywny model"),
-    ("8", "commands", "Pełna lista wszystkich komend i opcji"),
-    ("9", "cleanup --venvs-old", "Stare venv/.venv: liczba, rozmiar i wybór okresu"),
-    ("10", "cleanup --tmp --retention 24h", "Wybór starych plików z /tmp i potwierdzenie"),
+    ("1", "quick", "Szybki wynik bez LLM + trend CPU/RAM/dysku"),
+    ("2", "fix", "Diagnostyka + sesja naprawcza z AI (HITL)"),
+    ("3", "scan", "Diagnostyka systemu bez AI"),
+    ("4", "quickfix", "Naprawy offline bez API (baza znanych bugów)"),
+    ("5", "cleanup", "Skanuj i czyść dane usług (Docker, Ollama)"),
+    (
+        "6",
+        "cleanup --tmp --retention 24h",
+        "Wybierz stare pliki z /tmp; usunięcie wymaga potwierdzenia",
+    ),
+    ("7", "cleanup --policy", "Cele czyszczenia, retencja i chronione dane"),
+    ("8", "cleanup --docker-all", "Usuń unused images/cache i osierocone sieci"),
+    ("9", "cleanup --docker-old", "Usuń stare obrazy/cache i osierocone sieci"),
+    (
+        "10",
+        "cleanup --docker-networks",
+        "Usuń nieużywane sieci i sprawdź pulę adresową",
+    ),
+    (
+        "11",
+        "cleanup --docker-buildcache",
+        "Cache wszystkich builderów buildx + wiszące obrazy <none>",
+    ),
+    (
+        "12",
+        "cleanup --docker-stale-services",
+        "Wybierz stare usługi, wyłącz autostart i opcjonalnie zatrzymaj",
+    ),
+    (
+        "13",
+        "cleanup --orphaned-projects",
+        "Wybierz obciążenia projektów, których katalog już nie istnieje",
+    ),
+    (
+        "14",
+        "cleanup --list-orphan-pins",
+        "Zarządzaj trwałą ochroną zachowanych projektów Compose",
+    ),
+    (
+        "15",
+        "jetbrains doctor",
+        "Diagnozuj JVM, EDT i logi IDE bez zamykania okien",
+    ),
+    ("16", "cleanup --ollama-old", "Usuń modele Ollama niezmieniane od 90+ dni"),
+    (
+        "17",
+        "cleanup --snap-old",
+        "Usuń wyłączone rewizje snapów (stare wersje .snap)",
+    ),
+    (
+        "18",
+        "cleanup --journal",
+        "Przytnij dziennik systemd (journalctl --vacuum)",
+    ),
+    ("19", "cleanup --user-cache", "Wybierz i usuń duże katalogi z ~/.cache"),
+    (
+        "20",
+        "cleanup --jetbrains",
+        "Stare wersje IDE z Toolbox i cache JetBrains",
+    ),
+    (
+        "21",
+        "cleanup --libvirt",
+        "Obrazy VM niepodpięte pod żadną domenę libvirt",
+    ),
+    (
+        "22",
+        "cleanup --gitive",
+        "Stare izolowane workspace'y gitive-isolated",
+    ),
+    (
+        "23",
+        "cleanup --venvs-old",
+        "Stare venv/.venv: podsumowanie i wybór okresu (30 dni)",
+    ),
+    (
+        "24",
+        "projects",
+        "Skanuj projekty dev (venv, node_modules, ~/github/*/*)",
+    ),
+    ("25", "orchestrate", "Zaawansowana orkiestracja napraw (graf problemów)"),
+    ("26", "watch", "Monitoring w tle z powiadomieniami"),
+    ("27", "report", "Eksport diagnostyki do HTML/Markdown/JSON"),
+    ("28", "history", "Historia sesji naprawczych"),
+    ("29", "rollback", "Cofanie operacji (undo/list/show)"),
+    ("30", "profile", "Profile diagnostyczne (server/desktop/dev)"),
+    ("31", "llm", "Lista providerów LLM + linki do kluczy API"),
+    ("32", "token set", "Zapisz klucz API (auto-detekcja providera)"),
+    ("33", "config show", "Pokaż konfigurację"),
+    ("34", "test-llm", "Test połączenia z LLM"),
+    ("35", "ask", "Zadaj pytanie / polecenie w języku naturalnym"),
+    ("36", "commands", "Pełna lista wszystkich komend i opcji"),
 )
 MENU_SHORTCUTS = {number: command for number, command, _ in MENU_ITEMS}
 
@@ -66,11 +148,11 @@ def print_interactive_menu() -> None:
     click.echo(click.style("═" * 60, fg="cyan"))
     click.echo()
     for num, cmd, desc in MENU_ITEMS:
-        num_styled = click.style(f"[{num}]", fg="yellow", bold=True)
-        cmd_styled = click.style(f"{cmd:<18}", fg="green")
+        num_styled = click.style(f"[{num:>2}]", fg="yellow", bold=True)
+        cmd_styled = click.style(f"{cmd:<34}", fg="green")
         click.echo(f"  {num_styled} {cmd_styled} {desc}")
-    q_styled = click.style("[q]", fg="yellow", bold=True)
-    exit_styled = click.style("exit / quit       ", fg="white")
+    q_styled = click.style("[ q]", fg="yellow", bold=True)
+    exit_styled = click.style("exit / quit                       ", fg="white")
     click.echo(f"  {q_styled} {exit_styled} Wyjście z programu")
     click.echo()
     click.echo(
@@ -180,7 +262,8 @@ def run_interactive_shell(ctx: click.Context | None = None) -> None:
 
         # Check menu shortcuts
         if user_input in MENU_SHORTCUTS:
-            if user_input == "6":
+            target = MENU_SHORTCUTS[user_input]
+            if target == "ask":
                 try:
                     query = session.prompt([("class:prompt", "zapytaj AI > ")]).strip()
                     if query:
@@ -189,11 +272,11 @@ def run_interactive_shell(ctx: click.Context | None = None) -> None:
                         continue
                 except (KeyboardInterrupt, EOFError):
                     continue
-            elif MENU_SHORTCUTS[user_input] == "commands":
+            elif target == "commands":
                 print_command_catalog()
                 continue
             else:
-                user_input = MENU_SHORTCUTS[user_input]
+                user_input = target
 
         try:
             args = shlex.split(user_input)
