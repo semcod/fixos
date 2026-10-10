@@ -1,0 +1,118 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-061",
+  "summary": "optimize bottlenecks with rust fast scan and visual shell dashboard",
+  "workstream": "application",
+  "classification": {
+    "kind": "SERVICE",
+    "priority": "P2",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-061/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/cli/main.py",
+    "fixos/cli/shared.py",
+    "fixos/cli/cleanup_cmd.py",
+    "fixos/cli/shell_cmd.py",
+    "fixos/cli/dashboard.py",
+    "fixos/diagnostics/native_scan.py",
+    "fixos/diagnostics/service_scanner.py",
+    "fixos/diagnostics/cache_discovery.py",
+    "tests/unit/test_native_scan.py",
+    "tests/unit/test_service_scanner.py",
+    "tests/unit/test_shell_ux.py",
+    "tests/unit/test_dashboard.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [
+    "python"
+  ],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "a3454f5d7cb3b1df2753cbd66c65799b089054d3",
+    "targetBranch": "main",
+    "outcome": "Optimize CLI startup via lazy command loading, accelerate cleanup and cache discovery using Rust fixos-native batch/dir scanning with Python fallback, bound Docker probe timeout, and add a shell visual dashboard with safe automated intervention for caches and rogue processes.",
+    "nonGoals": [
+      "No change to deletion safety boundaries or deletion authority",
+      "No destructive actions without explicit confirmation or safe classification",
+      "No remote repository publication in this session"
+    ],
+    "complexity": "M",
+    "estimatedMinutes": 60,
+    "budgets": {
+      "maxImplementationFiles": 9,
+      "maxAffectedComponents": 3,
+      "maxPublicInterfaceChanges": 2,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "1. Lazy load Click subcommands in NaturalLanguageGroup to eliminate eager imports of LLM/orchestration packages on CLI startup. 2. Integrate Rust fixos-native batch and directory measurements into native_scan, service_scanner, and cache_discovery with fast Python fallbacks. 3. Bound docker daemon disk usage probe to prevent hanging. 4. Implement rich shell dashboard with resource gauges, process safety classification, and automated safe intervention.",
+      "components": [
+        {
+          "name": "cli",
+          "paths": [
+            "fixos/cli/main.py",
+            "fixos/cli/shared.py",
+            "fixos/cli/cleanup_cmd.py",
+            "fixos/cli/shell_cmd.py",
+            "fixos/cli/dashboard.py"
+          ]
+        },
+        {
+          "name": "diagnostics",
+          "paths": [
+            "fixos/diagnostics/native_scan.py",
+            "fixos/diagnostics/service_scanner.py",
+            "fixos/diagnostics/cache_discovery.py"
+          ]
+        },
+        {
+          "name": "tests",
+          "paths": [
+            "tests/unit/test_native_scan.py",
+            "tests/unit/test_service_scanner.py",
+            "tests/unit/test_shell_ux.py",
+            "tests/unit/test_dashboard.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "multi-state",
+        "states": [
+          "success",
+          "empty",
+          "error"
+        ],
+        "evidence": [
+          "tests/unit/test_shell_ux.py",
+          "tests/unit/test_dashboard.py"
+        ]
+      },
+      "rollback": "Revert implementation commits."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "pytest -q tests/unit/test_native_scan.py",
+          "pytest -q tests/unit/test_service_scanner.py",
+          "pytest -q tests/unit/test_shell_ux.py",
+          "pytest -q tests/unit/test_dashboard.py",
+          "bash project/governance-check.sh"
+        ],
+        "evidence": "Tests pass and governance check passes."
+      }
+    ]
+  }
+}

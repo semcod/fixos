@@ -2,6 +2,8 @@
 Shared utilities for fixOS CLI commands
 """
 
+from typing import ClassVar
+
 import click
 
 from fixos import __version__
@@ -110,7 +112,7 @@ class NaturalLanguageGroup(click.Group):
     """
 
     # Common action keywords that indicate a natural language prompt even if a single word
-    _NL_ACTION_KEYWORDS = {
+    _NL_ACTION_KEYWORDS: ClassVar[set[str]] = {
         "wylacz",
         "wyłącz",
         "wlacz",
@@ -195,4 +197,48 @@ class NaturalLanguageGroup(click.Group):
 
         # 3. Otherwise, unrecognized single token that is not NL nor a close match
         ctx.fail(f"No such command '{cmd_name}'.")
+
+
+class LazyCommandDict(dict):
+    """Dictionary that dynamically imports Click commands when accessed."""
+
+    def __init__(self, lazy_map: dict[str, tuple[str, str]], *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._lazy_map = lazy_map
+
+    def __getitem__(self, key: str) -> click.Command:
+        if not dict.__contains__(self, key) and key in self._lazy_map:
+            import importlib
+
+            mod_name, func_name = self._lazy_map[key]
+            mod = importlib.import_module(mod_name)
+            cmd = getattr(mod, func_name)
+            dict.__setitem__(self, key, cmd)
+        return dict.__getitem__(self, key)
+
+    def __contains__(self, key: object) -> bool:
+        return dict.__contains__(self, key) or key in self._lazy_map
+
+    def __iter__(self):
+        return iter(sorted(set(dict.keys(self)).union(self._lazy_map.keys())))
+
+    def __len__(self) -> int:
+        return len(set(dict.keys(self)).union(self._lazy_map.keys()))
+
+    def keys(self):
+        return sorted(set(dict.keys(self)).union(self._lazy_map.keys()))
+
+    def items(self):
+        for k in self.keys():
+            yield k, self[k]
+
+    def values(self):
+        for k in self.keys():
+            yield self[k]
+
+    def get(self, key: str, default=None):
+        if key in self:
+            return self[key]
+        return default
+
 

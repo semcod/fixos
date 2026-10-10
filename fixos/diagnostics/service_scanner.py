@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any, ClassVar
 
 from ..constants import SERVICE_SCAN_THRESHOLD_MB
+from .native_scan import measure_tree
 from .service_cleanup import ServiceCleaner
 from .service_details import ServiceDetailsProvider
 
@@ -447,7 +448,22 @@ class ServiceDataScanner:
             )
 
     def _get_path_size_mb(self, path: str) -> float:
-        """Get size of path in MB using du, falling back to os.walk."""
+        """Get size of path in MB using native measure_tree, falling back to du / os.walk."""
+        p = Path(path)
+        if p.is_file():
+            try:
+                return p.stat().st_size / (1024 * 1024)
+            except OSError:
+                return 0.0
+
+        if p.is_dir():
+            try:
+                m = measure_tree(p, native=True)
+                if isinstance(m, dict) and "bytes" in m and m["bytes"] > 0:
+                    return m["bytes"] / (1024 * 1024)
+            except (OSError, ValueError, TypeError, subprocess.SubprocessError):
+                pass
+
         try:
             result = subprocess.run(
                 ["du", "-sk", "--", path],
@@ -557,7 +573,7 @@ class ServiceDataScanner:
             if self._docker_usage_failed:
                 return None
 
-        timeout_s = 90
+        timeout_s = int(os.environ.get("FIXOS_DOCKER_TIMEOUT", "5"))
         self._docker_usage_failed = True
         self._docker_usage_timed_out = False
         try:
