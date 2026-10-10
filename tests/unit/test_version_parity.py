@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 import re
-import tomllib
+from pathlib import Path
 
 import fixos
 
@@ -30,9 +29,10 @@ def test_version_carrier_parity():
     # 2. Check pyproject.toml
     pyproject_file = root / "pyproject.toml"
     assert pyproject_file.is_file(), "pyproject.toml is missing"
-    pyproject_data = tomllib.loads(pyproject_file.read_text(encoding="utf-8"))
-    pyproject_version = pyproject_data.get("project", {}).get("version")
-    if pyproject_version:
-        assert pyproject_version == expected_version, (
-            f"pyproject.toml version ({pyproject_version}) does not match VERSION ({expected_version})"
-        )
+    pyproject_text = pyproject_file.read_text(encoding="utf-8")
+    match = re.search(r'(?m)^version\s*=\s*["\']([^"\']+)["\']', pyproject_text)
+    assert match, "version not declared in pyproject.toml"
+    pyproject_version = match.group(1)
+    assert pyproject_version == expected_version, (
+        f"pyproject.toml version ({pyproject_version}) does not match VERSION ({expected_version})"
+    )

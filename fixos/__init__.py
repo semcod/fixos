@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _get_version
 from pathlib import Path
 
 # Single Source of Truth: check VERSION file in repo root first,
@@ -11,8 +13,6 @@ if _version_file.is_file():
     __version__ = _version_file.read_text(encoding="utf-8").strip()
 else:
     try:
-        from importlib.metadata import version as _get_version
-
         __version__ = _get_version("fixos")
-    except Exception:
+    except (PackageNotFoundError, OSError):
         __version__ = "unknown"
