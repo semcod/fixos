@@ -450,20 +450,19 @@ class ServiceDataScanner:
     def _get_path_size_mb(self, path: str) -> float:
         """Get size of path in MB using native measure_tree, falling back to du / os.walk."""
         p = Path(path)
-        if not p.exists():
-            return 0.0
         if p.is_file():
             try:
                 return p.stat().st_size / (1024 * 1024)
             except OSError:
                 return 0.0
 
-        try:
-            m = measure_tree(p, native=True)
-            if isinstance(m, dict) and "bytes" in m and m["bytes"] >= 0:
-                return m["bytes"] / (1024 * 1024)
-        except Exception:
-            pass
+        if p.is_dir():
+            try:
+                m = measure_tree(p, native=True)
+                if isinstance(m, dict) and "bytes" in m and m["bytes"] > 0:
+                    return m["bytes"] / (1024 * 1024)
+            except Exception:
+                pass
 
         try:
             result = subprocess.run(
