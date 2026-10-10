@@ -1,0 +1,106 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-063",
+  "summary": "enforce version parity test isolation and dynamic package version",
+  "workstream": "application",
+  "classification": {
+    "kind": "SERVICE",
+    "priority": "P2",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-063/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/__init__.py",
+    "tests/conftest.py",
+    "tests/unit/test_dashboard.py",
+    "tests/unit/test_version_parity.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [
+    "python"
+  ],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "8a98652f4a4cdc7553823acd6f7b4bd36be77eef",
+    "targetBranch": "main",
+    "outcome": "fixos package resolves version dynamically from VERSION/metadata, tests assert parity across version carriers, and test suites are isolated from developer environment and real filesystem timeouts.",
+    "nonGoals": [
+      "No destructive actions without explicit confirmation",
+      "No remote branch push without verification"
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 30,
+    "budgets": {
+      "maxImplementationFiles": 4,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "1. Replace hardcoded __version__ in fixos/__init__.py with dynamic resolution. 2. Add test_version_parity.py to ensure zero drift. 3. Add autouse env isolation fixture in tests/conftest.py. 4. Mock cache_root scan in test_dashboard.py.",
+      "components": [
+        {
+          "name": "package_core",
+          "paths": [
+            "fixos/__init__.py"
+          ]
+        },
+        {
+          "name": "tests",
+          "paths": [
+            "tests/conftest.py",
+            "tests/unit/test_dashboard.py",
+            "tests/unit/test_version_parity.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert implementation commits."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python3 -c 'import fixos; assert fixos.__version__ != \"unknown\"'"
+        ],
+        "evidence": "project/ticket-063/README.md"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "pytest -q tests/unit/test_version_parity.py"
+        ],
+        "evidence": "project/ticket-063/README.md"
+      },
+      {
+        "criterion": "AC-03",
+        "commands": [
+          "pytest -q tests/unit/test_dashboard.py tests/unit/test_llm_provider.py"
+        ],
+        "evidence": "project/ticket-063/README.md"
+      },
+      {
+        "criterion": "AC-04",
+        "commands": [
+          "./project/governance-check.sh"
+        ],
+        "evidence": "project/ticket-063/README.md"
+      }
+    ]
+  }
+}
