@@ -4,12 +4,8 @@ from __future__ import annotations
 
 import json
 import time
-from pathlib import Path
-from unittest.mock import MagicMock
 
-import click
 from click.testing import CliRunner
-import pytest
 from rich.console import Console
 
 from fixos.cli.dashboard import (
@@ -82,7 +78,7 @@ class TestClassifyProcessSafety:
                 create_time=time.time() - 3600,
                 username="tom",
             )
-            safety, reason = classify_process_safety(proc, self_pid=999, now=time.time())
+            safety, _reason = classify_process_safety(proc, self_pid=999, now=time.time())
             assert safety == "protected", f"Failed to protect {name}"
 
     def test_allows_safe_termination_of_stale_detached_worker(self):
@@ -111,7 +107,7 @@ class TestClassifyProcessSafety:
             create_time=time.time() - 1200,
             username="tom",
         )
-        safety, reason = classify_process_safety(proc, self_pid=999, now=time.time())
+        safety, _reason = classify_process_safety(proc, self_pid=999, now=time.time())
         assert safety == "review"
 
 

@@ -8,11 +8,9 @@ from __future__ import annotations
 
 import os
 import shutil
-import subprocess
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Sequence
 
 import click
 import psutil
@@ -23,16 +21,12 @@ from rich.progress_bar import ProgressBar
 from rich.table import Table
 from rich.text import Text
 
-from fixos.constants import DEFAULT_CLEANUP_THRESHOLD_MB
-from fixos.diagnostics.native_scan import scan_dir_native, measure_tree
+from fixos.diagnostics.native_scan import measure_tree, scan_dir_native
 from fixos.diagnostics.process_chains import (
     PRIVILEGED_ACCOUNTS,
-    ProcessChainInspector,
     ProcessRecord,
     collect_processes,
 )
-from fixos.diagnostics.service_cleanup import ServiceCleaner
-from fixos.diagnostics.service_scanner import RiskLevel, ServiceDataScanner, ServiceType
 
 # Protected application and session patterns that must NEVER be terminated
 PROTECTED_PROCESS_PATTERNS = frozenset(
@@ -162,10 +156,15 @@ def classify_process_safety(
     high_mem = proc.memory_percent >= 25.0
     stale_runtime = (now - proc.create_time) >= 600  # Running > 10m
 
-    if (high_cpu or high_mem) and stale_runtime:
-        # A detached python/node worker or build task consuming high CPU
-        if name_lower in ("python", "python3", "node", "ruby", "perl", "worker", "php"):
-            return "safe", f"Zablokowany / zapętlony worker ({proc.cpu_percent:.1f}% CPU, {proc.memory_percent:.1f}% RAM)"
+    if (
+        (high_cpu or high_mem)
+        and stale_runtime
+        and name_lower in ("python", "python3", "node", "ruby", "perl", "worker", "php")
+    ):
+        return (
+            "safe",
+            f"Zablokowany / zapętlony worker ({proc.cpu_percent:.1f}% CPU, {proc.memory_percent:.1f}% RAM)",
+        )
 
     if high_cpu:
         return "review", f"Wysokie zużycie CPU ({proc.cpu_percent:.1f}%), wymaga weryfikacji"
@@ -576,7 +575,7 @@ def dashboard_cmd(dry_run: bool, auto_fix: bool, json_output: bool) -> None:
         data = collect_dashboard_scan()
         render_dashboard(data, console)
         console.print("\n[bold]Uruchamianie interwencji:[/bold]")
-        count, mb = execute_safe_cache_cleanup(data, dry_run=dry_run)
+        _count, mb = execute_safe_cache_cleanup(data, dry_run=dry_run)
         pids = execute_safe_process_termination(data, dry_run=dry_run)
         console.print(f"\n[bold green]Interwencja zakończona: odzyskano {mb:.1f} MB, zamknięto {len(pids)} procesów.[/bold green]")
         return

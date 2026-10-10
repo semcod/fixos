@@ -2,6 +2,8 @@
 Shared utilities for fixOS CLI commands
 """
 
+from typing import ClassVar
+
 import click
 
 from fixos import __version__
@@ -110,7 +112,7 @@ class NaturalLanguageGroup(click.Group):
     """
 
     # Common action keywords that indicate a natural language prompt even if a single word
-    _NL_ACTION_KEYWORDS = {
+    _NL_ACTION_KEYWORDS: ClassVar[set[str]] = {
         "wylacz",
         "wyłącz",
         "wlacz",

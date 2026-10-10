@@ -8,8 +8,6 @@ import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock
 
-import pytest
-
 from fixos.diagnostics.native_scan import (
     PROTOCOL,
     find_native_binary,

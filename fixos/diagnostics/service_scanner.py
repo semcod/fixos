@@ -461,7 +461,7 @@ class ServiceDataScanner:
                 m = measure_tree(p, native=True)
                 if isinstance(m, dict) and "bytes" in m and m["bytes"] > 0:
                     return m["bytes"] / (1024 * 1024)
-            except Exception:
+            except (OSError, ValueError, TypeError, subprocess.SubprocessError):
                 pass
 
         try:

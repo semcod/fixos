@@ -9,8 +9,9 @@ from __future__ import annotations
 
 import glob
 import os
+from collections.abc import Callable, Iterable
 from pathlib import Path
-from typing import Callable, Iterable, Set, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .service_scanner import ServiceDataInfo, ServiceType
@@ -111,10 +112,9 @@ def is_generic_cache_safe(path: str) -> bool:
 def discover_additional_caches(
     get_size_mb: Callable[[str], float],
     threshold_mb: int,
-    covered_paths: Set[str],
-) -> list["ServiceDataInfo"]:
+    covered_paths: set[str],
+) -> list[ServiceDataInfo]:
     """Discover large caches not already covered by known service scanners."""
-    from .service_scanner import ServiceDataInfo, ServiceType
 
     generic_threshold = max(threshold_mb, GENERIC_CACHE_THRESHOLD_MB)
     results: list[ServiceDataInfo] = []
@@ -139,8 +139,8 @@ def discover_additional_caches(
 def _discover_xdg_cache_dirs(
     get_size_mb: Callable[[str], float],
     threshold_mb: int,
-    covered_paths: Set[str],
-) -> list["ServiceDataInfo"]:
+    covered_paths: set[str],
+) -> list[ServiceDataInfo]:
     cache_root = os.path.expanduser("~/.cache")
     if not os.path.isdir(cache_root):
         return []
@@ -215,8 +215,8 @@ def _discover_xdg_cache_dirs(
 def _discover_electron_caches(
     get_size_mb: Callable[[str], float],
     threshold_mb: int,
-    covered_paths: Set[str],
-) -> list["ServiceDataInfo"]:
+    covered_paths: set[str],
+) -> list[ServiceDataInfo]:
     from .service_scanner import ServiceType
 
     config_root = os.path.expanduser("~/.config")
@@ -261,8 +261,8 @@ def _build_generic_entry(
     size_mb: float,
     safe: bool,
     description: str,
-    service_type: "ServiceType" = None,
-) -> "ServiceDataInfo":
+    service_type: ServiceType = None,
+) -> ServiceDataInfo:
     from .service_cleanup import ServiceCleaner
     from .service_scanner import RiskLevel, ServiceDataInfo, ServiceType
 
