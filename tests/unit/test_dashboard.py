@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import time
+from pathlib import Path
 
 from click.testing import CliRunner
 from rich.console import Console
@@ -112,7 +113,17 @@ class TestClassifyProcessSafety:
 
 
 class TestDashboardScanAndRender:
-    def test_collect_dashboard_scan_returns_valid_data(self):
+    def test_collect_dashboard_scan_returns_valid_data(self, monkeypatch):
+        monkeypatch.setattr(
+            "fixos.cli.dashboard.scan_dir_native",
+            lambda path, min_bytes=0: [
+                {"name": "pip", "path": str(Path(path) / "pip"), "bytes": 200 * 1024 * 1024}
+            ],
+        )
+        monkeypatch.setattr(
+            "fixos.cli.dashboard.measure_tree",
+            lambda path, native=True: {"bytes": 60 * 1024 * 1024, "files": 12},
+        )
         data = collect_dashboard_scan()
         assert isinstance(data, DashboardScanData)
         assert data.cpu_percent >= 0.0

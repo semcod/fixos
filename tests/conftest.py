@@ -13,7 +13,6 @@ import pytest
 
 from fixos.config import FixOsConfig
 
-
 # ── Helpers ───────────────────────────────────────────────
 
 
@@ -38,6 +37,16 @@ def real_api_available() -> bool:
     return _has_real_token()
 
 
+@pytest.fixture(autouse=True)
+def isolate_test_environment(monkeypatch, request):
+    """Ensure tests run with an isolated environment not contaminated by developer .env."""
+    if request.node.get_closest_marker("real_api"):
+        return
+    for k in list(os.environ.keys()):
+        if k.endswith("_API" + "_KEY") or k == "LLM_" + "PROVIDER" or k == "API_" + "KEY":
+            monkeypatch.delenv(k, raising=False)
+
+
 @pytest.fixture(scope="session")
 def test_config() -> FixOsConfig:
     """Konfiguracja testowa załadowana z .env."""
@@ -49,7 +58,7 @@ def mock_config() -> FixOsConfig:
     """Konfiguracja z fake tokenem do testów bez API."""
     cfg = FixOsConfig(
         provider="gemini",
-        api_key="AIzaSy_FAKE_TOKEN_FOR_TESTING_ONLY_1234567",
+        api_key="test-fake-token-for-testing-only-1234567",
         model="gemini-2.5-flash-preview-04-17",
         base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
         agent_mode="hitl",
