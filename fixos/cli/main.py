@@ -5,27 +5,34 @@ Main CLI entry point for fixOS
 import click
 
 from fixos import __version__
-from fixos.cli.ask_cmd import ask
-from fixos.cli.cleanup_cmd import cleanup_services
-from fixos.cli.config_cmd import config
-from fixos.cli.features_cmd import features
-from fixos.cli.fix_cmd import fix
-from fixos.cli.history_cmd import history
-from fixos.cli.jetbrains_cmd import jetbrains
-from fixos.cli.orchestrate_cmd import orchestrate
-from fixos.cli.profile_cmd import profile
-from fixos.cli.projects_cmd import projects_cmd
-from fixos.cli.provider_cmd import llm_providers, providers, test_llm
-from fixos.cli.quick_cmd import quick
-from fixos.cli.quickfix_cmd import quickfix
-from fixos.cli.report_cmd import report
-from fixos.cli.rollback_cmd import rollback
-from fixos.cli.scan_cmd import scan
-from fixos.cli.shared import BANNER, NaturalLanguageGroup
-from fixos.cli.shell_cmd import shell_cmd
-from fixos.cli.token_cmd import token
-from fixos.cli.watch_cmd import watch
+from fixos.cli.shared import BANNER, LazyCommandDict, NaturalLanguageGroup
 from fixos.config import FixOsConfig
+
+LAZY_COMMANDS: dict[str, tuple[str, str]] = {
+    "ask": ("fixos.cli.ask_cmd", "ask"),
+    "cleanup": ("fixos.cli.cleanup_cmd", "cleanup_services"),
+    "config": ("fixos.cli.config_cmd", "config"),
+    "dashboard": ("fixos.cli.dashboard", "dashboard_cmd"),
+    "features": ("fixos.cli.features_cmd", "features"),
+    "fix": ("fixos.cli.fix_cmd", "fix"),
+    "history": ("fixos.cli.history_cmd", "history"),
+    "jetbrains": ("fixos.cli.jetbrains_cmd", "jetbrains"),
+    "llm": ("fixos.cli.provider_cmd", "llm_providers"),
+    "orchestrate": ("fixos.cli.orchestrate_cmd", "orchestrate"),
+    "profile": ("fixos.cli.profile_cmd", "profile"),
+    "projects": ("fixos.cli.projects_cmd", "projects_cmd"),
+    "providers": ("fixos.cli.provider_cmd", "providers"),
+    "quick": ("fixos.cli.quick_cmd", "quick"),
+    "quickfix": ("fixos.cli.quickfix_cmd", "quickfix"),
+    "report": ("fixos.cli.report_cmd", "report"),
+    "rollback": ("fixos.cli.rollback_cmd", "rollback"),
+    "scan": ("fixos.cli.scan_cmd", "scan"),
+    "shell": ("fixos.cli.shell_cmd", "shell_cmd"),
+    "test-llm": ("fixos.cli.provider_cmd", "test_llm"),
+    "token": ("fixos.cli.token_cmd", "token"),
+    "watch": ("fixos.cli.watch_cmd", "watch"),
+}
+
 
 
 @click.group(cls=NaturalLanguageGroup, invoke_without_command=True)
@@ -323,24 +330,11 @@ def help_cmd(ctx, command) -> None:
 
 
 cli.add_command(help_cmd)
-cli.add_command(shell_cmd, name="shell")
-cli.add_command(quick)
-cli.add_command(rollback)
-cli.add_command(watch)
-cli.add_command(profile)
-cli.add_command(history)
-cli.add_command(report)
-cli.add_command(quickfix)
-cli.add_command(token)
-cli.add_command(config)
-cli.add_command(llm_providers)
-cli.add_command(providers)
-cli.add_command(test_llm)
-cli.add_command(ask)
-cli.add_command(scan)
-cli.add_command(fix)
-cli.add_command(orchestrate)
-cli.add_command(cleanup_services)
-cli.add_command(projects_cmd)
-cli.add_command(features)
-cli.add_command(jetbrains)
+cli.commands = LazyCommandDict(LAZY_COMMANDS, cli.commands)
+
+
+def __getattr__(name: str):
+    if name in cli.commands:
+        return cli.commands[name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+

@@ -9,12 +9,14 @@ from __future__ import annotations
 
 import glob
 import os
+from pathlib import Path
 from typing import Callable, Iterable, Set, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .service_scanner import ServiceDataInfo, ServiceType
 
 from ..constants import GENERIC_CACHE_THRESHOLD_MB
+from .native_scan import scan_dir_native
 
 # Top-level ~/.cache names already handled by dedicated ServiceType scanners.
 KNOWN_CACHE_DIR_NAMES = frozenset(
@@ -90,7 +92,7 @@ def path_is_covered(path: str, covered_paths: Iterable[str]) -> bool:
     """Return True when path is already represented by a known service scan."""
     normalized = normalize_path(path)
     for covered in covered_paths:
-        covered_norm = normalize_path(covered)
+        covered_norm = covered if covered.startswith("/") else normalize_path(covered)
         if normalized == covered_norm:
             return True
         if normalized.startswith(f"{covered_norm}/"):
@@ -144,6 +146,39 @@ def _discover_xdg_cache_dirs(
         return []
 
     results: list[ServiceDataInfo] = []
+
+    # 1. Fast native scan using Rust fixos-native if available and sizing function is default
+    use_native = getattr(get_size_mb, "__name__", "") in ("_get_path_size_mb", "measure_tree")
+    if use_native:
+        native_entries = scan_dir_native(
+            Path(cache_root),
+            min_bytes=threshold_mb * 1024 * 1024,
+            exclude=tuple(KNOWN_CACHE_DIR_NAMES),
+        )
+    else:
+        native_entries = None
+    if native_entries is not None:
+        for item in native_entries:
+            name = item.get("name", "")
+            path = item.get("path", "")
+            if not path or path_is_covered(path, covered_paths):
+                continue
+            size_mb = item.get("bytes", 0) / (1024 * 1024)
+            if size_mb < threshold_mb:
+                continue
+            safe = is_generic_cache_safe(path)
+            results.append(
+                _build_generic_entry(
+                    label=f"Cache: {name}",
+                    path=path,
+                    size_mb=round(size_mb, 2),
+                    safe=safe,
+                    description=f"Discovered cache directory (~/.cache/{name})",
+                )
+            )
+        return results
+
+    # 2. Python fallback
     try:
         entries = sorted(os.listdir(cache_root))
     except OSError:

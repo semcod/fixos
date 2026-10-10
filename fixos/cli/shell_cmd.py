@@ -108,6 +108,7 @@ MENU_ITEMS = (
     ("34", "test-llm", "Test połączenia z LLM"),
     ("35", "ask", "Zadaj pytanie / polecenie w języku naturalnym"),
     ("36", "commands", "Pełna lista wszystkich komend i opcji"),
+    ("37", "dashboard", "Graficzny panel stanu (CPU/RAM/dysk/procesy) + auto-fix"),
 )
 MENU_SHORTCUTS = {number: command for number, command, _ in MENU_ITEMS}
 

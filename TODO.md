@@ -8,6 +8,11 @@ Ostatni przegląd: 2026-09-15.
 
 ## Aktywne
 
+- [ ] Dostarczyć [ticket-061](project/ticket-061/README.md): optymalizacja wąskich
+  gardeł FixOS za pomocą natywnego skanera Rust (`fixos-native`), leniwego
+  ładowania komend CLI, zabezpieczenia timeoutu Dockera, oraz graficznego
+  dashboardu w shellu z bezpieczną automatyczną interwencją. Stan: `IN_PROGRESS / PUBLICATION`.
+
 - [ ] Dostarczyć [ticket-032](project/ticket-032/README.md): bezpieczny triage
   literówek i pakietów przez dokładny inventory, dry-run i potwierdzenie przed
   usuwaniem. Stan: `IN_PROGRESS / EDIT`.
