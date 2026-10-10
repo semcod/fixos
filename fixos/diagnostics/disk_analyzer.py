@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# ruff: noqa: EXE001,I001,UP035,RUF013,UP006,DTZ005,BLE001,RUF010,S110,RUF012,DTZ006
+# ruff: noqa: EXE001,I001,UP035,RUF013,UP006,BLE001,RUF010,S110,RUF012
 """
 Disk Analyzer Module for fixOS
 Analyzes disk usage and groups cleanup causes
@@ -12,7 +12,7 @@ import json
 import subprocess
 from pathlib import Path
 from typing import Dict, List, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from ..constants import (
     DISK_USAGE_CRITICAL,
     DISK_USAGE_WARNING,
@@ -95,7 +95,7 @@ class DiskAnalyzer:
                     log_dirs=log_dirs,
                     temp_dirs=temp_dirs,
                 ),
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
             return analysis
@@ -137,7 +137,7 @@ class DiskAnalyzer:
                                     "size_mb": round(size_mb, 2),
                                     "size_gb": round(size_mb / 1024, 3),
                                     "modified": datetime.fromtimestamp(
-                                        st.st_mtime
+                                        st.st_mtime, tz=timezone.utc
                                     ).isoformat(),
                                     "category": self._categorize_file(file_path),
                                 }
@@ -576,7 +576,7 @@ class DiskAnalyzer:
                     if oldest_time is None or mtime < oldest_time:
                         oldest_time = mtime
             if oldest_time:
-                return datetime.fromtimestamp(oldest_time).isoformat()
+                return datetime.fromtimestamp(oldest_time, tz=timezone.utc).isoformat()
         except Exception:
             pass
         return "unknown"
@@ -591,7 +591,7 @@ class DiskAnalyzer:
                     if newest_time is None or mtime > newest_time:
                         newest_time = mtime
             if newest_time:
-                return datetime.fromtimestamp(newest_time).isoformat()
+                return datetime.fromtimestamp(newest_time, tz=timezone.utc).isoformat()
         except Exception:
             pass
         return "unknown"
