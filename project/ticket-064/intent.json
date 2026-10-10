@@ -1,0 +1,83 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-064",
+  "summary": "release 2.2.51 version bump in VERSION and pyproject",
+  "workstream": "integration",
+  "classification": {
+    "kind": "SERVICE",
+    "priority": "P2",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-064/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "VERSION",
+    "pyproject.toml"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [
+    "python"
+  ],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "be3cc9830aa832dfe3ae8fe674f1dabce21d788a",
+    "targetBranch": "main",
+    "outcome": "VERSION and pyproject.toml declare 2.2.51 so the release carries tickets 059-063 to PyPI.",
+    "nonGoals": [
+      "No source or test changes; release projection only, joined to already-merged material work."
+    ],
+    "complexity": "XS",
+    "estimatedMinutes": 5,
+    "budgets": {
+      "maxImplementationFiles": 2,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Bump the two integration-owned version carriers to 2.2.51.",
+      "components": [
+        {
+          "name": "packaging",
+          "paths": [
+            "VERSION",
+            "pyproject.toml"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the commit; version carriers return to 2.2.50."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "grep -c '2.2.51' VERSION pyproject.toml"
+        ],
+        "evidence": "project/ticket-064/README.md"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "pytest -q tests/unit/test_version_parity.py",
+          "./project/governance-check.sh"
+        ],
+        "evidence": "project/ticket-064/README.md"
+      }
+    ]
+  }
+}
