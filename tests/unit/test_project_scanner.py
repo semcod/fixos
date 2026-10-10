@@ -271,3 +271,36 @@ class TestScanAll:
         results = ps.scan_all(tmp_path, threshold_mb=1)
 
         assert [a.project_name for a in results] == ["big-repo", "small-repo"]
+
+
+class TestNativeScanProjectScanner:
+    def test_get_dir_size_mb_uses_native_scan(self, tmp_path, monkeypatch):
+        test_dir = tmp_path / "node_modules"
+        test_dir.mkdir()
+        (test_dir / "file.js").write_text("console.log('hello');")
+
+        from unittest.mock import MagicMock
+        mock_measure = MagicMock(return_value={"bytes": 10485760})
+        monkeypatch.setattr("fixos.diagnostics.native_scan.measure_tree", mock_measure)
+
+        size = ps._get_dir_size_mb(str(test_dir))
+        assert size == 10.0
+        mock_measure.assert_called_once()
+
+    def test_get_dir_size_mb_falls_back_to_du(self, tmp_path, monkeypatch):
+        test_dir = tmp_path / "venv"
+        test_dir.mkdir()
+
+        from unittest.mock import MagicMock
+        monkeypatch.setattr("fixos.diagnostics.native_scan.measure_tree", MagicMock(side_effect=OSError("binary unavailable")))
+
+        fake_du = MagicMock(return_value=MagicMock(returncode=0, stdout="20480 /tmp/venv\n"))
+        monkeypatch.setattr("subprocess.run", fake_du)
+
+        size = ps._get_dir_size_mb(str(test_dir))
+        assert size == 20.0
+        fake_du.assert_called_once()
+
+    def test_get_dir_size_mb_handles_nonexistent_path(self, tmp_path):
+        assert ps._get_dir_size_mb(str(tmp_path / "nonexistent")) == 0.0
+

@@ -204,3 +204,34 @@ def test_process_load_is_sampled_and_ranked_by_cpu_or_memory(monkeypatch):
     assert [item["pid"] for item in top] == [202, 101, 303]
     assert top[0]["cpu_percent"] == 400
     assert all(process.calls == 2 for process in processes)
+
+
+def test_measure_caches_uses_native_batch_measurement(tmp_path, monkeypatch):
+    cache_dir = tmp_path / ".cache" / "pip"
+    cache_dir.mkdir(parents=True)
+    (cache_dir / "sample.whl").write_bytes(b"0" * 2048)
+
+    from unittest.mock import MagicMock
+    mock_batch = MagicMock(return_value={str(cache_dir): {"bytes": 2048}})
+    monkeypatch.setattr("fixos.diagnostics.native_scan.measure_batch", mock_batch)
+
+    safe, _review, _complete = quick_snapshot._measure_caches(tmp_path)
+    mock_batch.assert_called_once()
+    pip_item = next((item for item in safe if item["id"] == "pip"), None)
+    assert pip_item is not None
+    assert pip_item["size_bytes"] == 2048
+
+
+def test_measure_caches_falls_back_when_native_batch_fails(tmp_path, monkeypatch):
+    cache_dir = tmp_path / ".cache" / "pip"
+    cache_dir.mkdir(parents=True)
+
+    from unittest.mock import MagicMock
+    monkeypatch.setattr("fixos.diagnostics.native_scan.measure_batch", MagicMock(side_effect=OSError("binary unavailable")))
+    monkeypatch.setattr(quick_snapshot, "_du_kib", MagicMock(return_value=(1024, None)))
+
+    safe, _review, _complete = quick_snapshot._measure_caches(tmp_path)
+    pip_item = next((item for item in safe if item["id"] == "pip"), None)
+    assert pip_item is not None
+    assert pip_item["size_bytes"] == 1024 * 1024
+

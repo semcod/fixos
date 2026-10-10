@@ -15,10 +15,11 @@ import shutil
 import subprocess
 import tempfile
 import time
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 import psutil
 
@@ -340,11 +341,33 @@ def _measure_caches(
 
     measured: dict[str, list[tuple[Path, int]]] = {}
     errors: dict[str, list[str]] = {}
+
+    remaining_jobs: list[tuple[CacheRule, Path]] = list(jobs)
     if jobs:
-        workers = min(10, len(jobs))
+        try:
+            from fixos.diagnostics.native_scan import measure_batch
+
+            unique_paths = list({path for _, path in jobs})
+            batch_result = measure_batch(unique_paths)
+            if isinstance(batch_result, dict) and batch_result:
+                unresolved_jobs: list[tuple[CacheRule, Path]] = []
+                for rule, path in jobs:
+                    m = batch_result.get(str(path))
+                    if isinstance(m, dict) and "bytes" in m:
+                        kib = (m["bytes"] + 1023) // 1024
+                        measured.setdefault(rule.id, []).append((path, kib))
+                    else:
+                        unresolved_jobs.append((rule, path))
+                remaining_jobs = unresolved_jobs
+        except (OSError, ValueError, TypeError, subprocess.SubprocessError):
+            remaining_jobs = list(jobs)
+
+    if remaining_jobs:
+        workers = min(10, len(remaining_jobs))
         with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
             futures = {
-                pool.submit(_du_kib, path, timeout): (rule, path) for rule, path in jobs
+                pool.submit(_du_kib, path, timeout): (rule, path)
+                for rule, path in remaining_jobs
             }
             for future in concurrent.futures.as_completed(futures):
                 rule, path = futures[future]
@@ -554,7 +577,7 @@ def _parse_timestamp(row: dict[str, Any]) -> datetime | None:
         return None
 
 
-def _delta(current: int | float, base: int | float) -> int | float:
+def _delta(current: float, base: float) -> float:
     return current - base
 
 

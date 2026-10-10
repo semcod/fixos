@@ -438,7 +438,19 @@ class DiskAnalyzer:
         return suggestions[:15]  # Limit to top 15 suggestions
 
     def _get_dir_size_mb(self, dir_path: Path) -> float:
-        """Calculate directory size in MB using du to avoid rglob memory usage."""
+        """Calculate directory size in MB using native scan with du fallback."""
+        if not dir_path.is_dir():
+            return 0.0
+
+        try:
+            from fixos.diagnostics.native_scan import measure_tree
+
+            m = measure_tree(dir_path, native=True)
+            if isinstance(m, dict) and "bytes" in m and m["bytes"] > 0:
+                return m["bytes"] / (1024**2)
+        except (OSError, ValueError, TypeError, subprocess.SubprocessError):
+            pass
+
         try:
             result = subprocess.run(
                 ["du", "-sb", str(dir_path)],
@@ -472,6 +484,19 @@ class DiskAnalyzer:
         Returns an integer count, or 'many' if counting exceeds the limit
         or the subprocess times out.
         """
+        if not dir_path.is_dir():
+            return 0
+
+        try:
+            from fixos.diagnostics.native_scan import measure_tree
+
+            m = measure_tree(dir_path, native=True)
+            if isinstance(m, dict) and "files" in m:
+                count = int(m["files"])
+                return count if count < limit else "many"
+        except (OSError, ValueError, TypeError, subprocess.SubprocessError):
+            pass
+
         try:
             result = subprocess.run(
                 ["find", str(dir_path), "-type", "f"],
