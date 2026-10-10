@@ -58,3 +58,69 @@ def test_cleanup_suggestion_paths_are_shell_quoted():
 
     command = next(item["command"] for item in suggestions if item["type"] == "cache_cleanup")
     assert "'" in command
+
+
+class TestDiskAnalyzerNativeScan:
+    def test_get_dir_size_mb_uses_native_scan(self, tmp_path, monkeypatch):
+        test_dir = tmp_path / "cache"
+        test_dir.mkdir()
+        (test_dir / "data.bin").write_bytes(b"0" * 1024)
+
+        from unittest.mock import MagicMock
+        mock_measure = MagicMock(return_value={"bytes": 20971520, "files": 42})
+        monkeypatch.setattr("fixos.diagnostics.native_scan.measure_tree", mock_measure)
+
+        analyzer = DiskAnalyzer()
+        size = analyzer._get_dir_size_mb(test_dir)
+        assert size == 20.0
+        mock_measure.assert_called_once()
+
+    def test_count_files_fast_uses_native_scan(self, tmp_path, monkeypatch):
+        test_dir = tmp_path / "cache"
+        test_dir.mkdir()
+
+        from unittest.mock import MagicMock
+        mock_measure = MagicMock(return_value={"bytes": 1024, "files": 15})
+        monkeypatch.setattr("fixos.diagnostics.native_scan.measure_tree", mock_measure)
+
+        analyzer = DiskAnalyzer()
+        count = analyzer._count_files_fast(test_dir)
+        assert count == 15
+        mock_measure.assert_called_once()
+
+    def test_get_dir_size_mb_falls_back_to_du(self, tmp_path, monkeypatch):
+        test_dir = tmp_path / "cache"
+        test_dir.mkdir()
+
+        from unittest.mock import MagicMock
+        monkeypatch.setattr("fixos.diagnostics.native_scan.measure_tree", MagicMock(side_effect=OSError("not found")))
+
+        fake_du = MagicMock(return_value=MagicMock(returncode=0, stdout="10485760\t/cache\n"))
+        monkeypatch.setattr("subprocess.run", fake_du)
+
+        analyzer = DiskAnalyzer()
+        size = analyzer._get_dir_size_mb(test_dir)
+        assert round(size, 2) == 10.0
+        fake_du.assert_called_once()
+
+    def test_count_files_fast_falls_back_to_find(self, tmp_path, monkeypatch):
+        test_dir = tmp_path / "cache"
+        test_dir.mkdir()
+
+        from unittest.mock import MagicMock
+        monkeypatch.setattr("fixos.diagnostics.native_scan.measure_tree", MagicMock(side_effect=OSError("not found")))
+
+        fake_find = MagicMock(return_value=MagicMock(returncode=0, stdout="f1\nf2\nf3\n"))
+        monkeypatch.setattr("subprocess.run", fake_find)
+
+        analyzer = DiskAnalyzer()
+        count = analyzer._count_files_fast(test_dir)
+        assert count == 3
+        fake_find.assert_called_once()
+
+    def test_nonexistent_paths_handled_gracefully(self, tmp_path):
+        analyzer = DiskAnalyzer()
+        nonexistent = tmp_path / "nope"
+        assert analyzer._get_dir_size_mb(nonexistent) == 0.0
+        assert analyzer._count_files_fast(nonexistent) == 0
+

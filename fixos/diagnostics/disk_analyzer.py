@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# ruff: noqa: EXE001,I001,UP035,RUF013,UP006,DTZ005,BLE001,RUF010,S110,RUF012,DTZ006
+# ruff: noqa: EXE001,I001,UP035,RUF013,UP006,BLE001,RUF010,S110,RUF012
 """
 Disk Analyzer Module for fixOS
 Analyzes disk usage and groups cleanup causes
@@ -12,7 +12,7 @@ import json
 import subprocess
 from pathlib import Path
 from typing import Dict, List, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from ..constants import (
     DISK_USAGE_CRITICAL,
     DISK_USAGE_WARNING,
@@ -95,7 +95,7 @@ class DiskAnalyzer:
                     log_dirs=log_dirs,
                     temp_dirs=temp_dirs,
                 ),
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
             return analysis
@@ -137,7 +137,7 @@ class DiskAnalyzer:
                                     "size_mb": round(size_mb, 2),
                                     "size_gb": round(size_mb / 1024, 3),
                                     "modified": datetime.fromtimestamp(
-                                        st.st_mtime
+                                        st.st_mtime, tz=timezone.utc
                                     ).isoformat(),
                                     "category": self._categorize_file(file_path),
                                 }
@@ -438,7 +438,19 @@ class DiskAnalyzer:
         return suggestions[:15]  # Limit to top 15 suggestions
 
     def _get_dir_size_mb(self, dir_path: Path) -> float:
-        """Calculate directory size in MB using du to avoid rglob memory usage."""
+        """Calculate directory size in MB using native scan with du fallback."""
+        if not dir_path.is_dir():
+            return 0.0
+
+        try:
+            from fixos.diagnostics.native_scan import measure_tree
+
+            m = measure_tree(dir_path, native=True)
+            if isinstance(m, dict) and "bytes" in m and m["bytes"] > 0:
+                return m["bytes"] / (1024**2)
+        except (OSError, ValueError, TypeError, subprocess.SubprocessError):
+            pass
+
         try:
             result = subprocess.run(
                 ["du", "-sb", str(dir_path)],
@@ -472,6 +484,19 @@ class DiskAnalyzer:
         Returns an integer count, or 'many' if counting exceeds the limit
         or the subprocess times out.
         """
+        if not dir_path.is_dir():
+            return 0
+
+        try:
+            from fixos.diagnostics.native_scan import measure_tree
+
+            m = measure_tree(dir_path, native=True)
+            if isinstance(m, dict) and "files" in m:
+                count = int(m["files"])
+                return count if count < limit else "many"
+        except (OSError, ValueError, TypeError, subprocess.SubprocessError):
+            pass
+
         try:
             result = subprocess.run(
                 ["find", str(dir_path), "-type", "f"],
@@ -551,7 +576,7 @@ class DiskAnalyzer:
                     if oldest_time is None or mtime < oldest_time:
                         oldest_time = mtime
             if oldest_time:
-                return datetime.fromtimestamp(oldest_time).isoformat()
+                return datetime.fromtimestamp(oldest_time, tz=timezone.utc).isoformat()
         except Exception:
             pass
         return "unknown"
@@ -566,7 +591,7 @@ class DiskAnalyzer:
                     if newest_time is None or mtime > newest_time:
                         newest_time = mtime
             if newest_time:
-                return datetime.fromtimestamp(newest_time).isoformat()
+                return datetime.fromtimestamp(newest_time, tz=timezone.utc).isoformat()
         except Exception:
             pass
         return "unknown"

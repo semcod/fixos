@@ -1,0 +1,93 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-062",
+  "summary": "optimize project scanner disk analyzer and quick snapshot with rust",
+  "workstream": "application",
+  "classification": {
+    "kind": "SERVICE",
+    "priority": "P2",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-062/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/diagnostics/disk_analyzer.py",
+    "fixos/diagnostics/project_scanner.py",
+    "fixos/diagnostics/quick_snapshot.py",
+    "tests/unit/test_disk_analyzer.py",
+    "tests/unit/test_project_scanner.py",
+    "tests/unit/test_quick_snapshot.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [
+    "python"
+  ],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "2aa3c8e765988917dc916d6ee7dfea0c474a921a",
+    "targetBranch": "main",
+    "outcome": "Accelerate project_scanner, disk_analyzer, and quick_snapshot using Rust fixos-native tree and batch measurements while preserving 100% Python fallbacks and safety constraints.",
+    "nonGoals": [
+      "No change to deletion safety boundaries or deletion authority",
+      "No destructive actions without explicit confirmation",
+      "No remote repository publication in this session"
+    ],
+    "complexity": "M",
+    "estimatedMinutes": 60,
+    "budgets": {
+      "maxImplementationFiles": 6,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "1. Replace sequential du calls in project_scanner.py with measure_tree or measure_batch from fixos-native with du fallback. 2. Replace du -sb and find in disk_analyzer.py with measure_tree returning bytes and file counts. 3. Accelerate cache measurement in quick_snapshot.py with native measure_batch. 4. Add unit test suites verifying performance and fallbacks.",
+      "components": [
+        {
+          "name": "diagnostics",
+          "paths": [
+            "fixos/diagnostics/disk_analyzer.py",
+            "fixos/diagnostics/project_scanner.py",
+            "fixos/diagnostics/quick_snapshot.py"
+          ]
+        },
+        {
+          "name": "tests",
+          "paths": [
+            "tests/unit/test_disk_analyzer.py",
+            "tests/unit/test_project_scanner.py",
+            "tests/unit/test_quick_snapshot.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert implementation commits."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "pytest -q tests/unit/test_project_scanner.py",
+          "pytest -q tests/unit/test_disk_analyzer.py",
+          "pytest -q tests/unit/test_quick_snapshot.py",
+          "bash project/governance-check.sh"
+        ],
+        "evidence": "Tests pass and governance check passes."
+      }
+    ]
+  }
+}

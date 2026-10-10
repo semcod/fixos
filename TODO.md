@@ -8,6 +8,11 @@ Ostatni przegląd: 2026-09-15.
 
 ## Aktywne
 
+- [ ] Dostarczyć [ticket-062](project/ticket-062/README.md): optymalizacja skanera
+  projektów deweloperskich (`project_scanner.py`), analizy dysku (`disk_analyzer.py`)
+  oraz szybkiego snapshotu (`quick_snapshot.py`) poprzez natywne pomiary Rust (`fixos-native`).
+  Stan: `IN_PROGRESS / EDIT`.
+
 - [ ] Dostarczyć [ticket-061](project/ticket-061/README.md): optymalizacja wąskich
   gardeł FixOS za pomocą natywnego skanera Rust (`fixos-native`), leniwego
   ładowania komend CLI, zabezpieczenia timeoutu Dockera, oraz graficznego

@@ -104,7 +104,20 @@ class ProjectArtifact:
 
 
 def _get_dir_size_mb(path: str) -> float:
-    """Size of a directory in MB, via `du` (fast, sparse-file aware)."""
+    """Size of a directory in MB, via native Rust scan with du fallback."""
+    p = Path(path)
+    if not p.is_dir():
+        return 0.0
+
+    try:
+        from fixos.diagnostics.native_scan import measure_tree
+
+        m = measure_tree(p, native=True)
+        if isinstance(m, dict) and "bytes" in m and m["bytes"] > 0:
+            return m["bytes"] / (1024 * 1024)
+    except (OSError, ValueError, TypeError, subprocess.SubprocessError):
+        pass
+
     try:
         result = subprocess.run(
             ["du", "-sk", "--", path],
