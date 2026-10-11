@@ -1,8 +1,9 @@
-from setuptools import setup, find_packages
 from pathlib import Path
 
+from setuptools import find_packages, setup
+
 long_description = (Path(__file__).parent / "README.md").read_text(encoding="utf-8")
-version = "2.2.48"
+version = (Path(__file__).parent / "VERSION").read_text(encoding="utf-8").strip()
 
 setup(
     name="fixos",

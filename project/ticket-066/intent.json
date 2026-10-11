@@ -1,0 +1,93 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-066",
+  "summary": "align setup.py dynamic version and update readme badge",
+  "workstream": "governance",
+  "classification": {
+    "kind": "SERVICE",
+    "priority": "P2",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-066/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    ".governance/manifest.json",
+    "setup.py",
+    "README.md",
+    "goal.yaml"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [
+    "python"
+  ],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "d682c0752552642cd57c07548bca471d395108ef",
+    "targetBranch": "main",
+    "outcome": "Align setup.py to read VERSION dynamically, remove stale setup.py entry from goal.yaml versioning, update README version badge to 2.2.51, and register setup.py in governance ownedPaths.",
+    "nonGoals": [
+      "No changes to library runtime or CLI behavior."
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 10,
+    "budgets": {
+      "maxImplementationFiles": 5,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Use Path(VERSION).read_text().strip() in setup.py to match single source of truth standard, update README badge to 2.2.51, clean goal.yaml, and add setup.py to ownedPaths.",
+      "components": [
+        {
+          "name": "packaging",
+          "paths": [
+            "setup.py",
+            "goal.yaml"
+          ]
+        },
+        {
+          "name": "governance",
+          "paths": [
+            ".governance/manifest.json",
+            "README.md"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the commit; restore static version in setup.py and previous badge."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python3 -c \"import setup; print(setup.version)\"",
+          "grep -c '2.2.51' README.md"
+        ],
+        "evidence": "project/ticket-066/README.md"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "pytest -q tests/unit/test_version_parity.py",
+          "./project/governance-check.sh"
+        ],
+        "evidence": "project/ticket-066/README.md"
+      }
+    ]
+  }
+}
