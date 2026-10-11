@@ -57,7 +57,8 @@
           ".github/copilot-instructions.md",
           ".github/workflows/multi-system-tests.yml",
           "VERSION",
-          "wellmanifest_governance.py"
+          "wellmanifest_governance.py",
+          "setup.py"
         ]
       },
       "infrastructure": {
@@ -80,7 +81,8 @@
           "pom.xml",
           "docs/**",
           "MANIFEST.in",
-          "uv.lock"
+          "uv.lock",
+          "setup.py"
         ]
       },
       "interfaces": {
