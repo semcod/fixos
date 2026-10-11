@@ -1,0 +1,83 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-065",
+  "summary": "allow module execution as python -m fixos.cli and test cli entry points",
+  "workstream": "application",
+  "classification": {
+    "kind": "SERVICE",
+    "priority": "P2",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-065/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/cli/__main__.py",
+    "tests/unit/test_cli_main.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [
+    "python"
+  ],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "cc0a4ec5b229edcafc18ee1529e4b45034acf61e",
+    "targetBranch": "main",
+    "outcome": "Allow executing fixOS CLI as python -m fixos.cli in addition to python -m fixos, backed by unit tests.",
+    "nonGoals": [
+      "No changes to CLI subcommands or external APIs."
+    ],
+    "complexity": "XS",
+    "estimatedMinutes": 10,
+    "budgets": {
+      "maxImplementationFiles": 2,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Add fixos/cli/__main__.py delegating to fixos.cli.main and add tests/unit/test_cli_main.py.",
+      "components": [
+        {
+          "name": "cli",
+          "paths": [
+            "fixos/cli/__main__.py",
+            "tests/unit/test_cli_main.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the commit; remove fixos/cli/__main__.py and tests/unit/test_cli_main.py."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python3 -m fixos.cli --version",
+          "pytest -q tests/unit/test_cli_main.py"
+        ],
+        "evidence": "project/ticket-065/README.md"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "./project/governance-check.sh"
+        ],
+        "evidence": "project/ticket-065/README.md"
+      }
+    ]
+  }
+}
