@@ -1,9 +1,16 @@
+import re
 from pathlib import Path
 
 from setuptools import find_packages, setup
 
 long_description = (Path(__file__).parent / "README.md").read_text(encoding="utf-8")
-version = (Path(__file__).parent / "VERSION").read_text(encoding="utf-8").strip()
+version_file = Path(__file__).parent / "VERSION"
+if version_file.is_file():
+    version = version_file.read_text(encoding="utf-8").strip()
+else:
+    pyproject_file = Path(__file__).parent / "pyproject.toml"
+    match = re.search(r'(?m)^version\s*=\s*["\']([^"\']+)["\']', pyproject_file.read_text(encoding="utf-8"))
+    version = match.group(1) if match else "unknown"
 
 setup(
     name="fixos",

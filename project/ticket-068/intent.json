@@ -1,0 +1,84 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-068",
+  "summary": "package VERSION in MANIFEST.in and robust fallback in setup.py",
+  "workstream": "integration",
+  "classification": {
+    "kind": "SERVICE",
+    "priority": "P2",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-068/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "MANIFEST.in",
+    "setup.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [
+    "python"
+  ],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "30f3fce0d7dcac18c945bec24f02b697b4a025b4",
+    "targetBranch": "main",
+    "outcome": "Include VERSION in MANIFEST.in so sdist includes the version carrier, and make setup.py resilient with pyproject fallback.",
+    "nonGoals": [
+      "No changes to CLI commands or runtime code."
+    ],
+    "complexity": "XS",
+    "estimatedMinutes": 5,
+    "budgets": {
+      "maxImplementationFiles": 2,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Include VERSION in MANIFEST.in so sdist bundles the version file, and add pyproject fallback in setup.py when VERSION is absent.",
+      "components": [
+        {
+          "name": "packaging",
+          "paths": [
+            "MANIFEST.in",
+            "setup.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the commit; remove include VERSION from MANIFEST.in and restore previous setup.py."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "grep 'include VERSION' MANIFEST.in",
+          "python -m build --wheel --sdist"
+        ],
+        "evidence": "project/ticket-068/README.md"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "pytest -q tests/unit/test_version_parity.py",
+          "./project/governance-check.sh"
+        ],
+        "evidence": "project/ticket-068/README.md"
+      }
+    ]
+  }
+}
