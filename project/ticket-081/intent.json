@@ -1,0 +1,88 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-081",
+  "summary": "fixos cleanup --docker-volumes: select and remove unused Docker volumes safely",
+  "workstream": "application",
+  "classification": {
+    "kind": "FEATURE",
+    "priority": "P2",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-081/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/cli/_cleanup_docker_volumes.py",
+    "fixos/cli/cleanup_cmd.py",
+    "fixos/diagnostics/_storage_container_mixin.py",
+    "tests/unit/test_cleanup_docker_volumes.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [
+    "python"
+  ],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "d0d37038727598ab0234d06de40952c3114e9cd2",
+    "targetBranch": "main",
+    "outcome": "fixos cleanup --docker-volumes lists unused Docker volumes with name, Compose project, age and size (du, then sudo -n du), filters by --match/--days, removes only selected volumes after re-checking they are still unused, and --yes never selects data-looking volumes; --full no longer runs docker system prune -a --volumes.",
+    "nonGoals": [
+      "No automatic removal from the default cleanup plan.",
+      "No volume size via docker system df."
+    ],
+    "complexity": "M",
+    "estimatedMinutes": 90,
+    "budgets": {
+      "maxImplementationFiles": 4,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "New space action module following the gitive/tmp pattern (list, choose, dry-run, confirm), wired as --docker-volumes/-c docker-volumes with --match; full analysis uses the bounded builder prune instead of a bulk volume prune.",
+      "components": [
+        {
+          "name": "docker-volumes",
+          "paths": [
+            "fixos/cli/_cleanup_docker_volumes.py",
+            "fixos/cli/cleanup_cmd.py",
+            "fixos/diagnostics/_storage_container_mixin.py",
+            "tests/unit/test_cleanup_docker_volumes.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the commit."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "pytest -q tests/unit/test_cleanup_docker_volumes.py"
+        ],
+        "evidence": "project/ticket-081/README.md"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "pytest -q",
+          "./project/governance-check.sh"
+        ],
+        "evidence": "project/ticket-081/README.md"
+      }
+    ]
+  }
+}

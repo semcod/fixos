@@ -3,15 +3,16 @@
 from __future__ import annotations
 
 import os
+from typing import ClassVar
 
-from fixos.diagnostics.storage_analyzer import StorageItem
 from fixos.constants import MIN_DOCKER_DANGLING_MB, MIN_PODMAN_MB
+from fixos.diagnostics.storage_analyzer import StorageItem
 
 
 class _ContainerAnalyzerMixin:
     """Mixin providing container _analyze_* methods for StorageAnalyzer."""
 
-    _DOCKER_DF_SECTIONS = {
+    _DOCKER_DF_SECTIONS: ClassVar[dict[str, str]] = {
         "Images space usage:": "images",
         "Containers space usage:": "containers",
         "Local Volumes space usage:": "volumes",
@@ -119,11 +120,14 @@ class _ContainerAnalyzerMixin:
                     size_bytes=total_docker,
                     category="containers",
                     risk="medium",
-                    cleanup_command="docker system prune -a --volumes",
+                    # Never a bulk volume prune: volumes are data and are
+                    # chosen one by one with `fixos cleanup --docker-volumes`.
+                    cleanup_command="docker builder prune --force --filter until=168h",
                     description=(
                         f"Docker łącznie: {StorageItem._format_size(total_docker)}. "
                         f"Obrazy: {total_images}, dangling: {dangling_images}. "
-                        "Uwaga: usunie wszystkie nieużywane zasoby."
+                        "Czyści cache buildów starszy niż 7 dni; wolumeny wybierz "
+                        "ręcznie przez `fixos cleanup --docker-volumes`."
                     ),
                 )
             )

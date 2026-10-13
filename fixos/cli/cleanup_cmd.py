@@ -14,6 +14,8 @@ import re
 
 import click
 
+from fixos.cli._cleanup_docker_volumes import _cleanup_docker_volumes
+
 # Re-export public symbols used by fixos.cli (backward-compat)
 from fixos.cli._cleanup_flatpak import _cleanup_flatpak_detailed
 from fixos.cli._cleanup_space import (
@@ -1611,7 +1613,7 @@ def _execute_yes_cleanup(plan: dict, scanner, dry_run: bool = False) -> None:
         "Wyczyść konkretną usługę "
         "(docker, docker-all, docker-old, docker-containers, docker-networks, "
         "docker-stale-services, orphaned-projects, ollama-old, snap-old, "
-        "journal, user-cache, jetbrains, libvirt, gitive, docker-buildcache, tmp, venvs-old, "
+        "journal, user-cache, jetbrains, libvirt, gitive, docker-buildcache, docker-volumes, tmp, venvs-old, "
         "npm, ...)"
     ),
 )
@@ -1718,6 +1720,23 @@ def _execute_yes_cleanup(plan: dict, scanner, dry_run: bool = False) -> None:
         "Usuń modele Ollama niezmieniane od --days dni "
         f"(domyślnie {DEFAULT_OLLAMA_OLD_UNUSED_DAYS}); pomija modele aktualnie uruchomione"
     ),
+)
+@click.option(
+    "--docker-volumes",
+    "docker_volumes",
+    is_flag=True,
+    default=False,
+    help=(
+        "Wybierz i usuń nieużywane wolumeny Dockera (nazwa, projekt Compose, wiek, "
+        "rozmiar przez du/sudo -n); filtry --days i --match; --yes pomija "
+        "wolumeny wyglądające na dane"
+    ),
+)
+@click.option(
+    "--match",
+    "match",
+    default=None,
+    help="Dla --docker-volumes: fragmenty nazw rozdzielone przecinkami, np. ollama,huggingface",
 )
 @click.option(
     "--snap-old",
@@ -1893,6 +1912,8 @@ def cleanup_services(
     list_orphan_pins,
     process_hours,
     ollama_old,
+    docker_volumes,
+    match,
     snap_old,
     journal_cleanup,
     user_cache,
@@ -1951,6 +1972,8 @@ def cleanup_services(
       fixos cleanup --unpin-orphan-project /absolute/missing/project
       # usuwa ochronę, ale nie zmienia Dockera ani procesów
       fixos cleanup --ollama-old --days 90 --dry-run
+      fixos cleanup --docker-volumes --list   # nieużywane wolumeny: nazwa, projekt, wiek, rozmiar
+      fixos cleanup --docker-volumes --match ollama,huggingface --days 90
       # modele Ollama niezmieniane od 90+ dni
       fixos cleanup -c ollama-old
       fixos cleanup --snap-old          # wyłączone rewizje snapów
@@ -2004,6 +2027,7 @@ def cleanup_services(
                 list_orphan_pins,
                 ollama_old,
                 snap_old,
+                docker_volumes,
                 journal_cleanup,
                 user_cache,
                 jetbrains,
@@ -2053,6 +2077,7 @@ def cleanup_services(
                 ollama_old,
                 docker_buildcache,
                 snap_old,
+                docker_volumes,
                 journal_cleanup,
                 user_cache,
                 jetbrains,
@@ -2106,6 +2131,17 @@ def cleanup_services(
         "libvirt": (libvirt, _cleanup_libvirt),
         "gitive": (gitive, _cleanup_gitive),
         "docker-buildcache": (docker_buildcache, _cleanup_docker_buildcache),
+        "docker-volumes": (
+            docker_volumes,
+            lambda j, d, lst, y: _cleanup_docker_volumes(
+                j,
+                d,
+                lst,
+                y,
+                days=effective_days,
+                match=[t.strip() for t in (match or "").split(",") if t.strip()],
+            ),
+        ),
         "tmp": (
             tmp_cleanup,
             lambda j, d, lst, y: _cleanup_tmp(
@@ -2168,7 +2204,7 @@ def cleanup_services(
         click.echo(
             click.style(
                 "Akcje odzyskiwania miejsca (snap/journal/cache/JetBrains/"
-                "libvirt/gitive/docker-buildcache/tmp/trash/thumbnails) uruchom jako osobną, pojedynczą akcję.",
+                "libvirt/gitive/docker-buildcache/docker-volumes/tmp/trash/thumbnails) uruchom jako osobną, pojedynczą akcję.",
                 fg="red",
             )
         )
