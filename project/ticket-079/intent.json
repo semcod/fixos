@@ -1,0 +1,84 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-079",
+  "summary": "ssot decision: diagnostic command tables flagged by redup are allowed divergence",
+  "workstream": "integration",
+  "classification": {
+    "kind": "SERVICE",
+    "priority": "P3",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-079/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "docs/INFORMATION/**",
+    "docs/ssot/**"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [
+    "python"
+  ],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "ac96e51c3e119a074e19dd9f80f9663f8f7129c5",
+    "targetBranch": "main",
+    "outcome": "The two redup clone groups in fixos/diagnostics/checks are recorded as a wellmanifest/ssot allowed_divergence decision (not debt), and the standards page reflects it and the reuse fixes.",
+    "nonGoals": [
+      "No code change; no committed .reuse receipt."
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 15,
+    "budgets": {
+      "maxImplementationFiles": 3,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "ssot interview answered from the redup groups; decision generated and validated by the ssot tool; information page version 3.",
+      "components": [
+        {
+          "name": "standards-docs",
+          "paths": [
+            "docs/ssot/diagnostic-command-tables.interview.json",
+            "docs/ssot/diagnostic-command-tables.ssot.json",
+            "docs/INFORMATION/WELLMANIFEST_STANDARDS.md"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the commit."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "PYTHONPATH=src python3 -m ssot validate docs/ssot/diagnostic-command-tables.ssot.json",
+          "python3 <wellmanifest/docs>/docs/standard/check.py --root . --standard-revision 19efafbeb18923cfd51cc69bd519330488500137 --base <base> --deliverable docs/INFORMATION/WELLMANIFEST_STANDARDS.md"
+        ],
+        "evidence": "project/ticket-079/README.md"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "./project/governance-check.sh"
+        ],
+        "evidence": "project/ticket-079/README.md"
+      }
+    ]
+  }
+}

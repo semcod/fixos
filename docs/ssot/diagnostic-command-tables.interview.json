@@ -1,0 +1,20 @@
+{
+  "schema": "wellmanifest.ssot/interview/v1",
+  "subject_id": "fixos.diagnostic-command-tables",
+  "purpose": "Decide whether redup clone groups between diagnostic check functions that each return a dict of distinct shell probes are duplication to extract.",
+  "languages": ["python"],
+  "packaging": ["monorepo-path"],
+  "trees": ["fixos/diagnostics/checks/file_analysis.py", "fixos/diagnostics/checks/packages.py", "fixos/diagnostics/checks/storage_optimization.py"],
+  "same_git_remote": false,
+  "same_pin": false,
+  "relationship": "allowed_divergence",
+  "must_stay_identical": "may_drift",
+  "different_protocol_by_design": true,
+  "divergence_reason": "Same return shape (name -> _cmd(probe)), different probes: LVM, snap, Downloads, swap, filesystem. No shared logic beyond the existing _cmd helper.",
+  "canonical_ref": "fixos/diagnostics/checks/_shared.py:_cmd",
+  "consumer_can_import": true,
+  "analyzer_present": true,
+  "analyzer_kind": "redup",
+  "analyzer_noise": true,
+  "human_confirmed_debt": false
+}
