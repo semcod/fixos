@@ -130,7 +130,7 @@ class TestDockerTimeoutStaysReviewable:
         monkeypatch.setattr("fixos.diagnostics.service_scanner.os.path.exists", lambda p: True)
         monkeypatch.setattr(scanner, "measure_service_size_mb", lambda *a, **k: 0.0)
         monkeypatch.setattr(scanner, "_get_docker_daemon_size_mb", lambda: None)
-        monkeypatch.setattr(scanner, "_docker_fast_inventory", lambda: {})
+        monkeypatch.setattr(scanner, "_docker_fast_inventory", dict)
         scanner._docker_usage_timed_out = True
 
         services = scanner.scan_service(ServiceType.DOCKER)
@@ -183,8 +183,8 @@ class TestDockerTimeoutStaysReviewable:
         assert ServiceDataScanner._docker_fast_inventory() == {}
 
     def test_list_shows_inventory_instead_of_zero_size(self):
-        from click.testing import CliRunner
         import click
+        from click.testing import CliRunner
 
         from fixos.cli.cleanup_cmd import _display_service_item
 
