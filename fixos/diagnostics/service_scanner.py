@@ -330,7 +330,12 @@ class ServiceDataScanner:
             for path in matching_paths:
                 if os.path.exists(path):
                     info = self._analyze_service_path(service_type, path)
-                    if info and info.size_mb >= self.threshold_mb:
+                    # An unmeasurable entry (slow Docker daemon) has no size to
+                    # compare; dropping it hid hundreds of GB from the report.
+                    if info and (
+                        info.size_mb >= self.threshold_mb
+                        or info.details.get("size_unknown")
+                    ):
                         results.append(info)
         if len(results) > 1:
             return self._merge_by_risk(results)
@@ -543,9 +548,63 @@ class ServiceDataScanner:
             preview_command=ServiceCleaner.get_preview_command(ServiceType.DOCKER, path),
             safe_to_cleanup=False,
             impact="high",
-            details={"size_unknown": True, "reason": "docker_system_df_timeout"},
+            details={
+                "size_unknown": True,
+                "reason": "docker_system_df_timeout",
+                "fast_inventory": self._docker_fast_inventory(),
+            },
             risk_level=ServiceCleaner.get_risk_level(ServiceType.DOCKER, path),
         )
+
+    @staticmethod
+    def _docker_fast_inventory(timeout_s: float = 10.0) -> dict[str, Any]:
+        """Counts and build-cache size from Docker commands that stay fast.
+
+        ``docker system df`` walks every volume to size it; with hundreds of
+        volumes it can take minutes even on an idle host.  Listing objects and
+        ``docker builder du`` answer in well under a second, so a timed-out
+        scan can still show where Docker holds data.  Volume sizes stay
+        unknown; orphaned volumes are data and are only counted.
+        """
+
+        def lines(*args: str) -> list[str] | None:
+            try:
+                result = subprocess.run(
+                    ["docker", *args],
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout_s,
+                    check=False,
+                )
+            except (OSError, subprocess.TimeoutExpired):
+                return None
+            if result.returncode != 0:
+                return None
+            return [line for line in result.stdout.splitlines() if line.strip()]
+
+        inventory: dict[str, Any] = {}
+        queries = {
+            "images": ("image", "ls", "-q", "--no-trunc"),
+            "dangling_images": ("image", "ls", "-q", "--no-trunc", "-f", "dangling=true"),
+            "containers": ("ps", "-aq"),
+            "stopped_containers": ("ps", "-aq", "-f", "status=exited"),
+            "volumes": ("volume", "ls", "-q"),
+            "dangling_volumes": ("volume", "ls", "-q", "-f", "dangling=true"),
+        }
+        for key, args in queries.items():
+            found = lines(*args)
+            if found is not None:
+                inventory[key] = len(set(found))
+
+        builder = lines("builder", "du")
+        if builder is not None:
+            for line in builder:
+                label, _, value = line.partition(":")
+                label = label.strip().lower()
+                if label in ("total", "reclaimable") and value.strip():
+                    size_mb = ServiceDataScanner._parse_human_size_to_mb(value.strip())
+                    inventory[f"build_cache_{label}_gb"] = round(size_mb / 1024, 3)
+        return inventory
 
     def _get_docker_daemon_size_mb(self, *, refresh: bool = False) -> float | None:
         """Total Docker disk usage as reported by the daemon itself."""

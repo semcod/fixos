@@ -110,6 +110,7 @@ class TestDockerTimeoutStaysReviewable:
         scanner = ServiceDataScanner(threshold_mb=50)
         monkeypatch.setattr(scanner, "measure_service_size_mb", lambda *a, **k: 0.0)
         monkeypatch.setattr(scanner, "_get_docker_daemon_size_mb", lambda: None)
+        monkeypatch.setattr(scanner, "_docker_fast_inventory", lambda: {"volumes": 3})
         scanner._docker_usage_timed_out = True
 
         service = scanner._analyze_service_path(ServiceType.DOCKER, "/var/lib/docker")
@@ -119,6 +120,98 @@ class TestDockerTimeoutStaysReviewable:
         assert service.details.get("reason") == "docker_system_df_timeout"
         assert service.safe_to_cleanup is False
         assert service.can_cleanup is True
+        assert service.details.get("fast_inventory") == {"volumes": 3}
+
+    def test_scan_service_keeps_unknown_size_docker_entry(self, monkeypatch):
+        scanner = ServiceDataScanner(threshold_mb=500)
+        monkeypatch.setattr(
+            ServiceDataScanner, "SERVICE_PATHS", {ServiceType.DOCKER: ["/var/lib/docker"]}
+        )
+        monkeypatch.setattr("fixos.diagnostics.service_scanner.os.path.exists", lambda p: True)
+        monkeypatch.setattr(scanner, "measure_service_size_mb", lambda *a, **k: 0.0)
+        monkeypatch.setattr(scanner, "_get_docker_daemon_size_mb", lambda: None)
+        monkeypatch.setattr(scanner, "_docker_fast_inventory", dict)
+        scanner._docker_usage_timed_out = True
+
+        services = scanner.scan_service(ServiceType.DOCKER)
+
+        assert [s.details.get("size_unknown") for s in services] == [True]
+
+    def test_fast_inventory_counts_objects_and_build_cache(self, monkeypatch):
+        outputs = {
+            ("image", "ls", "-q", "--no-trunc"): "sha256:a\nsha256:b\nsha256:a\n",
+            ("image", "ls", "-q", "--no-trunc", "-f", "dangling=true"): "sha256:b\n",
+            ("ps", "-aq"): "c1\nc2\nc3\n",
+            ("ps", "-aq", "-f", "status=exited"): "c3\n",
+            ("volume", "ls", "-q"): "v1\nv2\nv3\nv4\n",
+            ("volume", "ls", "-q", "-f", "dangling=true"): "v3\nv4\n",
+            ("builder", "du"): "ID\tSIZE\nabc\t1GB\nShared:\t4.276GB\n"
+            "Reclaimable:\t4.301GB\nTotal:\t\t4.301GB\n",
+        }
+        calls = []
+
+        def fake_run(argv, **kwargs):
+            calls.append(kwargs["timeout"])
+
+            class Result:
+                returncode = 0
+                stdout = outputs[tuple(argv[1:])]
+                stderr = ""
+
+            return Result()
+
+        monkeypatch.setattr("fixos.diagnostics.service_scanner.subprocess.run", fake_run)
+
+        inventory = ServiceDataScanner._docker_fast_inventory(timeout_s=2.0)
+
+        assert inventory["images"] == 2
+        assert inventory["dangling_images"] == 1
+        assert inventory["containers"] == 3
+        assert inventory["stopped_containers"] == 1
+        assert inventory["volumes"] == 4
+        assert inventory["dangling_volumes"] == 2
+        assert inventory["build_cache_total_gb"] == round(4.301 * 1024 / 1024, 3)
+        assert inventory["build_cache_reclaimable_gb"] == inventory["build_cache_total_gb"]
+        assert set(calls) == {2.0}
+
+    def test_fast_inventory_skips_unavailable_docker(self, monkeypatch):
+        def missing(argv, **kwargs):
+            raise FileNotFoundError("docker")
+
+        monkeypatch.setattr("fixos.diagnostics.service_scanner.subprocess.run", missing)
+
+        assert ServiceDataScanner._docker_fast_inventory() == {}
+
+    def test_list_shows_inventory_instead_of_zero_size(self):
+        import click
+        from click.testing import CliRunner
+
+        from fixos.cli.cleanup_cmd import _display_service_item
+
+        svc = {
+            "name": "Docker",
+            "service_type": "docker",
+            "size_gb": 0.0,
+            "size_mb": 0.0,
+            "safe_to_cleanup": False,
+            "risk_level": "dangerous",
+            "description": "Docker",
+            "path": "/var/lib/docker",
+            "details": {
+                "size_unknown": True,
+                "fast_inventory": {"volumes": 475, "dangling_volumes": 397},
+            },
+        }
+
+        @click.command()
+        def show():
+            _display_service_item(svc)
+
+        output = CliRunner().invoke(show).output
+
+        assert "rozmiar nieznany" in output
+        assert "0 MB" not in output
+        assert "wolumeny: 475 (397 nieużywanych" in output
 
     def test_timeout_flag_resets_on_successful_probe(self, monkeypatch):
         scanner = ServiceDataScanner(threshold_mb=50)
