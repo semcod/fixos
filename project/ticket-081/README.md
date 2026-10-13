@@ -23,7 +23,8 @@ unused volume at once, including data such as git mirrors.
 - removes only selected volumes, re-checking each is still dangling and not
   referenced by any container right before `docker volume rm`;
 - `--yes` never selects names that look like data (mirror, git, db, postgres,
-  backup, ...); those need an explicit choice.
+  backup, Open WebUI, n8n, storage, ...); those need an explicit choice. A live
+  dry-run showed `--yes` would otherwise have removed three Open WebUI volumes.
 
 `--full` "Docker Total" now runs the bounded build-cache prune and points to
 `--docker-volumes` for volumes.

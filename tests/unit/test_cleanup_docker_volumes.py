@@ -134,3 +134,10 @@ def test_full_analysis_never_prunes_volumes(monkeypatch):
     command = analyzer.items[0].cleanup_command
     assert "--volumes" not in command and "system prune" not in command
     assert command == "docker builder prune --force --filter until=168h"
+
+
+def test_app_data_volumes_are_protected():
+    for name in ("mcp_openwebui-data", "proxy_open-webui-data", "n8n_storage", "mcp_git-repo-storage"):
+        assert volumes._DATA_TOKENS.search(name), name
+    for name in ("llmass_huggingface-cache", "chat_ollama_data", "if-uri_trivy-cache"):
+        assert not volumes._DATA_TOKENS.search(name), name

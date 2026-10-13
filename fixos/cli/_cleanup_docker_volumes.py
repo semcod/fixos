@@ -24,7 +24,8 @@ _DATA_TOKENS = re.compile(
     r"(?:^|[_.-])(mirror|git|gitea|onedev|repo|repos|postgres|postgresql|pg|"
     r"mysql|mariadb|mongo|mongodb|redis|db|database|backup|backups|minio|s3|"
     r"vault|secrets?|keycloak|grafana|prometheus|influx|elastic|opensearch|"
-    r"nextcloud|uploads|media)(?:$|[_.-])",
+    r"nextcloud|uploads|media|webui|openwebui|open-webui|n8n|storage|certs|"
+    r"letsencrypt|wordpress|mattermost|synapse|chat-history)(?:$|[_.-])",
     re.IGNORECASE,
 )
 _INSPECT_BATCH = 100
