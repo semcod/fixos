@@ -1,0 +1,83 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-082",
+  "summary": "docker-volumes: measure volume sizes in parallel",
+  "workstream": "application",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P3",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-082/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/cli/_cleanup_docker_volumes.py",
+    "tests/unit/test_cleanup_docker_volumes.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [
+    "python"
+  ],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "f92edb837c3bf354a6e89a0da7b58f463e484397",
+    "targetBranch": "main",
+    "outcome": "fixos cleanup --docker-volumes measures volume sizes in 8 parallel du batches (unreadable mountpoints straight to sudo -n), cutting size measurement for 379 volumes from 47.5 s to 13.0 s with identical totals.",
+    "nonGoals": [
+      "No CLI change."
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 30,
+    "budgets": {
+      "maxImplementationFiles": 2,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "ThreadPoolExecutor over round-robin batches of du / sudo -n du; readable mountpoints use plain du so partial sizes of unreadable directories are never recorded.",
+      "components": [
+        {
+          "name": "docker-volumes",
+          "paths": [
+            "fixos/cli/_cleanup_docker_volumes.py",
+            "tests/unit/test_cleanup_docker_volumes.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the commit."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "pytest -q tests/unit/test_cleanup_docker_volumes.py"
+        ],
+        "evidence": "project/ticket-082/README.md"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "pytest -q",
+          "./project/governance-check.sh"
+        ],
+        "evidence": "project/ticket-082/README.md"
+      }
+    ]
+  }
+}
