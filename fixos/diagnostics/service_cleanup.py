@@ -8,6 +8,7 @@ import os
 import re
 import shlex
 import shutil
+import stat
 import subprocess
 import urllib.error
 import urllib.request
@@ -1480,6 +1481,16 @@ class ServiceCleaner:
                 result["estimated_max_gb"] = estimated_gb
                 return result
 
+            planned_paths = service.details.get("paths") or [service.path]
+            # uv/pnpm/conda caches hardlink files into environments; deleting
+            # the cache link frees nothing while another link survives.
+            measure_shared = service_enum != ServiceType.DOCKER
+            shared_before_gb = (
+                self._shared_hardlink_bytes(planned_paths) / 1024**3
+                if measure_shared
+                else 0.0
+            )
+
             # Execute cleanup
             cleanup_result = subprocess.run(
                 service.cleanup_command,
@@ -1492,7 +1503,6 @@ class ServiceCleaner:
 
             # Check new size
             measure = getattr(self.scanner, "measure_service_size_mb", None)
-            planned_paths = service.details.get("paths") or [service.path]
             if callable(measure):
                 new_size_mb = sum(
                     measure(service_enum, path, refresh=True) for path in planned_paths
@@ -1502,7 +1512,14 @@ class ServiceCleaner:
                     self.scanner._get_path_size_mb(path) for path in planned_paths
                 )
             new_size_gb = new_size_mb / 1024
-            freed_gb = max(0, initial_size - new_size_gb)
+            shared_after_gb = (
+                self._shared_hardlink_bytes(planned_paths) / 1024**3
+                if measure_shared
+                else 0.0
+            )
+            freed_gb = max(
+                0, (initial_size - shared_before_gb) - (new_size_gb - shared_after_gb)
+            )
 
             result["success"] = cleanup_result.returncode == 0
             result["output"] = cleanup_result.stdout
@@ -1511,6 +1528,9 @@ class ServiceCleaner:
             result["space_freed_gb"] = round(freed_gb, 3)
             result["initial_size_gb"] = initial_size
             result["remaining_size_gb"] = round(new_size_gb, 3)
+            result["shared_hardlink_gb"] = round(
+                max(0.0, shared_before_gb - shared_after_gb), 3
+            )
 
         except Exception as e:  # noqa: BLE001 - stored in result["error"] for the caller to display
             result["error"] = str(e)
@@ -1527,6 +1547,32 @@ class ServiceCleaner:
             and service.cleanup_command
             == "docker builder prune --force --filter until=168h"
         )
+
+    @staticmethod
+    def _shared_hardlink_bytes(paths: list[str]) -> int:
+        """Allocated bytes under ``paths`` whose inode also has links elsewhere.
+
+        Removing such a link does not return blocks to the filesystem, so it
+        must not count as freed space.  Links inside the measured trees are
+        counted together; only an inode with more links than seen is shared.
+        """
+        inodes: dict[tuple[int, int], list[int]] = {}
+        for root in paths:
+            if not root or os.path.islink(root) or not os.path.isdir(root):
+                continue
+            for dirpath, _dirnames, filenames in os.walk(root):
+                for name in filenames:
+                    try:
+                        st = os.lstat(os.path.join(dirpath, name))
+                    except OSError:
+                        continue
+                    if st.st_nlink < 2 or not stat.S_ISREG(st.st_mode):
+                        continue
+                    entry = inodes.setdefault(
+                        (st.st_dev, st.st_ino), [st.st_nlink, 0, st.st_blocks * 512]
+                    )
+                    entry[1] += 1
+        return sum(size for nlink, seen, size in inodes.values() if seen < nlink)
 
     @staticmethod
     def _estimated_cleanup_gb(service) -> float:

@@ -1,0 +1,84 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-069",
+  "summary": "cleanup reports filesystem-real freed space, not cache-dir size drop (hardlinks)",
+  "workstream": "application",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P1",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-069/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/diagnostics/service_cleanup.py",
+    "tests/unit/test_service_cleanup.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [
+    "python"
+  ],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "fcef9dbc19a00182bc3ac3dc932156fe7f260f57",
+    "targetBranch": "main",
+    "outcome": "fixos cleanup reports only space actually returned to the filesystem: bytes whose inode keeps a hardlink outside the cleaned cache (uv/pnpm/conda environments) are excluded from space_freed_gb and exposed as shared_hardlink_gb.",
+    "nonGoals": [
+      "No change to which paths or commands are cleaned.",
+      "No change to dry-run estimates or CLI wording."
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 30,
+    "budgets": {
+      "maxImplementationFiles": 2,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Measure bytes under the planned cleanup paths whose inode has links outside those paths before and after the cleanup command, and subtract them from the directory-size delta when computing space_freed_gb.",
+      "components": [
+        {
+          "name": "service-cleanup",
+          "paths": [
+            "fixos/diagnostics/service_cleanup.py",
+            "tests/unit/test_service_cleanup.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the commit; space_freed_gb returns to the plain directory-size delta."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "pytest -q tests/unit/test_service_cleanup.py"
+        ],
+        "evidence": "project/ticket-069/README.md"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "pytest -q tests/unit/test_cleanup_cmd.py tests/unit/test_cleanup_space.py tests/unit/test_cleanup_effectiveness.py",
+          "./project/governance-check.sh"
+        ],
+        "evidence": "project/ticket-069/README.md"
+      }
+    ]
+  }
+}
