@@ -235,3 +235,36 @@ def test_measure_caches_falls_back_when_native_batch_fails(tmp_path, monkeypatch
     assert pip_item is not None
     assert pip_item["size_bytes"] == 1024 * 1024
 
+
+
+def test_measure_caches_bounds_native_batch(tmp_path, monkeypatch):
+    (tmp_path / ".cache" / "pip").mkdir(parents=True)
+    from unittest.mock import MagicMock
+
+    mock_batch = MagicMock(return_value={})
+    monkeypatch.setattr("fixos.diagnostics.native_scan.measure_batch", mock_batch)
+    monkeypatch.setattr(quick_snapshot, "_du_kib", MagicMock(return_value=(None, "timeout")))
+
+    quick_snapshot._measure_caches(tmp_path, timeout=1.5)
+
+    kwargs = mock_batch.call_args.kwargs
+    assert kwargs["timeout"] == 3.0
+    assert kwargs["python_fallback"] is False
+
+
+def test_timed_out_cache_shows_last_complete_size():
+    items = [
+        {"id": "uv", "size_bytes": 0, "size_gb": 0.0, "complete": False},
+        {"id": "pip", "size_bytes": 10, "size_gb": 0.0, "complete": True},
+    ]
+    history = [
+        {"generated_at": "t1", "cache_sizes": {"uv": 5 * 1024**3}, "cache_complete": {"uv": True}},
+        {"generated_at": "t2", "cache_sizes": {"uv": 1}, "cache_complete": {"uv": False}},
+    ]
+
+    quick_snapshot._fill_from_history(items, history)
+
+    assert items[0]["size_bytes"] == 5 * 1024**3
+    assert items[0]["last_complete_at"] == "t1"
+    assert items[0]["complete"] is False
+    assert "last_complete_at" not in items[1]

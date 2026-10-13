@@ -246,3 +246,46 @@ def test_service_cleaner_tmp_and_buildcache_in_safe_actions(monkeypatch, tmp_pat
     buildcache_exec = cleaner.cleanup_docker_buildcache(dry_run=False)
     assert buildcache_exec["success"] is True
 
+
+
+def test_scan_tmp_sizes_directories_with_one_du_process(monkeypatch, tmp_path):
+    old = time.time() - 3 * 86400
+    for index in range(5):
+        directory = tmp_path / f"dir {index}\tx"
+        directory.mkdir()
+        (directory / "data").write_bytes(b"0" * (index + 1))
+        os.utime(directory, (old, old))
+    old_file = tmp_path / "old.log"
+    old_file.write_bytes(b"0" * 7)
+    os.utime(old_file, (old, old))
+
+    real_run = space._run_cmd
+    calls = []
+
+    def counting_run(argv, timeout=60):
+        calls.append(argv)
+        return real_run(argv, timeout=timeout)
+
+    monkeypatch.setattr(space, "_run_cmd", counting_run)
+
+    candidates = space._scan_tmp(days=1.0, tmp_dir=tmp_path)
+
+    assert len(calls) == 1
+    sizes = {c["name"]: c["size_bytes"] for c in candidates}
+    assert sizes["old.log"] == 7
+    for index in range(5):
+        expected = space._dir_size(tmp_path / f"dir {index}\tx")
+        assert sizes[f"dir {index}\tx"] == expected > 0
+
+
+def test_scan_tmp_measures_individually_when_batch_du_fails(monkeypatch, tmp_path):
+    old = time.time() - 3 * 86400
+    directory = tmp_path / "stale"
+    directory.mkdir()
+    os.utime(directory, (old, old))
+    monkeypatch.setattr(space, "_dir_sizes", lambda paths: {})
+    monkeypatch.setattr(space, "_dir_size", lambda path: 4242)
+
+    candidates = space._scan_tmp(days=1.0, tmp_dir=tmp_path)
+
+    assert candidates[0]["size_bytes"] == 4242
