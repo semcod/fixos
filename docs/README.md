@@ -19,6 +19,13 @@ Ta dokumentacja dotyczy narzędzia do diagnostyki i naprawy systemu fixOS.
 - [CONTRIBUTING](CONTRIBUTING.md) — uruchamianie testów i zasady zmian.
 - [TODO](../TODO.md) — wyłącznie aktywne, ręcznie zweryfikowane zadania.
 
+## Zmiany (wellmanifest/docs v2)
+
+- [BUGFIX: zwolnione miejsce przy hardlinkach](BUGFIX/CLEANUP_HARDLINK_FREED_SPACE.md)
+  — `space_freed_gb` liczy tylko bloki zwrócone systemowi plików.
+- [SERVICE: wydajność skanów](SERVICE/SCAN_PERFORMANCE.md) — budżet czasu
+  `fixos quick` i jednorazowy pomiar `/tmp`.
+
 ## Ważne
 
 Strony `api.md`, `modules.md`, `coverage.md` i `dependency-graph.md` mogą być
