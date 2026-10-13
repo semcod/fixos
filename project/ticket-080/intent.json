@@ -1,0 +1,81 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-080",
+  "summary": "reviewed nohardcode waiver for the OLLAMA_HOST default",
+  "workstream": "application",
+  "classification": {
+    "kind": "SERVICE",
+    "priority": "P3",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-080/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/config.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [
+    "python"
+  ],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "1dcf08ee84abcbc53c68c1e4d0cea3a57f8b8a90",
+    "targetBranch": "main",
+    "outcome": "The last nohardcode error in fixos (named OLLAMA_HOST fallback) carries a reviewed inline waiver with its reason; with wellmanifest/nohardcode#6 fixos has 0 blocking nohardcode errors.",
+    "nonGoals": [
+      "No behaviour change."
+    ],
+    "complexity": "XS",
+    "estimatedMinutes": 10,
+    "budgets": {
+      "maxImplementationFiles": 1,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Use the reviewed inline waiver from wellmanifest/nohardcode#6 instead of rewriting the code to dodge the line scanner.",
+      "components": [
+        {
+          "name": "ollama-endpoint",
+          "paths": [
+            "fixos/config.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the commit."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python3 <wellmanifest/nohardcode>/standard/nohardcode_check.py --target . --format json"
+        ],
+        "evidence": "project/ticket-080/README.md"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "pytest -q tests/unit/test_ollama_endpoint.py",
+          "./project/governance-check.sh"
+        ],
+        "evidence": "project/ticket-080/README.md"
+      }
+    ]
+  }
+}

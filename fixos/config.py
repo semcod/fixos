@@ -143,7 +143,7 @@ _OPENROUTER_MODEL_MIGRATIONS = {
 }
 
 
-DEFAULT_OLLAMA_HOST = "127.0.0.1:11434"
+DEFAULT_OLLAMA_HOST = "127.0.0.1:11434"  # nohardcode: allow NOHARDCODE-006 -- fallback when OLLAMA_HOST is unset or empty
 
 
 def ollama_host_url() -> str:
