@@ -3,13 +3,13 @@
   "schema": "wellmanifest.docs/document/v2",
   "id": "troubleshooting",
   "kind": "service",
-  "version": 1,
+  "version": 2,
   "title": "fixos runbook for slow scans, unknown Docker size and freed-space gaps",
   "status": "accepted",
   "owner": "semcod/fixos",
   "scope": "repository",
   "updated": "2026-10-13",
-  "source_revision": "3cb62dd0c932ca67c07e03ff0a0ec4c86448d193",
+  "source_revision": "0890e5325513b2c49a4a7a0eaf73737e04ab7349",
   "priority": "P2",
   "evidence": ["https://github.com/semcod/fixos/pull/99", "https://github.com/semcod/fixos/pull/102", "https://github.com/semcod/fixos/pull/103"]
 }
@@ -38,8 +38,10 @@ command to run. Use it before filing a bug.
 - **"Zwolniono" exceeds the `df` change.** Before 2.2.53 hardlinked files
   (uv, pnpm, conda) counted as freed; now they are `shared_hardlink_gb`.
   Other writers on the disk can still hide the gain.
-- **LLM `ollama` ignores `OLLAMA_HOST`.** Fixed by ticket-074;
-  `OLLAMA_BASE_URL` still overrides the LLM endpoint.
+- **LLM `ollama` ignores `OLLAMA_HOST`.** Fixed by ticket-074: the default
+  address for the LLM and model cleanup comes from `OLLAMA_HOST`.
+  `OLLAMA_BASE_URL` is a separate, LLM-only override (e.g. a proxy); unset it
+  to use `OLLAMA_HOST`.
 - **`goal -a`: `setup.py:version: selector version was not found`.** goal
   2.2.0 treats the computed-version `setup.py` as a source (semcod/goal#188);
   bump `VERSION` and `pyproject.toml` in a ticket until it is installed.
