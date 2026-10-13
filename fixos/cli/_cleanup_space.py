@@ -52,6 +52,31 @@ def _run_cmd(argv: list[str], timeout: int = 60) -> subprocess.CompletedProcess:
     return subprocess.run(argv, capture_output=True, text=True, timeout=timeout, check=False)
 
 
+_DU_BATCH = 512
+
+
+def _dir_sizes(paths: list[Path]) -> dict[str, int]:
+    """Sizes in bytes for many directories with one ``du`` per batch.
+
+    ``--count-links`` keeps each directory independent of the others, as a
+    separate ``du`` would be; NUL-terminated output survives any file name.
+    Paths missing from the result must be measured individually.
+    """
+    sizes: dict[str, int] = {}
+    for start in range(0, len(paths), _DU_BATCH):
+        batch = [str(path) for path in paths[start : start + _DU_BATCH]]
+        try:
+            result = _run_cmd(["du", "-sbl0", "--", *batch], timeout=300)
+        except (OSError, subprocess.TimeoutExpired):
+            continue
+        # du exits 1 when some subtree is unreadable but still prints totals.
+        for record in result.stdout.split("\0"):
+            size, sep, name = record.partition("\t")
+            if sep and size.isdigit():
+                sizes[name] = int(size)
+    return sizes
+
+
 def _dir_size(path: Path) -> int:
     """Return directory size in bytes (du -sb with a Python fallback)."""
     try:
@@ -876,6 +901,7 @@ def _scan_tmp(
     cutoff_seconds = days * 86400
     tmp_path = Path(tmp_dir) if tmp_dir is not None else Path("/tmp")
     candidates = []
+    directories = []
 
     if tmp_path.is_dir():
         try:
@@ -893,22 +919,28 @@ def _scan_tmp(
                     mtime = stat_val.st_mtime
                     age_seconds = now - mtime
                     if age_seconds >= cutoff_seconds:
-                        size = (
-                            stat_val.st_size if not item.is_dir() else _dir_size(item)
-                        )
+                        is_dir = stat_module.S_ISDIR(stat_val.st_mode)
                         age_days = age_seconds / 86400
                         candidates.append({
                             "description": f"{name} (wiek: {age_days:.1f} dni)",
                             "path": item,
                             "name": name,
-                            "size_bytes": size,
+                            "size_bytes": 0 if is_dir else stat_val.st_size,
                             "note": f"{age_days:.1f} dni",
                             "age_days": age_days,
                         })
+                        if is_dir:
+                            directories.append(candidates[-1])
                 except (OSError, PermissionError):
                     continue
         except (OSError, PermissionError):
             pass
+
+    # One `du` per directory meant thousands of processes on a busy /tmp.
+    sizes = _dir_sizes([c["path"] for c in directories])
+    for candidate in directories:
+        size = sizes.get(str(candidate["path"]))
+        candidate["size_bytes"] = size if size is not None else _dir_size(candidate["path"])
 
     return candidates
 

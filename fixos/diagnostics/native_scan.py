@@ -69,9 +69,19 @@ def measure_tree(
 
 
 def measure_batch(
-    paths: list[Path], exclude: tuple[str, ...] = (), *, native: bool = True
+    paths: list[Path],
+    exclude: tuple[str, ...] = (),
+    *,
+    native: bool = True,
+    timeout: float = 120,
+    python_fallback: bool = True,
 ) -> dict[str, dict]:
-    """Measure multiple paths, accelerating with Rust batch measurement if available."""
+    """Measure multiple paths, accelerating with Rust batch measurement if available.
+
+    Results are keyed by the resolved path.  ``python_fallback=False`` returns
+    ``{}`` instead of an unbounded Python walk when the native batch is
+    missing, fails or exceeds ``timeout``; time-budgeted callers use it.
+    """
     if not paths:
         return {}
     if native:
@@ -84,7 +94,7 @@ def measure_batch(
                         [str(executable), "batch-measure", *abs_paths],
                         capture_output=True,
                         text=True,
-                        timeout=120,
+                        timeout=timeout,
                         check=True,
                     )
                     data = json.loads(result.stdout)
@@ -103,6 +113,8 @@ def measure_batch(
                             return res
                 except (OSError, ValueError, subprocess.SubprocessError):
                     pass
+    if not python_fallback:
+        return {}
     return {str(p.resolve()): measure_python(p, exclude) for p in paths}
 
 

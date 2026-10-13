@@ -1,0 +1,92 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-070",
+  "summary": "faster cleanup and quick scans: batch tmp du, honor quick time budget",
+  "workstream": "application",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P1",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-070/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/cli/_cleanup_space.py",
+    "fixos/diagnostics/native_scan.py",
+    "fixos/diagnostics/quick_snapshot.py",
+    "tests/unit/test_cleanup_tmp.py",
+    "tests/unit/test_native_scan.py",
+    "tests/unit/test_quick_snapshot.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [
+    "python"
+  ],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "fcef9dbc19a00182bc3ac3dc932156fe7f260f57",
+    "targetBranch": "main",
+    "outcome": "fixos cleanup sizes stale /tmp directories with one du process per 512 entries instead of one per entry, and fixos quick keeps its time budget: the native cache batch is bounded and never falls back to an unbounded Python walk; caches that miss the budget show their last complete size.",
+    "nonGoals": [
+      "No change to what is selected or deleted.",
+      "No change to the fixos-native Rust protocol."
+    ],
+    "complexity": "M",
+    "estimatedMinutes": 60,
+    "budgets": {
+      "maxImplementationFiles": 6,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Batch /tmp directory sizing through `du -sbl0` and give measure_batch explicit timeout/python_fallback controls that quick uses with its own budget, filling timed-out caches from quick history.",
+      "components": [
+        {
+          "name": "scan-performance",
+          "paths": [
+            "fixos/cli/_cleanup_space.py",
+            "fixos/diagnostics/quick_snapshot.py",
+            "fixos/diagnostics/native_scan.py",
+            "tests/unit/test_cleanup_tmp.py",
+            "tests/unit/test_quick_snapshot.py",
+            "tests/unit/test_native_scan.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the commit; tmp sizing returns to per-entry du and quick to the 120 s native batch."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "pytest -q tests/unit/test_cleanup_tmp.py tests/unit/test_native_scan.py tests/unit/test_quick_snapshot.py"
+        ],
+        "evidence": "project/ticket-070/README.md"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "pytest -q tests/unit/test_quick_cmd.py tests/unit/test_cleanup_space.py tests/unit/test_cleanup_cmd.py",
+          "./project/governance-check.sh"
+        ],
+        "evidence": "project/ticket-070/README.md"
+      }
+    ]
+  }
+}

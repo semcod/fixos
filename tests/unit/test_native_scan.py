@@ -184,3 +184,29 @@ class TestScanDirNative:
         assert len(entries) == 2
         assert entries[0]["name"] == "pip"
         assert entries[0]["bytes"] == 50000000
+
+
+class TestMeasureBatchBudget:
+    def test_no_python_fallback_returns_empty_without_native(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("FIXOS_NATIVE", "off")
+        walked = MagicMock()
+        monkeypatch.setattr("fixos.diagnostics.native_scan.measure_python", walked)
+
+        assert measure_batch([tmp_path], python_fallback=False) == {}
+        walked.assert_not_called()
+
+    def test_native_timeout_is_passed_through(self, tmp_path, monkeypatch):
+        fake_bin = tmp_path / "fixos-native"
+        fake_bin.touch(mode=0o755)
+        monkeypatch.setenv("FIXOS_NATIVE_BIN", str(fake_bin))
+        monkeypatch.setenv("FIXOS_NATIVE", "auto")
+        seen = {}
+
+        def slow_run(cmd, **kwargs):
+            seen["timeout"] = kwargs["timeout"]
+            raise subprocess.TimeoutExpired(cmd, kwargs["timeout"])
+
+        monkeypatch.setattr("fixos.diagnostics.native_scan.subprocess.run", slow_run)
+
+        assert measure_batch([tmp_path], timeout=3.0, python_fallback=False) == {}
+        assert seen["timeout"] == 3.0

@@ -348,11 +348,15 @@ def _measure_caches(
             from fixos.diagnostics.native_scan import measure_batch
 
             unique_paths = list({path for _, path in jobs})
-            batch_result = measure_batch(unique_paths)
+            # The native batch had a 120 s limit and an unbounded Python
+            # fallback; on a busy disk that turned "quick" into minutes.
+            batch_result = measure_batch(
+                unique_paths, timeout=timeout * 2, python_fallback=False
+            )
             if isinstance(batch_result, dict) and batch_result:
                 unresolved_jobs: list[tuple[CacheRule, Path]] = []
                 for rule, path in jobs:
-                    m = batch_result.get(str(path))
+                    m = batch_result.get(str(path.resolve()))
                     if isinstance(m, dict) and "bytes" in m:
                         kib = (m["bytes"] + 1023) // 1024
                         measured.setdefault(rule.id, []).append((path, kib))
@@ -567,6 +571,28 @@ def _history_row(
             item["id"]: item.get("complete", True) for item in safe_items + review_items
         },
     }
+
+
+def _fill_from_history(
+    items: list[dict[str, Any]], history: list[dict[str, Any]]
+) -> None:
+    """Show the last complete size for caches that missed the time budget.
+
+    The item stays ``complete: False`` so growth reports never compare it.
+    """
+    for item in items:
+        if item.get("complete", True):
+            continue
+        for row in reversed(history):
+            if row.get("cache_complete", {}).get(item["id"]) and item["id"] in row.get(
+                "cache_sizes", {}
+            ):
+                size = int(row["cache_sizes"][item["id"]])
+                if size > item["size_bytes"]:
+                    item["size_bytes"] = size
+                    item["size_gb"] = round(size / 1024**3, 3)
+                item["last_complete_at"] = row.get("generated_at")
+                break
 
 
 def _parse_timestamp(row: dict[str, Any]) -> datetime | None:
@@ -836,6 +862,9 @@ def collect_quick_snapshot(
     history_path = _state_dir(state_dir) / "quick-history.json"
     history = _load_history(history_path)
     current_row = _history_row(generated_at, resources, safe_items, review_items)
+    _fill_from_history(safe_items + review_items, history)
+    safe_items.sort(key=lambda item: item["size_bytes"], reverse=True)
+    review_items.sort(key=lambda item: item["size_bytes"], reverse=True)
     growth = _growth_report(history, current_row, now, max(1, hours))
     alerts = _alerts(resources, growth, thresholds)
 
