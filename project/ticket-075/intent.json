@@ -1,0 +1,91 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-075",
+  "summary": "wellmanifest ssot decision, standards applicability and troubleshooting docs",
+  "workstream": "integration",
+  "classification": {
+    "kind": "SERVICE",
+    "priority": "P2",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-075/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "docs/INFORMATION/**",
+    "docs/SERVICE/**",
+    "docs/ssot/**",
+    "docs/README.md"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [
+    "python"
+  ],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "3cb62dd0c932ca67c07e03ff0a0ec4c86448d193",
+    "targetBranch": "main",
+    "outcome": "fixos documents which Wellmanifest standards apply (wellman, ssot, nohardcode, reuse, semver, uriprocess) with pinned revisions, records two wellmanifest/ssot decisions (package version, Ollama endpoint) generated and validated by the ssot tool, and ships a v2 troubleshooting runbook.",
+    "nonGoals": [
+      "No code change.",
+      "No REUSE-002 scan receipt (path not owned yet)."
+    ],
+    "complexity": "M",
+    "estimatedMinutes": 45,
+    "budgets": {
+      "maxImplementationFiles": 7,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Compact v2 INFORMATION and SERVICE documents plus propose-only ssot decision JSON under docs/ssot, indexed from docs/README.md.",
+      "components": [
+        {
+          "name": "standards-docs",
+          "paths": [
+            "docs/INFORMATION/WELLMANIFEST_STANDARDS.md",
+            "docs/SERVICE/TROUBLESHOOTING.md",
+            "docs/ssot/version.interview.json",
+            "docs/ssot/version.ssot.json",
+            "docs/ssot/ollama-endpoint.interview.json",
+            "docs/ssot/ollama-endpoint.ssot.json",
+            "docs/README.md"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the commit."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python3 <wellmanifest/docs>/docs/standard/check.py --root . --standard-revision 19efafbeb18923cfd51cc69bd519330488500137 --base <base> --deliverable docs/INFORMATION/WELLMANIFEST_STANDARDS.md --deliverable docs/SERVICE/TROUBLESHOOTING.md",
+          "PYTHONPATH=src python3 -m ssot validate docs/ssot/version.ssot.json"
+        ],
+        "evidence": "project/ticket-075/README.md"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "./project/governance-check.sh"
+        ],
+        "evidence": "project/ticket-075/README.md"
+      }
+    ]
+  }
+}

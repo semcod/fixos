@@ -1,0 +1,58 @@
+{
+  "schema": "wellmanifest.ssot/decision/v1",
+  "id": "fixos.ollama-endpoint",
+  "version": "0.1.0",
+  "purpose": "Resolve the Ollama server address once from OLLAMA_HOST for the LLM provider and Ollama model cleanup.",
+  "context": {
+    "subject": "fixos.ollama-endpoint",
+    "languages": [
+      "python"
+    ],
+    "packaging": [
+      "monorepo-path"
+    ],
+    "analyzer": {
+      "present": true,
+      "kind": "other",
+      "treatAsDebtUntilInterview": false
+    }
+  },
+  "policy": {
+    "kind": "pin_policy",
+    "edit": "upstream",
+    "onChange": "re_vendor",
+    "forbid": [
+      "delete_generated_mirror",
+      "treat_analyzer_as_debt",
+      "couple_standalone_to_foreign_monorepo",
+      "fork_logic_into_consumer"
+    ]
+  },
+  "decisions": [
+    {
+      "id": "fixos.ollama-endpoint.pair",
+      "kind": "config_binding",
+      "canonical": {
+        "ref": "fixos/config.py:ollama_host_url"
+      },
+      "trees": [
+        "fixos/config.py",
+        "fixos/diagnostics/service_cleanup.py"
+      ],
+      "actions": [
+        {
+          "do": "bind_to_config_source",
+          "target": "fixos/config.py:ollama_host_url"
+        },
+        {
+          "do": "declare_env_override"
+        }
+      ],
+      "forbid": [
+        "hardcode_deployment_value"
+      ],
+      "rationale": "A deployment value (host, port, URL, LAN address, absolute path, model id, interval) has one declared configuration source. Code, grammar, UI and tests refer to it by name and resolve it at run time; a literal copy is a second SSOT that drifts per node. The override is one declared, documented name (explicit last layer wins, as in wellmanifest.env-dsl), not an ambient lookup. Secrets are out of scope here: they follow wellmanifest.secrets."
+    }
+  ],
+  "questions": []
+}

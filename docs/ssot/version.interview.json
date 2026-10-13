@@ -1,0 +1,20 @@
+{
+  "schema": "wellmanifest.ssot/interview/v1",
+  "subject_id": "fixos.version",
+  "purpose": "Keep one release version for the fixos package; build metadata and packaging read it instead of repeating it.",
+  "languages": ["python"],
+  "packaging": ["pip"],
+  "trees": ["VERSION", "pyproject.toml", "setup.py"],
+  "same_git_remote": false,
+  "same_pin": false,
+  "relationship": "config_binding",
+  "must_stay_identical": "identical",
+  "different_protocol_by_design": false,
+  "canonical_ref": "VERSION",
+  "consumer_can_import": true,
+  "analyzer_present": false,
+  "analyzer_kind": "none",
+  "analyzer_noise": false,
+  "human_confirmed_debt": true,
+  "gate_path": "tests/unit/test_version_parity.py"
+}
