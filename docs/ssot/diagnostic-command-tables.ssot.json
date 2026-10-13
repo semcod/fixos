@@ -1,0 +1,56 @@
+{
+  "schema": "wellmanifest.ssot/decision/v1",
+  "id": "fixos.diagnostic-command-tables",
+  "version": "0.1.0",
+  "purpose": "Decide whether redup clone groups between diagnostic check functions that each return a dict of distinct shell probes are duplication to extract.",
+  "context": {
+    "subject": "fixos.diagnostic-command-tables",
+    "languages": [
+      "python"
+    ],
+    "packaging": [
+      "monorepo-path"
+    ],
+    "analyzer": {
+      "present": true,
+      "kind": "redup",
+      "treatAsDebtUntilInterview": false
+    }
+  },
+  "policy": {
+    "kind": "pin_policy",
+    "edit": "upstream",
+    "onChange": "re_vendor",
+    "forbid": [
+      "delete_generated_mirror",
+      "treat_analyzer_as_debt",
+      "couple_standalone_to_foreign_monorepo",
+      "fork_logic_into_consumer"
+    ]
+  },
+  "decisions": [
+    {
+      "id": "fixos.diagnostic-command-tables.pair",
+      "kind": "allowed_divergence",
+      "canonical": {
+        "ref": "fixos/diagnostics/checks/_shared.py:_cmd"
+      },
+      "trees": [
+        "fixos/diagnostics/checks/file_analysis.py",
+        "fixos/diagnostics/checks/packages.py",
+        "fixos/diagnostics/checks/storage_optimization.py"
+      ],
+      "actions": [
+        {
+          "do": "document_known_divergent"
+        }
+      ],
+      "forbid": [],
+      "knownDivergent": {
+        "reason": "Same return shape (name -> _cmd(probe)), different probes: LVM, snap, Downloads, swap, filesystem. No shared logic beyond the existing _cmd helper."
+      },
+      "rationale": "Copies may differ by design. Record a KNOWN_DIVERGENT reason so drift stays a conscious state."
+    }
+  ],
+  "questions": []
+}
