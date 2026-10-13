@@ -1,0 +1,91 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-072",
+  "summary": "docs for hardlink-aware freed space and scan performance; release 2.2.53",
+  "workstream": "integration",
+  "classification": {
+    "kind": "SERVICE",
+    "priority": "P2",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-072/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "VERSION",
+    "docs/BUGFIX/**",
+    "docs/README.md",
+    "docs/SERVICE/**",
+    "pyproject.toml"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [
+    "python"
+  ],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "48f7ba713b84a3558636bc5dad4f48a8bbee2fa5",
+    "targetBranch": "main",
+    "outcome": "Compact v2 docs (wellmanifest/docs) describe the hardlink-aware freed-space report and the scan performance budget, and version carriers declare 2.2.53 so the release packages tickets 069-070.",
+    "nonGoals": [
+      "No runtime code change.",
+      "Registry publication happens only after merge, via goal publish-only."
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 20,
+    "budgets": {
+      "maxImplementationFiles": 5,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "One BUGFIX and one SERVICE compact document linked from docs/README.md; release bump via goal.",
+      "components": [
+        {
+          "name": "docs-and-release",
+          "paths": [
+            "docs/BUGFIX/CLEANUP_HARDLINK_FREED_SPACE.md",
+            "docs/SERVICE/SCAN_PERFORMANCE.md",
+            "docs/README.md",
+            "VERSION",
+            "pyproject.toml"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the commit."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "test -f docs/BUGFIX/CLEANUP_HARDLINK_FREED_SPACE.md",
+          "test -f docs/SERVICE/SCAN_PERFORMANCE.md"
+        ],
+        "evidence": "project/ticket-072/README.md"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "pytest -q tests/unit/test_version_parity.py",
+          "./project/governance-check.sh"
+        ],
+        "evidence": "project/ticket-072/README.md"
+      }
+    ]
+  }
+}
