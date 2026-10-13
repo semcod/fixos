@@ -1,10 +1,17 @@
 {
   "schema": "wellmanifest.ssot/interview/v1",
   "subject_id": "fixos.ollama-endpoint",
-  "purpose": "Resolve the Ollama server address once from OLLAMA_HOST for the LLM provider and Ollama model cleanup.",
-  "languages": ["python"],
-  "packaging": ["monorepo-path"],
-  "trees": ["fixos/config.py", "fixos/diagnostics/service_cleanup.py"],
+  "purpose": "Resolve the default Ollama server address once from OLLAMA_HOST for the LLM provider and Ollama model cleanup; OLLAMA_BASE_URL is a documented, LLM-only explicit override layered on top.",
+  "languages": [
+    "python"
+  ],
+  "packaging": [
+    "monorepo-path"
+  ],
+  "trees": [
+    "fixos/config.py",
+    "fixos/diagnostics/service_cleanup.py"
+  ],
   "same_git_remote": false,
   "same_pin": false,
   "relationship": "config_binding",

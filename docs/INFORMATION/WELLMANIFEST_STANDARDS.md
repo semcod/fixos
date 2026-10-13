@@ -3,13 +3,13 @@
   "schema": "wellmanifest.docs/document/v2",
   "id": "wellmanifest-standards",
   "kind": "information",
-  "version": 1,
+  "version": 2,
   "title": "Which Wellmanifest standards fixos applies and how",
   "status": "accepted",
   "owner": "semcod/fixos",
   "scope": "repository",
   "updated": "2026-10-13",
-  "source_revision": "3cb62dd0c932ca67c07e03ff0a0ec4c86448d193",
+  "source_revision": "0890e5325513b2c49a4a7a0eaf73737e04ab7349",
   "priority": "P2",
   "evidence": ["https://github.com/semcod/fixos/pull/100", "https://github.com/semcod/fixos/pull/103"]
 }
@@ -38,8 +38,10 @@ re-derive it. Registration lives in `.governance/standard-requirements.json`
 | uriprocess `fa7b715` | not applicable | fixos ships no URI process package |
 
 - **ssot**: `VERSION` is canonical; `pyproject.toml` must stay identical
-  (parity test) and `setup.py` reads `VERSION`. `OLLAMA_HOST` via
-  `fixos.config.ollama_host_url()` is the only Ollama endpoint.
+  (parity test) and `setup.py` reads `VERSION`. The default Ollama
+  address comes only from `OLLAMA_HOST` via `fixos.config.ollama_host_url()`
+  (LLM provider and model cleanup); `OLLAMA_BASE_URL` is an explicit,
+  LLM-only override layered on top.
 - **nohardcode** (2026-10-13 audit, 195 findings): 145 are NOHARDCODE-007
   `print()` in interactive CLI modules, which is terminal UI, not logging;
   33 NOHARDCODE-001 lists are CLI choices and service tables. Real defects are
