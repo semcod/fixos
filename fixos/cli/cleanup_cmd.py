@@ -129,11 +129,7 @@ def _clean_terminal_input(value: str) -> str:
 
 def _display_service_item(svc: dict) -> None:
     """Display a single service item with details."""
-    size_str = (
-        f"{svc['size_gb']:.2f} GB"
-        if svc["size_gb"] >= 1
-        else f"{svc['size_mb']:.0f} MB"
-    )
+    size_str = _size_str(svc)
     risk = svc.get("risk_level") or ("safe" if svc["safe_to_cleanup"] else "review")
     safe_text, safe_color = _RISK_LABELS.get(risk, _RISK_LABELS["review"])
 
@@ -164,6 +160,8 @@ def _display_service_item(svc: dict) -> None:
                     )
             else:
                 click.echo(f"   Komponenty: {svc['details']['components']}")
+        elif svc["service_type"] == "docker" and svc["details"].get("fast_inventory"):
+            _display_docker_inventory(svc["details"]["fast_inventory"])
         elif svc["service_type"] == "ollama" and svc["details"].get("models"):
             models = svc["details"]["models"]
             if models:
@@ -171,6 +169,26 @@ def _display_service_item(svc: dict) -> None:
                     f"   Modele: {', '.join(models[:3])}{'...' if len(models) > 3 else ''}"
                 )
     click.echo()
+
+
+def _display_docker_inventory(inventory: dict) -> None:
+    """Show what a timed-out `docker system df` could not size."""
+    click.echo("   Docker — szybki spis (bez rozmiarów wolumenów):")
+    pairs = (
+        ("obrazy", "images", "dangling_images", "wiszących"),
+        ("kontenery", "containers", "stopped_containers", "zatrzymanych"),
+        ("wolumeny", "volumes", "dangling_volumes", "nieużywanych — dane, tylko ręcznie"),
+    )
+    for label, total_key, part_key, part_label in pairs:
+        if total_key in inventory:
+            part = inventory.get(part_key)
+            suffix = f" ({part} {part_label})" if part is not None else ""
+            click.echo(f"     • {label}: {inventory[total_key]}{suffix}")
+    if "build_cache_total_gb" in inventory:
+        click.echo(
+            f"     • cache buildów: {inventory['build_cache_total_gb']:.2f} GB "
+            f"(odzyskiwalne {inventory.get('build_cache_reclaimable_gb', 0):.2f} GB)"
+        )
 
 
 def _error_message(result: dict) -> str:

@@ -1,0 +1,86 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-073",
+  "summary": "docker fast inventory when docker system df times out",
+  "workstream": "application",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P1",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-073/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/cli/cleanup_cmd.py",
+    "fixos/diagnostics/service_scanner.py",
+    "tests/unit/test_cleanup_effectiveness.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [
+    "python"
+  ],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "8f3268f0f823002d3db36534df9feb9dac52a823",
+    "targetBranch": "main",
+    "outcome": "When `docker system df` times out, fixos cleanup lists Docker object counts (images, containers, volumes and their unused parts) and build-cache size from fast Docker commands instead of an unknown entry shown as 0 MB.",
+    "nonGoals": [
+      "No new cleanup action; orphaned volumes are only counted.",
+      "No change to the docker system df path when it answers."
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 45,
+    "budgets": {
+      "maxImplementationFiles": 3,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Add ServiceDataScanner._docker_fast_inventory (docker image/ps/volume ls, builder du; 10 s each) to the timed-out Docker entry and render it in the cleanup list.",
+      "components": [
+        {
+          "name": "docker-reporting",
+          "paths": [
+            "fixos/diagnostics/service_scanner.py",
+            "fixos/cli/cleanup_cmd.py",
+            "tests/unit/test_cleanup_effectiveness.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the commit."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "pytest -q tests/unit/test_cleanup_effectiveness.py"
+        ],
+        "evidence": "project/ticket-073/README.md"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "pytest -q tests/unit/test_cleanup_cmd.py tests/unit/test_service_cleanup.py",
+          "./project/governance-check.sh"
+        ],
+        "evidence": "project/ticket-073/README.md"
+      }
+    ]
+  }
+}
