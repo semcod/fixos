@@ -19,6 +19,13 @@ Ta dokumentacja dotyczy narzędzia do diagnostyki i naprawy systemu fixOS.
 - [CONTRIBUTING](CONTRIBUTING.md) — uruchamianie testów i zasady zmian.
 - [TODO](../TODO.md) — wyłącznie aktywne, ręcznie zweryfikowane zadania.
 
+## Standardy i diagnostyka
+
+- [Standardy Wellmanifest w fixos](INFORMATION/WELLMANIFEST_STANDARDS.md)
+  — wellman, ssot, nohardcode, reuse, semver, uriprocess.
+- [Decyzje SSOT](ssot/) — wersja pakietu i adres Ollamy.
+- [Rozwiązywanie problemów](SERVICE/TROUBLESHOOTING.md) — runbook.
+
 ## Zmiany (wellmanifest/docs v2)
 
 - [BUGFIX: zwolnione miejsce przy hardlinkach](BUGFIX/CLEANUP_HARDLINK_FREED_SPACE.md)

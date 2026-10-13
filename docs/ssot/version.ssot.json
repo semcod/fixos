@@ -1,0 +1,59 @@
+{
+  "schema": "wellmanifest.ssot/decision/v1",
+  "id": "fixos.version",
+  "version": "0.1.0",
+  "purpose": "Keep one release version for the fixos package; build metadata and packaging read it instead of repeating it.",
+  "context": {
+    "subject": "fixos.version",
+    "languages": [
+      "python"
+    ],
+    "packaging": [
+      "pip"
+    ],
+    "analyzer": {
+      "present": false,
+      "kind": "none",
+      "treatAsDebtUntilInterview": false
+    }
+  },
+  "policy": {
+    "kind": "pin_policy",
+    "edit": "upstream",
+    "onChange": "re_vendor",
+    "forbid": [
+      "delete_generated_mirror",
+      "treat_analyzer_as_debt",
+      "couple_standalone_to_foreign_monorepo",
+      "fork_logic_into_consumer"
+    ]
+  },
+  "decisions": [
+    {
+      "id": "fixos.version.pair",
+      "kind": "config_binding",
+      "canonical": {
+        "ref": "VERSION"
+      },
+      "trees": [
+        "VERSION",
+        "pyproject.toml",
+        "setup.py"
+      ],
+      "actions": [
+        {
+          "do": "bind_to_config_source",
+          "target": "VERSION"
+        },
+        {
+          "do": "declare_env_override"
+        }
+      ],
+      "forbid": [
+        "hardcode_deployment_value"
+      ],
+      "rationale": "A deployment value (host, port, URL, LAN address, absolute path, model id, interval) has one declared configuration source. Code, grammar, UI and tests refer to it by name and resolve it at run time; a literal copy is a second SSOT that drifts per node. The override is one declared, documented name (explicit last layer wins, as in wellmanifest.env-dsl), not an ambient lookup. Secrets are out of scope here: they follow wellmanifest.secrets."
+    }
+  ],
+  "questions": []
+}
