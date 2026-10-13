@@ -9,10 +9,11 @@ name looks like stored data (databases, git mirrors, backups, ...).
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
-from pathlib import Path
 
 import click
 
@@ -58,22 +59,40 @@ def _age_days(created_at: str, now: datetime) -> float | None:
     return (now - created).total_seconds() / 86400
 
 
+_SIZE_WORKERS = 8
+
+
+def _du_batch(command: list[str], paths: list[str]) -> dict[str, int]:
+    sizes: dict[str, int] = {}
+    try:
+        result = space._run_cmd([*command, "-sbl0", "--", *paths], timeout=300)
+    except (OSError, subprocess.TimeoutExpired):
+        return sizes
+    for record in result.stdout.split("\0"):
+        size, sep, path = record.partition("\t")
+        if sep and size.isdigit():
+            sizes[path] = int(size)
+    return sizes
+
+
 def _volume_sizes(mountpoints: list[str]) -> dict[str, int]:
-    """Sizes via ``du``; volumes are root-owned, so fall back to ``sudo -n``.
+    """Sizes via ``du`` in parallel batches; root-owned volumes use ``sudo -n``.
 
     ``sudo -n`` never prompts: without passwordless sudo the size stays unknown.
+    Unreadable mountpoints go straight to ``sudo -n``, so a partial size of an
+    unreadable directory is never reported.
     """
-    sizes = space._dir_sizes([Path(m) for m in mountpoints])
-    missing = [m for m in mountpoints if m not in sizes]
-    if missing:
-        try:
-            result = space._run_cmd(["sudo", "-n", "du", "-sbl0", "--", *missing], timeout=300)
-            for record in result.stdout.split("\0"):
-                size, sep, path = record.partition("\t")
-                if sep and size.isdigit():
-                    sizes[path] = int(size)
-        except (OSError, subprocess.TimeoutExpired):
-            pass
+    readable = [m for m in mountpoints if os.access(m, os.R_OK | os.X_OK)]
+    privileged = [m for m in mountpoints if m not in set(readable)]
+    jobs = [(["du"], readable[i::_SIZE_WORKERS]) for i in range(_SIZE_WORKERS)]
+    jobs += [(["sudo", "-n", "du"], privileged[i::_SIZE_WORKERS]) for i in range(_SIZE_WORKERS)]
+    jobs = [(command, paths) for command, paths in jobs if paths]
+    sizes: dict[str, int] = {}
+    if not jobs:
+        return sizes
+    with ThreadPoolExecutor(max_workers=min(_SIZE_WORKERS, len(jobs))) as pool:
+        for result in pool.map(lambda job: _du_batch(*job), jobs):
+            sizes.update(result)
     return sizes
 
 

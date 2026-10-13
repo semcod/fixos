@@ -141,3 +141,21 @@ def test_app_data_volumes_are_protected():
         assert volumes._DATA_TOKENS.search(name), name
     for name in ("llmass_huggingface-cache", "chat_ollama_data", "if-uri_trivy-cache"):
         assert not volumes._DATA_TOKENS.search(name), name
+
+
+def test_sizes_split_into_parallel_batches_without_unreadable_partial_sizes(monkeypatch):
+    calls = []
+
+    def fake_run(argv, timeout=60):
+        calls.append(argv)
+        paths = argv[argv.index("--") + 1 :]
+        return SimpleNamespace(returncode=0, stdout="".join(f"10\t{p}\0" for p in paths), stderr="")
+
+    monkeypatch.setattr(space, "_run_cmd", fake_run)
+    mountpoints = [f"/nonexistent/v{i}" for i in range(20)]
+
+    sizes = volumes._volume_sizes(mountpoints)
+
+    assert sizes == dict.fromkeys(mountpoints, 10)
+    assert len(calls) == volumes._SIZE_WORKERS
+    assert all(call[:3] == ["sudo", "-n", "du"] for call in calls)
