@@ -1,13 +1,13 @@
-#!/usr/bin/env python3
 """
 Interactive Cleanup Planner for fixOS
 Groups cleanup actions and provides interactive selection
 """
 
 import json
-from typing import Dict, List, Any
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
+from typing import Any
 
 
 class Priority(Enum):
@@ -42,7 +42,7 @@ class CleanupAction:
     impact: str
     category: str = ""
     estimated_time: str = ""
-    dependencies: List[str] = None
+    dependencies: list[str] = None
     preview_command: str = ""
 
     def __post_init__(self):
@@ -116,8 +116,8 @@ class CleanupPlanner:
         }
 
     def group_by_category(
-        self, suggestions: List[Dict]
-    ) -> Dict[str, List[CleanupAction]]:
+        self, suggestions: list[dict]
+    ) -> dict[str, list[CleanupAction]]:
         """Group cleanup suggestions by category"""
         grouped = {}
 
@@ -133,13 +133,12 @@ class CleanupPlanner:
                     grouped[category] = []
                 grouped[category].append(action)
 
-            except Exception:
-                # Skip invalid suggestions
+            except Exception:  # noqa: BLE001, S112 - one malformed suggestion must not drop the whole plan
                 continue
 
         # Sort actions within each category by priority and size
-        for category in grouped:
-            grouped[category].sort(
+        for actions in grouped.values():
+            actions.sort(
                 key=lambda x: (self._priority_score(x.priority), x.size_gb),
                 reverse=True,
             )
@@ -147,25 +146,25 @@ class CleanupPlanner:
         return grouped
 
     def prioritize_actions(
-        self, grouped_actions: Dict[str, List[CleanupAction]]
-    ) -> List[CleanupAction]:
+        self, grouped_actions: dict[str, list[CleanupAction]]
+    ) -> list[CleanupAction]:
         """Create prioritized list of all actions"""
         all_actions = []
 
         # Add high priority actions first
-        for category, actions in grouped_actions.items():
+        for actions in grouped_actions.values():
             high_priority = [
                 a for a in actions if a.priority in [Priority.CRITICAL, Priority.HIGH]
             ]
             all_actions.extend(high_priority)
 
         # Add medium priority actions
-        for category, actions in grouped_actions.items():
+        for actions in grouped_actions.values():
             medium_priority = [a for a in actions if a.priority == Priority.MEDIUM]
             all_actions.extend(medium_priority)
 
         # Add low priority actions
-        for category, actions in grouped_actions.items():
+        for actions in grouped_actions.values():
             low_priority = [a for a in actions if a.priority == Priority.LOW]
             all_actions.extend(low_priority)
 
@@ -181,7 +180,7 @@ class CleanupPlanner:
 
         return all_actions
 
-    def create_cleanup_plan(self, suggestions: List[Dict]) -> Dict[str, Any]:
+    def create_cleanup_plan(self, suggestions: list[dict]) -> dict[str, Any]:
         """Create comprehensive cleanup plan"""
         grouped = self.group_by_category(suggestions)
         prioritized = self.prioritize_actions(grouped)
@@ -237,7 +236,7 @@ class CleanupPlanner:
 
         return plan
 
-    def interactive_selection(self, plan: Dict[str, Any]) -> Dict[str, Any]:
+    def interactive_selection(self, plan: dict[str, Any]) -> dict[str, Any]:
         """Interactive selection process (simulated for now)"""
         selected_actions = []
 
@@ -255,7 +254,7 @@ class CleanupPlanner:
             "selection_method": "auto_safe_high_impact",
         }
 
-    def _dict_to_action(self, suggestion: Dict) -> CleanupAction:
+    def _dict_to_action(self, suggestion: dict) -> CleanupAction:
         """Convert dictionary suggestion to CleanupAction"""
         try:
             # Need to handle strings if suggestion payload comes in as string not Enum
@@ -285,8 +284,7 @@ class CleanupPlanner:
                 dependencies=suggestion.get("dependencies", []),
                 preview_command=suggestion.get("preview_command", ""),
             )
-        except Exception:
-            # Create default action for invalid suggestions
+        except Exception:  # noqa: BLE001 - invalid suggestions become a low-priority default action
             return CleanupAction(
                 type=CleanupType.LARGE_FILE,
                 priority=Priority.LOW,
@@ -298,7 +296,7 @@ class CleanupPlanner:
                 impact="none",
             )
 
-    def _action_to_dict(self, action: CleanupAction) -> Dict[str, Any]:
+    def _action_to_dict(self, action: CleanupAction) -> dict[str, Any]:
         """Convert CleanupAction to dictionary"""
         return {
             "type": action.type.value,
@@ -345,7 +343,7 @@ class CleanupPlanner:
         return scores.get(priority, 1)
 
     @staticmethod
-    def _rec_safe_high_impact(prioritized: List[CleanupAction]) -> List[Dict]:
+    def _rec_safe_high_impact(prioritized: list[CleanupAction]) -> list[dict]:
         actions = [
             a
             for a in prioritized
@@ -368,7 +366,7 @@ class CleanupPlanner:
         ]
 
     @staticmethod
-    def _rec_cache(grouped: Dict[str, List[CleanupAction]]) -> List[Dict]:
+    def _rec_cache(grouped: dict[str, list[CleanupAction]]) -> list[dict]:
         actions = grouped.get("cache", [])
         if not actions:
             return []
@@ -387,7 +385,7 @@ class CleanupPlanner:
         ]
 
     @staticmethod
-    def _rec_logs(grouped: Dict[str, List[CleanupAction]]) -> List[Dict]:
+    def _rec_logs(grouped: dict[str, list[CleanupAction]]) -> list[dict]:
         actions = grouped.get("logs", [])
         if not actions:
             return []
@@ -406,7 +404,7 @@ class CleanupPlanner:
         ]
 
     @staticmethod
-    def _rec_manual(prioritized: List[CleanupAction]) -> List[Dict]:
+    def _rec_manual(prioritized: list[CleanupAction]) -> list[dict]:
         actions = [a for a in prioritized if not a.safe and a.size_gb > 1.0]
         if not actions:
             return []
@@ -423,10 +421,10 @@ class CleanupPlanner:
         ]
 
     def _generate_recommendations(
-        self, grouped: Dict[str, List[CleanupAction]], prioritized: List[CleanupAction]
-    ) -> List[Dict]:
+        self, grouped: dict[str, list[CleanupAction]], prioritized: list[CleanupAction]
+    ) -> list[dict]:
         """Generate cleanup recommendations"""
-        recs: List[Dict] = []
+        recs: list[dict] = []
         recs.extend(self._rec_safe_high_impact(prioritized))
         recs.extend(self._rec_cache(grouped))
         recs.extend(self._rec_logs(grouped))
@@ -441,7 +439,7 @@ def main():
         {
             "type": "cache_cleanup",
             "priority": "high",
-            "path": "/home/user/.cache/npm",
+            "path": str(Path.home() / ".cache" / "npm"),
             "size_gb": 2.5,
             "description": "Clear npm cache",
             "command": "npm cache clean --force",

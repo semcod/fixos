@@ -1,0 +1,84 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-078",
+  "summary": "cleanup_planner: ruff clean and no hardcoded sample home path",
+  "workstream": "application",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P3",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-078/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/interactive/cleanup_planner.py",
+    "tests/unit/test_cleanup_planner.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [
+    "python"
+  ],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "0890e5325513b2c49a4a7a0eaf73737e04ab7349",
+    "targetBranch": "main",
+    "outcome": "fixos/interactive/cleanup_planner.py passes ruff (47 findings before) and its demo sample uses Path.home() instead of a literal user home path, clearing the last NOHARDCODE-009 error in fixos; behaviour is unchanged and covered by tests.",
+    "nonGoals": [
+      "No change to planner behaviour or CLI."
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 30,
+    "budgets": {
+      "maxImplementationFiles": 2,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "ruff --fix for typing/import findings; explicit .values() loops; documented noqa for the two intentional broad excepts; shebang removed from the imported module.",
+      "components": [
+        {
+          "name": "cleanup-planner",
+          "paths": [
+            "fixos/interactive/cleanup_planner.py",
+            "tests/unit/test_cleanup_planner.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the commit."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "ruff check fixos/interactive/cleanup_planner.py",
+          "pytest -q tests/unit/test_cleanup_planner.py"
+        ],
+        "evidence": "project/ticket-078/README.md"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "pytest -q",
+          "./project/governance-check.sh"
+        ],
+        "evidence": "project/ticket-078/README.md"
+      }
+    ]
+  }
+}
