@@ -713,3 +713,78 @@ class TestConsistentPostCleanupMeasurement:
         assert result["success"] is True
         assert result["space_freed_gb"] == 64.73
         assert result["space_freed_gb"] != service.size_gb
+
+
+class TestHardlinkAwareFreedSpace:
+    """uv/pnpm/conda caches share inodes with environments: removing the
+    cache link must not be reported as freed filesystem space."""
+
+    @staticmethod
+    def _write(path: Path, size: int) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"x" * size)
+
+    def test_shared_bytes_count_only_inodes_linked_outside_tree(self, tmp_path):
+        cache = tmp_path / "cache"
+        env = tmp_path / "env"
+        self._write(cache / "shared.whl", 64 * 1024)
+        self._write(cache / "own.whl", 64 * 1024)
+        self._write(cache / "internal-a", 64 * 1024)
+        env.mkdir()
+        (env / "shared.whl").hardlink_to(cache / "shared.whl")
+        (cache / "internal-b").hardlink_to(cache / "internal-a")
+
+        shared = ServiceCleaner._shared_hardlink_bytes([str(cache)])
+
+        assert shared == (cache / "shared.whl").stat().st_blocks * 512
+        assert ServiceCleaner._shared_hardlink_bytes([str(tmp_path / "missing")]) == 0
+
+    def test_cleanup_does_not_report_hardlinked_cache_as_freed(
+        self, tmp_path, monkeypatch
+    ):
+        cache = tmp_path / "uv-cache"
+        env = tmp_path / "venv"
+        self._write(cache / "shared.whl", 1024 * 1024)
+        self._write(cache / "own.whl", 1024 * 1024)
+        env.mkdir()
+        (env / "shared.whl").hardlink_to(cache / "shared.whl")
+        shared_gb = (cache / "shared.whl").stat().st_blocks * 512 / 1024**3
+        own_gb = (cache / "own.whl").stat().st_blocks * 512 / 1024**3
+
+        class FakeScanner:
+            def measure_service_size_mb(self, service_type, path, *, refresh=False):
+                return 0.0
+
+        def fake_run(command, **kwargs):
+            import shutil
+
+            shutil.rmtree(cache)
+
+            class Result:
+                returncode = 0
+                stdout = ""
+                stderr = ""
+
+            return Result()
+
+        monkeypatch.setattr(
+            "fixos.diagnostics.service_cleanup.subprocess.run", fake_run
+        )
+        planned = {
+            "service_type": "uv",
+            "name": "Uv",
+            "path": str(cache),
+            "size_gb": shared_gb + own_gb,
+            "can_cleanup": True,
+            "cleanup_command": "uv cache clean",
+            "details": {},
+        }
+
+        result = ServiceCleaner(FakeScanner()).cleanup_service(
+            "uv", planned_service=planned
+        )
+
+        assert result["success"] is True
+        assert result["space_freed_gb"] == round(own_gb, 3)
+        assert result["shared_hardlink_gb"] == round(shared_gb, 3)
+        assert (env / "shared.whl").exists()
