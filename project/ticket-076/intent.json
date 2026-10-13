@@ -1,0 +1,85 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-076",
+  "summary": "register reuse and nohardcode in wellman requirements; fixos nohardcode policy; standard adoption pins",
+  "workstream": "governance",
+  "classification": {
+    "kind": "SERVICE",
+    "priority": "P2",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-076/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    ".governance/nohardcode-policy.json",
+    ".governance/standard-requirements.json"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [
+    "python"
+  ],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "3cb62dd0c932ca67c07e03ff0a0ec4c86448d193",
+    "targetBranch": "main",
+    "outcome": "fixos registers wellmanifest/reuse (S3) and wellmanifest/nohardcode (S0) requirements via `wellman adopt auto` and carries a reviewed .governance/nohardcode-policy.json (from nohardcode 922cc51) that the checker resolves automatically.",
+    "nonGoals": [
+      "No conformance certificate; reuse REUSE-002/006B remain open.",
+      "No CI gate for nohardcode yet.",
+      "ssot, semver and uriprocess are not in wellman or the managed pack catalog; their pins live in docs/INFORMATION/WELLMANIFEST_STANDARDS.md (ticket-075)."
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 20,
+    "budgets": {
+      "maxImplementationFiles": 2,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Use the published wellman adopter for requirements and the nohardcode checker's .governance policy lookup; deviations from the upstream policy are limited to disabled unused engines, NOHARDCODE-007 as warning for CLI terminal output, and repository-specific exclusions.",
+      "components": [
+        {
+          "name": "governance-registration",
+          "paths": [
+            ".governance/standard-requirements.json",
+            ".governance/nohardcode-policy.json"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the commit."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "wellman check --root .",
+          "python3 <wellmanifest/nohardcode>/standard/nohardcode_check.py --target . --format json"
+        ],
+        "evidence": "project/ticket-076/README.md"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "./project/governance-check.sh"
+        ],
+        "evidence": "project/ticket-076/README.md"
+      }
+    ]
+  }
+}
