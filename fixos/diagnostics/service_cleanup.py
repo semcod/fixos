@@ -342,10 +342,9 @@ class ServiceCleaner:
 
     @staticmethod
     def _ollama_base_url() -> str:
-        host = os.environ.get("OLLAMA_HOST", "127.0.0.1:11434").strip()
-        if "://" not in host:
-            host = f"http://{host}"
-        return host.rstrip("/")
+        from ..config import ollama_host_url
+
+        return ollama_host_url()
 
     @staticmethod
     def _parse_ollama_modified_at(value: str) -> datetime:

@@ -1,0 +1,86 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-074",
+  "summary": "single Ollama endpoint from OLLAMA_HOST for LLM config and cleanup; drop hardcoded sample home path",
+  "workstream": "application",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P2",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-074/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/config.py",
+    "fixos/diagnostics/service_cleanup.py",
+    "tests/unit/test_ollama_endpoint.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [
+    "python"
+  ],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "3cb62dd0c932ca67c07e03ff0a0ec4c86448d193",
+    "targetBranch": "main",
+    "outcome": "fixOS reads the Ollama endpoint from OLLAMA_HOST in one function used by both the LLM provider config and Ollama model cleanup (previously the LLM ignored OLLAMA_HOST and used a hardcoded localhost URL).",
+    "nonGoals": [
+      "No change to other providers or to OLLAMA_BASE_URL precedence.",
+      "No bulk replacement of print() calls flagged by nohardcode."
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 30,
+    "budgets": {
+      "maxImplementationFiles": 3,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "config.ollama_host_url() is the SSOT (wellmanifest/ssot, nohardcode NOHARDCODE-006, reuse); ServiceCleaner delegates to it and PROVIDER_DEFAULTS no longer carries a literal Ollama URL.",
+      "components": [
+        {
+          "name": "ollama-endpoint",
+          "paths": [
+            "fixos/config.py",
+            "fixos/diagnostics/service_cleanup.py",
+            "tests/unit/test_ollama_endpoint.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the commit."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "pytest -q tests/unit/test_ollama_endpoint.py"
+        ],
+        "evidence": "project/ticket-074/README.md"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "pytest -q",
+          "./project/governance-check.sh"
+        ],
+        "evidence": "project/ticket-074/README.md"
+      }
+    ]
+  }
+}

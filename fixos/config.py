@@ -128,7 +128,8 @@ PROVIDER_DEFAULTS = {
         "description": "Cerebras – najszybsze wnioskowanie na świecie, darmowy tier",
     },
     "ollama": {
-        "base_url": "http://localhost:11434/v1",
+        # Resolved from OLLAMA_HOST at load time, see ollama_host_url().
+        "base_url": None,
         "model": "llama3.2",
         "key_env": None,
         "key_url": "https://ollama.com/download",
@@ -140,6 +141,22 @@ PROVIDER_DEFAULTS = {
 _OPENROUTER_MODEL_MIGRATIONS = {
     "openrouter/qwen/qwen3.7-plus": "z-ai/glm-5.3",
 }
+
+
+DEFAULT_OLLAMA_HOST = "127.0.0.1:11434"
+
+
+def ollama_host_url() -> str:
+    """Ollama server URL from ``OLLAMA_HOST`` (the variable Ollama itself reads).
+
+    Single source for every fixOS component talking to Ollama: the LLM
+    provider and model cleanup previously disagreed when OLLAMA_HOST pointed
+    to another host.
+    """
+    host = os.environ.get("OLLAMA_HOST", "").strip() or DEFAULT_OLLAMA_HOST
+    if "://" not in host:
+        host = f"http://{host}"
+    return host.rstrip("/")
 
 
 def _normalize_model_id(provider: str, model: str) -> str:
@@ -293,7 +310,12 @@ class FixOsConfig:
 
         # Base URL
         url_env_key = f"{cfg.provider.upper()}_BASE_URL"
-        cfg.base_url = base_url or os.environ.get(url_env_key) or pdef["base_url"]
+        cfg.base_url = (
+            base_url
+            or os.environ.get(url_env_key)
+            or pdef["base_url"]
+            or (f"{ollama_host_url()}/v1" if cfg.provider == "ollama" else None)
+        )
 
         # Transport Gemini: natywne API Google albo endpoint OpenAI-compatible
         cfg.gemini_transport = os.environ.get("GEMINI_TRANSPORT", "native").lower()
