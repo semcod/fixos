@@ -2,7 +2,7 @@
   "schema": "wellmanifest.ssot/decision/v1",
   "id": "fixos.ollama-endpoint",
   "version": "0.1.0",
-  "purpose": "Resolve the Ollama server address once from OLLAMA_HOST for the LLM provider and Ollama model cleanup.",
+  "purpose": "Resolve the default Ollama server address once from OLLAMA_HOST for the LLM provider and Ollama model cleanup; OLLAMA_BASE_URL is a documented, LLM-only explicit override layered on top.",
   "context": {
     "subject": "fixos.ollama-endpoint",
     "languages": [

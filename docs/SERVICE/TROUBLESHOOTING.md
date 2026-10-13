@@ -38,8 +38,10 @@ command to run. Use it before filing a bug.
 - **"Zwolniono" exceeds the `df` change.** Before 2.2.53 hardlinked files
   (uv, pnpm, conda) counted as freed; now they are `shared_hardlink_gb`.
   Other writers on the disk can still hide the gain.
-- **LLM `ollama` ignores `OLLAMA_HOST`.** Fixed by ticket-074;
-  `OLLAMA_BASE_URL` still overrides the LLM endpoint.
+- **LLM `ollama` ignores `OLLAMA_HOST`.** Fixed by ticket-074: the default
+  address for the LLM and model cleanup comes from `OLLAMA_HOST`.
+  `OLLAMA_BASE_URL` is a separate, LLM-only override (e.g. a proxy); unset it
+  to use `OLLAMA_HOST`.
 - **`goal -a`: `setup.py:version: selector version was not found`.** goal
   2.2.0 treats the computed-version `setup.py` as a source (semcod/goal#188);
   bump `VERSION` and `pyproject.toml` in a ticket until it is installed.

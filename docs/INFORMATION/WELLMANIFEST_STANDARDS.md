@@ -38,8 +38,10 @@ re-derive it. Registration lives in `.governance/standard-requirements.json`
 | uriprocess `fa7b715` | not applicable | fixos ships no URI process package |
 
 - **ssot**: `VERSION` is canonical; `pyproject.toml` must stay identical
-  (parity test) and `setup.py` reads `VERSION`. `OLLAMA_HOST` via
-  `fixos.config.ollama_host_url()` is the only Ollama endpoint.
+  (parity test) and `setup.py` reads `VERSION`. The default Ollama
+  address comes only from `OLLAMA_HOST` via `fixos.config.ollama_host_url()`
+  (LLM provider and model cleanup); `OLLAMA_BASE_URL` is an explicit,
+  LLM-only override layered on top.
 - **nohardcode** (2026-10-13 audit, 195 findings): 145 are NOHARDCODE-007
   `print()` in interactive CLI modules, which is terminal UI, not logging;
   33 NOHARDCODE-001 lists are CLI choices and service tables. Real defects are
