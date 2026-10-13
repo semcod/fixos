@@ -1,0 +1,85 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-083",
+  "summary": "release 2.2.54: docker volume cleanup, nohardcode waiver, standards docs",
+  "workstream": "integration",
+  "classification": {
+    "kind": "SERVICE",
+    "priority": "P2",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-083/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "VERSION",
+    "docs/SERVICE/**",
+    "pyproject.toml"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [
+    "python"
+  ],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "e50be7b0a450ac95d8ed526bdbb7119772574682",
+    "targetBranch": "main",
+    "outcome": "VERSION and pyproject.toml declare 2.2.54, packaging tickets 077-082 (docker-volumes cleanup, parallel sizes, nohardcode waiver, cleanup_planner lint, ssot/docs); the runbook documents --docker-volumes.",
+    "nonGoals": [
+      "No code change.",
+      "PyPI publication happens after merge via goal publish-only."
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 15,
+    "budgets": {
+      "maxImplementationFiles": 3,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Release projection plus runbook update (v2 document version 3).",
+      "components": [
+        {
+          "name": "docs-and-release",
+          "paths": [
+            "VERSION",
+            "pyproject.toml",
+            "docs/SERVICE/TROUBLESHOOTING.md"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the commit before publication."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "pytest -q tests/unit/test_version_parity.py"
+        ],
+        "evidence": "project/ticket-083/README.md"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "./project/governance-check.sh"
+        ],
+        "evidence": "project/ticket-083/README.md"
+      }
+    ]
+  }
+}

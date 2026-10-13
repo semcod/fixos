@@ -3,13 +3,13 @@
   "schema": "wellmanifest.docs/document/v2",
   "id": "troubleshooting",
   "kind": "service",
-  "version": 2,
+  "version": 3,
   "title": "fixos runbook for slow scans, unknown Docker size and freed-space gaps",
   "status": "accepted",
   "owner": "semcod/fixos",
   "scope": "repository",
   "updated": "2026-10-13",
-  "source_revision": "0890e5325513b2c49a4a7a0eaf73737e04ab7349",
+  "source_revision": "e50be7b0a450ac95d8ed526bdbb7119772574682",
   "priority": "P2",
   "evidence": ["https://github.com/semcod/fixos/pull/99", "https://github.com/semcod/fixos/pull/102", "https://github.com/semcod/fixos/pull/103"]
 }
@@ -33,8 +33,10 @@ command to run. Use it before filing a bug.
 - **Docker shows "rozmiar nieznany".** `docker system df` sizes every volume
   and can take minutes. The list then shows a fast inventory (images,
   containers, volumes, unused volumes, build cache). Unused volumes may hold
-  data: inspect `docker volume ls -f dangling=true` and remove only chosen
-  ones. One slower run: `FIXOS_DOCKER_TIMEOUT=120 fixos cleanup --list`.
+  data: since 2.2.54 `fixos cleanup --docker-volumes --list` shows them with
+  project, age and size; `--match`/`--days` filter, removal is per selection
+  and `--yes` skips data-looking names. One slower run:
+  `FIXOS_DOCKER_TIMEOUT=120 fixos cleanup --list`.
 - **"Zwolniono" exceeds the `df` change.** Before 2.2.53 hardlinked files
   (uv, pnpm, conda) counted as freed; now they are `shared_hardlink_gb`.
   Other writers on the disk can still hide the gain.
