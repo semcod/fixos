@@ -98,7 +98,7 @@ class _SystemAnalyzerMixin:
         if not output:
             return
 
-        kernels = _observed_package_names(output)
+        kernels = _observed_package_names(output, limit=30)
         if len(kernels) <= 2:
             return  # Keep at least 2 kernels
 

@@ -1,0 +1,118 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-084",
+  "summary": "fix-perf-audit-and-adopt-standard-packs",
+  "workstream": "application",
+  "classification": {
+    "kind": "SERVICE",
+    "priority": "P2",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-084/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/cli/_cleanup_docker_volumes.py",
+    "fixos/cli/_cleanup_snap.py",
+    "fixos/cli/_cleanup_space.py",
+    "fixos/cli/_cleanup_system.py",
+    "fixos/cli/projects_cmd.py",
+    "fixos/cli/quickfix_cmd.py",
+    "fixos/cli/scan_cmd.py",
+    "fixos/cli/shell_cmd.py",
+    "fixos/diagnostics/_storage_system_mixin.py",
+    "fixos/diagnostics/_storage_user_mixin.py",
+    "fixos/diagnostics/quick_snapshot.py",
+    "fixos/diagnostics/service_cleanup.py",
+    "fixos/orchestrator/rollback.py",
+    "fixos/providers/llm.py",
+    "fixos/utils/web_search.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [
+    "python"
+  ],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "fcd55aaf64747b1c07f2d3ec81cdfe66d4642ee0",
+    "targetBranch": "main",
+    "outcome": "Resolve all 17 PERF-AUDIT-KWARG-001 and PERF-AUDIT-SUBPROC-001 findings across 15 files in fixos and adopt Wellmanifest baseline standard packs.",
+    "nonGoals": [
+      "No CLI flag or public command changes."
+    ],
+    "complexity": "L",
+    "estimatedMinutes": 30,
+    "budgets": {
+      "maxImplementationFiles": 15,
+      "maxAffectedComponents": 5,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Wire optional helper parameters at call sites and extract subprocess execution helpers outside loops.",
+      "components": [
+        {
+          "name": "cli",
+          "paths": [
+            "fixos/cli/_cleanup_docker_volumes.py",
+            "fixos/cli/_cleanup_snap.py",
+            "fixos/cli/_cleanup_space.py",
+            "fixos/cli/_cleanup_system.py",
+            "fixos/cli/projects_cmd.py",
+            "fixos/cli/quickfix_cmd.py",
+            "fixos/cli/scan_cmd.py",
+            "fixos/cli/shell_cmd.py"
+          ]
+        },
+        {
+          "name": "diagnostics",
+          "paths": [
+            "fixos/diagnostics/_storage_system_mixin.py",
+            "fixos/diagnostics/_storage_user_mixin.py",
+            "fixos/diagnostics/quick_snapshot.py",
+            "fixos/diagnostics/service_cleanup.py"
+          ]
+        },
+        {
+          "name": "orchestrator-providers-utils",
+          "paths": [
+            "fixos/orchestrator/rollback.py",
+            "fixos/providers/llm.py",
+            "fixos/utils/web_search.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the ticket commit."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "pytest -q tests/unit/test_version_parity.py"
+        ],
+        "evidence": "project/ticket-084/README.md"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "./project/governance-check.sh"
+        ],
+        "evidence": "project/ticket-084/README.md"
+      }
+    ]
+  }
+}

@@ -393,7 +393,7 @@ def _cleanup_user_cache(
     if not yes and not _confirm_remove():
         click.echo("Anulowano.")
         return
-    _remove_selected(candidates, selected)
+    _remove_selected(candidates, selected, path_key="path")
 
 
 # ── JetBrains Toolbox / caches ───────────────────────────────────────────
