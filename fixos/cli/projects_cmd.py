@@ -300,6 +300,12 @@ def _select_artifacts(artifacts: list) -> list:
     return selected
 
 
+def _run_artifact_cleanup_cmd(command: str) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        command, shell=True, capture_output=True, text=True, check=False
+    )
+
+
 def _execute_cleanup(artifacts: list, dry_run: bool) -> float:
     total_freed = 0.0
     for a in artifacts:
@@ -309,9 +315,7 @@ def _execute_cleanup(artifacts: list, dry_run: bool) -> float:
             continue
 
         click.echo(f"Czyszczenie {label}...")
-        result = subprocess.run(
-            a.cleanup_command, shell=True, capture_output=True, text=True, check=False
-        )
+        result = _run_artifact_cleanup_cmd(a.cleanup_command)
         if result.returncode == 0:
             total_freed += a.size_gb
             click.echo(click.style(f"  Zwolniono {a.size_gb:.2f} GB", fg="green"))

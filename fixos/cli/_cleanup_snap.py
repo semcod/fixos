@@ -40,6 +40,15 @@ def _snap_fetch_packages(analyzer) -> list:
     return packages
 
 
+def _run_snap_remove(pkg_name: str) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        ["sudo", "snap", "remove", pkg_name],
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+
+
 def _snap_remove_packages(packages_to_remove: list) -> None:
     """Execute snap remove for each package and report results."""
     click.echo(
@@ -48,12 +57,7 @@ def _snap_remove_packages(packages_to_remove: list) -> None:
     for pkg in packages_to_remove:
         click.echo(f"\n• {pkg['name']} (v{pkg['version']})")
         try:
-            result = subprocess.run(
-                ["sudo", "snap", "remove", pkg["name"]],
-                capture_output=True,
-                text=True,
-                timeout=120,
-            )
+            result = _run_snap_remove(pkg["name"])
             if result.returncode == 0:
                 click.echo(click.style("  ✅ Odinstalowano", fg="green"))
             else:

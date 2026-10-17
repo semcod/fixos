@@ -45,7 +45,7 @@ def search_fedora_bugzilla(query: str, max_results: int = 3) -> list[SearchResul
             f"?summary={q}&product=system&status=VERIFIED,CLOSED"
             f"&limit={max_results}&include_fields=id,summary,status,resolution,url"
         )
-        data = _http_get(url)
+        data = _http_get(url, timeout=8)
         if not data:
             return []
         bugs = json.loads(data).get("bugs", [])

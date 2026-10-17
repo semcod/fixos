@@ -284,7 +284,8 @@ def run_interactive_shell(ctx: click.Context | None = None) -> None:
             if not args:
                 continue
             click.echo()
-            cli.main(args, prog_name="fixos", standalone_mode=False)
+            prog_name = ctx.info_name if ctx and getattr(ctx, "info_name", None) else "fixos"
+            cli.main(args, prog_name=prog_name, standalone_mode=False)
             click.echo()
         except SystemExit:
             click.echo()

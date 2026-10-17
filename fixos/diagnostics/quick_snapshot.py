@@ -481,7 +481,7 @@ def _sample_process_load(
 
 def _resource_snapshot() -> dict[str, Any]:
     logical_cpus = psutil.cpu_count() or 1
-    cpu_percent, processes = _sample_process_load(logical_cpus)
+    cpu_percent, processes = _sample_process_load(logical_cpus, interval=0.12)
     try:
         load_1, load_5, load_15 = os.getloadavg()
     except (AttributeError, OSError):
@@ -854,7 +854,7 @@ def collect_quick_snapshot(
     safe_items, review_items, measurement_complete = _measure_caches(
         home_path, timeout=cache_timeout
     )
-    docker_review = _cached_docker_review(now)
+    docker_review = _cached_docker_review(now, max_age_hours=24)
     if docker_review:
         review_items.append(docker_review)
         review_items.sort(key=lambda item: item["size_bytes"], reverse=True)

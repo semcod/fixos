@@ -353,6 +353,15 @@ def _select_cleanup_items_by_filter(selection: str, analyzer, safe_items: list) 
 # ── Execution ─────────────────────────────────────────────────────────────
 
 
+def _run_cleanup_item_cmd(cmd_args: list[str]) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        cmd_args,
+        capture_output=True,
+        text=True,
+        timeout=DEFAULT_COMMAND_TIMEOUT,
+    )
+
+
 def _execute_full_cleanup(items_to_clean: list, dry_run: bool) -> None:
     """Execute cleanup commands for a list of StorageItems."""
     click.echo(f"\n{click.style('=' * 60, fg='cyan')}")
@@ -377,12 +386,7 @@ def _execute_full_cleanup(items_to_clean: list, dry_run: bool) -> None:
                 continue
         click.echo(f"  🚀 Wykonuję: {item.cleanup_command}")
         try:
-            result = subprocess.run(
-                item.cleanup_command.split(),
-                capture_output=True,
-                text=True,
-                timeout=DEFAULT_COMMAND_TIMEOUT,
-            )
+            result = _run_cleanup_item_cmd(item.cleanup_command.split())
             if result.returncode == 0:
                 click.echo(click.style("  ✅ Sukces", fg="green"))
                 results["success"] += 1

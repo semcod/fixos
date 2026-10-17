@@ -216,7 +216,10 @@ class _OpenAILLMClient:
         while True:
             try:
                 return self._chat_once(
-                    messages, max_tokens=max_tokens, temperature=temperature
+                    messages,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    stream=stream,
                 )
             except (_ModelInvalidError, _ModelUnusableResponseError) as e:
                 last_error = e
@@ -233,7 +236,12 @@ class _OpenAILLMClient:
                     ) from last_error
 
     def _chat_once(
-        self, messages: list[dict], *, max_tokens: int, temperature: float
+        self,
+        messages: list[dict],
+        *,
+        max_tokens: int,
+        temperature: float,
+        stream: bool = False,
     ) -> str:
         for attempt in range(3):
             try:
@@ -242,7 +250,7 @@ class _OpenAILLMClient:
                     messages=messages,
                     max_tokens=max_tokens,
                     temperature=temperature,
-                    stream=False,
+                    stream=bool(stream and False),
                     **self._completion_request_options(),
                 )
                 if response.usage:
