@@ -36,6 +36,15 @@ def quickfix(dry_run, modules) -> None:
     fixes_found = 0
     fixes_applied = 0
 
+    def _run_quickfix_command(command: str) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            command,
+            shell=True,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+
     for result in results:
         for finding in result.findings:
             if finding.command:
@@ -55,13 +64,7 @@ def quickfix(dry_run, modules) -> None:
                     if finding.severity in (Severity.CRITICAL, Severity.WARNING):
                         if click.confirm("    Wykonać?"):
                             try:
-                                proc = subprocess.run(
-                                    finding.command,
-                                    shell=True,
-                                    capture_output=True,
-                                    text=True,
-                                    timeout=60,
-                                )
+                                proc = _run_quickfix_command(finding.command)
                                 if proc.returncode == 0:
                                     click.echo(click.style("    OK", fg="green"))
                                     fixes_applied += 1

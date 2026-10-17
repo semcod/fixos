@@ -156,7 +156,7 @@ def _cleanup_docker_volumes(
     match: list[str] | None = None,
 ) -> None:
     """List unused Docker volumes and remove the selected ones."""
-    candidates = _unused_volumes(days, match or [])
+    candidates = _unused_volumes(days, match or [], now=None)
     if json_output:
         space._echo_json(
             {

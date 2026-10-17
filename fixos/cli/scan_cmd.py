@@ -122,7 +122,7 @@ def scan(
         data = get_full_diagnostics(selected_modules, progress_callback=fmt.progress)
 
     if disc:
-        _run_disk_analysis(data, fmt=fmt, is_fix_mode=False)
+        _run_disk_analysis(data, fmt=fmt, json_output=False, is_fix_mode=False)
 
     # ── Machine-parseable output (YAML / JSON) ───────────────
     if fmt.is_machine:

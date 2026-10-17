@@ -70,6 +70,16 @@ class RollbackSession:
             if e.success and e.rollback_command
         ]
 
+    @staticmethod
+    def _run_rollback_cmd(rollback_cmd: str) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            rollback_cmd,
+            shell=True,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+
     def rollback_last(self, n: int = 1, dry_run: bool = False) -> list[dict]:
         """Cofnij ostatnich n operacji.
 
@@ -92,13 +102,7 @@ class RollbackSession:
                 continue
 
             try:
-                proc = subprocess.run(
-                    rollback_cmd,
-                    shell=True,
-                    capture_output=True,
-                    text=True,
-                    timeout=30,
-                )
+                proc = self._run_rollback_cmd(rollback_cmd)
                 results.append(
                     {
                         "command": orig_cmd,

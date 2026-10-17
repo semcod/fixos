@@ -353,6 +353,17 @@ class _UserAnalyzerMixin:
         large_dirs.sort(key=lambda x: -x["size"])
         return large_dirs[:30]
 
+    @staticmethod
+    def _run_du_threshold(
+        min_size_mb: int, scan_path: str
+    ) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            ["du", "-h", "--threshold", f"{min_size_mb}M", scan_path],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+
     def get_large_directories(self, min_size_mb: int = 100) -> List[Dict[str, Any]]:
         """Find all directories larger than min_size_mb."""
         large_dirs = []
@@ -364,12 +375,7 @@ class _UserAnalyzerMixin:
                 continue
 
             try:
-                result = subprocess.run(
-                    ["du", "-h", "--threshold", f"{min_size_mb}M", scan_path],
-                    capture_output=True,
-                    text=True,
-                    timeout=120,
-                )
+                result = self._run_du_threshold(min_size_mb, scan_path)
 
                 if result.returncode == 0:
                     for line in result.stdout.strip().split("\n"):

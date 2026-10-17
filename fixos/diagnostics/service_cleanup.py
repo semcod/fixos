@@ -288,17 +288,20 @@ class ServiceCleaner:
             )
             return result
 
+        def _run_target_cmd(cmd: list[str]) -> subprocess.CompletedProcess:
+            return subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=DEFAULT_COMMAND_TIMEOUT,
+                check=False,
+            )
+
         outputs = []
         errors = []
         for target in targets:
             try:
-                proc = subprocess.run(
-                    target["command"],
-                    capture_output=True,
-                    text=True,
-                    timeout=DEFAULT_COMMAND_TIMEOUT,
-                    check=False,
-                )
+                proc = _run_target_cmd(target["command"])
                 if proc.returncode == 0:
                     outputs.append(f"{target['name']}: ok")
                 else:
@@ -514,18 +517,21 @@ class ServiceCleaner:
                 result["output"] = "\n".join(lines)
                 return result
 
-            outputs: list[str] = []
-            errors: list[str] = []
-            freed_bytes = 0
-            ok = True
-            for model in selected:
-                proc = subprocess.run(
-                    ["ollama", "rm", model["name"]],
+            def _run_ollama_rm(model_name: str) -> subprocess.CompletedProcess:
+                return subprocess.run(
+                    ["ollama", "rm", model_name],
                     capture_output=True,
                     text=True,
                     timeout=DEFAULT_COMMAND_TIMEOUT,
                     check=False,
                 )
+
+            outputs: list[str] = []
+            errors: list[str] = []
+            freed_bytes = 0
+            ok = True
+            for model in selected:
+                proc = _run_ollama_rm(model["name"])
                 if proc.stdout:
                     outputs.append(proc.stdout.strip())
                 if proc.returncode != 0:
