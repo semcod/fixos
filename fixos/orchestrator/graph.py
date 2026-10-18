@@ -6,10 +6,9 @@ tworząc DAG (directed acyclic graph) zależności.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Literal, Optional
 from collections import deque
-
+from dataclasses import dataclass, field
+from typing import Literal
 
 ProblemStatus = Literal["pending", "in_progress", "resolved", "failed", "blocked"]
 ProblemSeverity = Literal["critical", "warning", "info"]
@@ -27,6 +26,10 @@ class Problem:
     context: dict = field(default_factory=dict)
     attempts: int = 0
     max_attempts: int = 3
+
+    @property
+    def name(self) -> str:
+        return self.description
 
     def is_actionable(self) -> bool:
         return self.status == "pending" and self.attempts < self.max_attempts
@@ -53,14 +56,23 @@ class ProblemGraph:
         self.nodes: dict[str, Problem] = {}
         self.execution_order: list[str] = []
 
+    @property
+    def edges(self) -> list[tuple[str, str]]:
+        return [
+            (dep, p.id)
+            for p in self.nodes.values()
+            for dep in p.caused_by
+            if dep in self.nodes
+        ]
+
     def add(self, problem: Problem) -> None:
         self.nodes[problem.id] = problem
         self._recalculate_order()
 
-    def get(self, problem_id: str) -> Optional[Problem]:
+    def get(self, problem_id: str) -> Problem | None:
         return self.nodes.get(problem_id)
 
-    def next_actionable(self) -> Optional[Problem]:
+    def next_actionable(self) -> Problem | None:
         """Zwraca pierwszy problem bez nierozwiązanych zależności."""
         for pid in self.execution_order:
             p = self.nodes[pid]

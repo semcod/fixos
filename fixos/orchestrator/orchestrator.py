@@ -9,23 +9,22 @@ import asyncio
 import json
 import time
 import uuid
-from typing import Optional
 
 from ..config import FixOsConfig
 from ..providers.llm import LLMClient, LLMError
 from ..utils.anonymizer import anonymize
 from ..utils.terminal import (
     console,
-    print_problem_header,
     print_cmd_block,
-    print_stdout_box,
+    print_problem_header,
     print_stderr_box,
+    print_stdout_box,
 )
 from .executor import (
     CommandExecutor,
-    ExecutionResult,
-    DangerousCommandError,
     CommandTimeoutError,
+    DangerousCommandError,
+    ExecutionResult,
 )
 from .graph import Problem, ProblemGraph
 
@@ -100,25 +99,92 @@ class FixOrchestrator:
     def __init__(
         self,
         config: FixOsConfig,
-        executor: Optional[CommandExecutor] = None,
+        executor: CommandExecutor | None = None,
         auto_confirm_threshold: float = 0.90,
+        dry_run: bool = False,
+        max_iterations: int = 50,
+        use_llm: bool | None = None,
     ):
         self.config = config
+        self.dry_run = dry_run
+        self.max_iterations = max_iterations
+        self.use_llm = use_llm
+        self.session_id = f"orch_{uuid.uuid4().hex[:8]}"
         self.llm = LLMClient(config)
         self.executor = executor or CommandExecutor(
             default_timeout=120,
-            require_confirmation=(config.agent_mode == "hitl"),
-            dry_run=False,
+            require_confirmation=(config.agent_mode == "hitl" and not dry_run),
+            dry_run=dry_run,
         )
         self.graph = ProblemGraph()
         self.session_log: list[dict] = []
         self.auto_confirm_threshold = auto_confirm_threshold
         self._start_time = time.time()
 
+    def _is_llm_active(self) -> bool:
+        if getattr(self, "use_llm", None) is False:
+            return False
+        if getattr(self, "use_llm", None) is True:
+            return True
+        cfg = getattr(self, "config", None)
+        if cfg is None:
+            return False
+        if hasattr(cfg, "validate") and callable(cfg.validate):
+            return len(cfg.validate()) == 0
+        return bool(getattr(cfg, "api_key", None))
+
     # ── Public API ─────────────────────────────────────────────────────────
+
+    def build_from_diagnostics(self, diagnostics: dict) -> list[Problem]:
+        """Build problem graph from plugin/heuristic diagnostics, using LLM only if configured and needed."""
+        problems: list[Problem] = []
+        for plugin_name, payload in (diagnostics or {}).items():
+            if not isinstance(payload, dict):
+                continue
+            findings = payload.get("findings") or payload.get("problems") or []
+            for idx, item in enumerate(findings, 1):
+                if not isinstance(item, dict):
+                    continue
+                cmd = (item.get("command") or "").strip()
+                fix_cmds = list(item.get("fix_commands") or ([cmd] if cmd else []))
+                if not fix_cmds:
+                    continue
+                sev_raw = str(item.get("severity", "warning")).lower()
+                sev = (
+                    "critical"
+                    if sev_raw in ("critical", "error", "high")
+                    else ("info" if sev_raw == "info" else "warning")
+                )
+                title = item.get("title") or item.get("description") or f"{plugin_name} #{idx}"
+                pid = item.get("id") or f"p_{plugin_name}_{idx}"
+                p = Problem(
+                    id=pid,
+                    description=str(title),
+                    severity=sev,
+                    fix_commands=fix_cmds,
+                    caused_by=list(item.get("caused_by") or item.get("related_to") or []),
+                )
+                self.graph.add(p)
+                problems.append(p)
+
+        if not problems and self._is_llm_active():
+            return self.load_from_diagnostics(diagnostics)
+        self._log("diagnose_heuristic", {"found": len(problems)})
+        return problems
+
+    def get_execution_order(self) -> list[str]:
+        return list(self.graph.execution_order)
+
+    def run_interactive(self) -> dict:
+        return self.run_sync(confirm_fn=self._default_confirm)
+
+    def run_autonomous(self) -> dict:
+        return self.run_sync(confirm_fn=lambda _problem, _cmd: True)
 
     def load_from_diagnostics(self, diagnostics: dict) -> list[Problem]:
         """Parsuje dane diagnostyczne przez LLM i buduje graf problemów."""
+        if not self._is_llm_active():
+            return self.build_from_diagnostics(diagnostics)
         anon_str, _ = anonymize(str(diagnostics))
         os_info_raw = diagnostics.get("system", {}).get("os_release", "Linux")
         os_info, _ = anonymize(os_info_raw)
@@ -247,7 +313,7 @@ class FixOrchestrator:
         if progress_fn is None:
             progress_fn = self._default_progress
 
-        max_iterations = 50
+        max_iterations = getattr(self, "max_iterations", 50)
         iteration = 0
 
         while not self.graph.all_done() and iteration < max_iterations:
@@ -281,7 +347,16 @@ class FixOrchestrator:
     def _evaluate_and_rediagnose(
         self, problem: Problem, result: ExecutionResult
     ) -> list[Problem]:
-        """Wysyła wynik do LLM, ocenia sukces i wykrywa nowe problemy."""
+        """Wysyła wynik do LLM (lub ocenia deterministycznie bez LLM) i wykrywa nowe problemy."""
+        if not self._is_llm_active():
+            if result.success or not result.executed:
+                problem.status = "resolved"
+            elif problem.attempts >= problem.max_attempts:
+                problem.status = "failed"
+            else:
+                problem.status = "pending"
+            return []
+
         anon_stdout, _ = anonymize(result.stdout)
         anon_stderr, _ = anonymize(result.stderr)
 
@@ -338,7 +413,7 @@ class FixOrchestrator:
         except (LLMError, ValueError) as e:
             self._log("evaluate_error", {"error": str(e)})
             # Fallback: oceniaj po returncode
-            if result.success:
+            if result.success or not result.executed:
                 problem.status = "resolved"
             elif problem.attempts >= problem.max_attempts:
                 problem.status = "failed"
@@ -377,8 +452,16 @@ class FixOrchestrator:
 
     def _session_summary(self) -> dict:
         summary = self.graph.summary()
+        by_status = summary.get("by_status", {})
         summary["elapsed_seconds"] = int(time.time() - self._start_time)
         summary["log_entries"] = len(self.session_log)
+        summary["session_id"] = getattr(self, "session_id", "orch_session")
+        summary["executed"] = len(by_status.get("resolved", []))
+        summary["failed"] = len(by_status.get("failed", []))
+        summary["skipped"] = len(by_status.get("skipped", [])) + len(
+            by_status.get("blocked", [])
+        )
+        summary["rollback_available"] = False
         return summary
 
     @staticmethod

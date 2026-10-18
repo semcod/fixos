@@ -9,22 +9,22 @@ Refactored: Now uses AutonomousSession class for better modularity.
 from __future__ import annotations
 
 from .autonomous_session import (
-    AutonomousSession,
-    AgentReport,
-    FixAction,
-    SYSTEM_PROMPT_AUTONOMOUS,
     FORBIDDEN_COMMANDS,
     SUDO_PREFIXES,
+    SYSTEM_PROMPT_AUTONOMOUS,
+    AgentReport,
+    AutonomousSession,
+    FixAction,
 )
 
 __all__ = [
-    "run_autonomous_session",
-    "AutonomousSession",
-    "AgentReport",
-    "FixAction",
-    "SYSTEM_PROMPT_AUTONOMOUS",
     "FORBIDDEN_COMMANDS",
     "SUDO_PREFIXES",
+    "SYSTEM_PROMPT_AUTONOMOUS",
+    "AgentReport",
+    "AutonomousSession",
+    "FixAction",
+    "run_autonomous_session",
 ]
 
 
@@ -33,6 +33,9 @@ def run_autonomous_session(
     config,
     show_data: bool = True,
     max_fixes: int = 10,
+    auto_confirm: bool = False,
+    use_llm: bool | None = None,
+    dry_run: bool = False,
 ) -> AgentReport:
     """
     Uruchamia autonomiczny tryb agenta.
@@ -45,5 +48,8 @@ def run_autonomous_session(
         config=config,
         show_data=show_data,
         max_fixes=max_fixes,
+        auto_confirm=auto_confirm,
+        use_llm=use_llm,
+        dry_run=dry_run,
     )
     return session.run()

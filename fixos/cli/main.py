@@ -10,6 +10,7 @@ from fixos.config import FixOsConfig
 
 LAZY_COMMANDS: dict[str, tuple[str, str]] = {
     "ask": ("fixos.cli.ask_cmd", "ask"),
+    "auto": ("fixos.cli.fix_cmd", "auto_cmd"),
     "cleanup": ("fixos.cli.cleanup_cmd", "cleanup_services"),
     "config": ("fixos.cli.config_cmd", "config"),
     "dashboard": ("fixos.cli.dashboard", "dashboard_cmd"),
@@ -58,6 +59,7 @@ def cli(ctx, dry_run, interactive_mode, version) -> None:
     \b
     Szybki start:
       fixos                       # interaktywne menu i shell w terminalu
+      fixos auto                  # autonomiczna naprawa i czyszczenie dysku (bez LLM)
       fixos shell                 # dedykowany interaktywny shell (REPL)
       fixos quick                 # wynik w kilka sekund, bez LLM
       fixos token set AIzaSy...   # opcjonalnie: zapisz token Gemini
@@ -112,6 +114,7 @@ def _print_welcome() -> None:
     click.echo()
 
     commands = [
+        ("fixos auto", "", "Autonomiczna diagnostyka, naprawa i zwolnienie miejsca (bez LLM)"),
         ("fixos shell", "", "Interaktywny shell z autouzupełnianiem TAB i menu"),
         ("fixos quick", "", "Szybki wynik bez LLM + trend CPU/RAM/dysku"),
         ("fixos fix", "", "Diagnostyka + sesja naprawcza z AI (HITL)"),

@@ -1,0 +1,113 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-088",
+  "summary": "Enable LLM-free fixos auto and autonomous repair and optimize space cleanup",
+  "workstream": "application",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P1",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-088/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/agent/autonomous.py",
+    "fixos/agent/autonomous_session.py",
+    "fixos/cli/_cleanup_space.py",
+    "fixos/cli/fix_cmd.py",
+    "fixos/cli/main.py",
+    "fixos/cli/orchestrate_cmd.py",
+    "fixos/orchestrator/graph.py",
+    "fixos/orchestrator/orchestrator.py",
+    "tests/unit/test_auto_no_llm.py",
+    "tests/unit/test_quick_snapshot.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [
+    "python"
+  ],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "0abf4e88b876104a76b936ad91cf09a861afd70d",
+    "targetBranch": "main",
+    "outcome": "Enable fixos auto, fix --mode autonomous, AutonomousSession, and FixOrchestrator to execute deterministic diagnostics, repairs, and safe disk space cleanup without requiring an LLM API key or provider, and optimize _cleanup_space for high-cardinality /tmp and shallow gitive workspace discovery.",
+    "nonGoals": [
+      "No destructive cleanup of protected or review-level user data without confirmation."
+    ],
+    "complexity": "L",
+    "estimatedMinutes": 30,
+    "budgets": {
+      "maxImplementationFiles": 15,
+      "maxAffectedComponents": 5,
+      "maxPublicInterfaceChanges": 1,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Register dedicated 'auto' CLI subcommand in LAZY_COMMANDS, add deterministic heuristic planner and execution loop in AutonomousSession and FixOrchestrator when LLM is unconfigured or disabled (--no-llm), and bound terminal output and directory traversal in _cleanup_space.",
+      "components": [
+        {
+          "name": "cli",
+          "paths": [
+            "fixos/cli/_cleanup_space.py",
+            "fixos/cli/fix_cmd.py",
+            "fixos/cli/main.py",
+            "fixos/cli/orchestrate_cmd.py"
+          ]
+        },
+        {
+          "name": "agent",
+          "paths": [
+            "fixos/agent/autonomous.py",
+            "fixos/agent/autonomous_session.py"
+          ]
+        },
+        {
+          "name": "orchestrator",
+          "paths": [
+            "fixos/orchestrator/graph.py",
+            "fixos/orchestrator/orchestrator.py"
+          ]
+        },
+        {
+          "name": "tests",
+          "paths": [
+            "tests/unit/test_auto_no_llm.py",
+            "tests/unit/test_quick_snapshot.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the ticket commit."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "pytest -q tests/unit/test_auto_no_llm.py"
+        ],
+        "evidence": "project/ticket-088/README.md"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "./project/governance-check.sh"
+        ],
+        "evidence": "project/ticket-088/README.md"
+      }
+    ]
+  }
+}
