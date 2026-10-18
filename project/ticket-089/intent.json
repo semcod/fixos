@@ -1,0 +1,84 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-089",
+  "summary": "Add errors runbook index for Wellmanifest logs compliance",
+  "workstream": "governance",
+  "classification": {
+    "kind": "SERVICE",
+    "priority": "P2",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-089/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    ".governance/manifest.json",
+    ".governance/standard-adoption.json",
+    "errors/README.md"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [
+    "python"
+  ],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "d8709725c77e93337e9b69b7dcaf03b946bd4a55",
+    "targetBranch": "main",
+    "outcome": "Add errors/README.md runbook index and register errors/** in .governance/manifest.json so wellman check passes with 0 errors.",
+    "nonGoals": [
+      "No runtime behavior changes."
+    ],
+    "complexity": "XS",
+    "estimatedMinutes": 10,
+    "budgets": {
+      "maxImplementationFiles": 3,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Register errors/** in governance workstream ownedPaths and add errors/README.md index per wellmanifest/logs.",
+      "components": [
+        {
+          "name": "governance",
+          "paths": [
+            ".governance/manifest.json",
+            ".governance/standard-adoption.json",
+            "errors/README.md"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the ticket commit."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "wellman check ."
+        ],
+        "expected": "0 errors."
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "./project/governance-check.sh"
+        ],
+        "expected": "GOV-PASS: passed (0 errors, 0 warnings)."
+      }
+    ]
+  }
+}
