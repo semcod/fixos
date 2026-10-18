@@ -62,7 +62,7 @@ def test_first_snapshot_creates_baseline_then_reports_growth(monkeypatch, tmp_pa
         "_measure_caches",
         lambda home, timeout: next(caches),
     )
-    monkeypatch.setattr(quick_snapshot, "_cached_docker_review", lambda now: None)
+    monkeypatch.setattr(quick_snapshot, "_cached_docker_review", lambda now, **_: None)
     monkeypatch.setattr(
         quick_snapshot,
         "_detect_context",
@@ -104,7 +104,7 @@ def test_no_save_does_not_create_history(monkeypatch, tmp_path):
     monkeypatch.setattr(
         quick_snapshot, "_measure_caches", lambda home, timeout: ([], [], True)
     )
-    monkeypatch.setattr(quick_snapshot, "_cached_docker_review", lambda now: None)
+    monkeypatch.setattr(quick_snapshot, "_cached_docker_review", lambda now, **_: None)
     monkeypatch.setattr(quick_snapshot, "_detect_context", lambda cwd: {})
 
     result = quick_snapshot.collect_quick_snapshot(

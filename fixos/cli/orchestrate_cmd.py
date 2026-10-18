@@ -2,10 +2,12 @@
 Orchestrate command for fixOS CLI - advanced repair with problem graph
 """
 
-import click
 import json
 from pathlib import Path
-from fixos.cli.shared import add_common_options, BANNER
+
+import click
+
+from fixos.cli.shared import BANNER, add_common_options
 from fixos.config import FixOsConfig
 
 
@@ -27,6 +29,12 @@ from fixos.config import FixOsConfig
     "--max-iterations", default=10, show_default=True, help="Maksymalna liczba iteracji"
 )
 @click.option("--output", "-o", default=None, help="Zapisz log wykonania do pliku JSON")
+@click.option(
+    "--no-llm",
+    is_flag=True,
+    default=False,
+    help="Uruchom orkiestrację deterministycznie bez LLM",
+)
 def orchestrate(
     provider: str,
     token: str,
@@ -37,6 +45,7 @@ def orchestrate(
     dry_run: bool,
     max_iterations: int,
     output: str,
+    no_llm: bool = False,
 ) -> None:
     """
     Zaawansowana orkiestracja napraw z grafem problemów.
@@ -68,15 +77,18 @@ def orchestrate(
         agent_mode=mode,
     )
 
-    if not cfg.api_key:
+    use_llm = bool(cfg.api_key) and not no_llm
+    if not use_llm:
         click.echo(
-            click.style("\nBrak klucza API. Użyj: fixos token set <KLUCZ>", fg="red")
+            click.style(
+                "\nTryb deterministyczny (bez LLM) — używam wtyczek diagnostycznych.",
+                fg="yellow",
+            )
         )
-        return
 
     click.echo(click.style("\nOrkiestracja napraw...", fg="cyan", bold=True))
-    click.echo(f"  Provider: {cfg.provider}")
-    click.echo(f"  Model: {cfg.model}")
+    click.echo(f"  Provider: {cfg.provider if use_llm else 'heurystyki (bez LLM)'}")
+    click.echo(f"  Model: {cfg.model if use_llm else 'lokalne reguły'}")
     click.echo(f"  Tryb: {mode}")
     if dry_run:
         click.echo(click.style("  [DRY-RUN]", fg="yellow"))
@@ -100,6 +112,7 @@ def orchestrate(
         config=cfg,
         dry_run=dry_run,
         max_iterations=max_iterations,
+        use_llm=use_llm,
     )
 
     # Build graph from diagnostics
@@ -159,5 +172,5 @@ def orchestrate(
                 encoding="utf-8",
             )
             click.echo(click.style(f"\nLog zapisany: {output}", fg="green"))
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             click.echo(f"Błąd zapisu: {e}")

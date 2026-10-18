@@ -144,13 +144,24 @@ def _remove_path(path: Path) -> tuple[bool, str]:
         else:
             shutil.rmtree(path)
         return True, "usunięto"
+    except PermissionError as exc:
+        return False, f"PERMISSION_DENIED:{exc}"
     except OSError as exc:
+        if path.is_dir() and not path.is_symlink():
+            shutil.rmtree(path, ignore_errors=True)
+            if not path.exists():
+                return True, "usunięto"
+            return True, "oczyszczono zawartość"
         return False, str(exc)
+
+
+_MAX_DISPLAY_CANDIDATES = 50
 
 
 def _display_candidates(title: str, candidates: list[dict]) -> None:
     click.echo(f"\n{click.style(title, fg='magenta', bold=True)}")
-    for index, item in enumerate(candidates, 1):
+    shown = candidates[:_MAX_DISPLAY_CANDIDATES]
+    for index, item in enumerate(shown, 1):
         size = _format_bytes(item.get("size_bytes", 0))
         detail = item.get("note", "")
         suffix = f" — {detail}" if detail else ""
@@ -158,23 +169,104 @@ def _display_candidates(title: str, candidates: list[dict]) -> None:
             f"  [{index:3d}] {click.style(item['description'], fg='yellow')}: "
             f"{size}{suffix}"
         )
-    click.echo(f"\n  Kandydatów: {len(candidates)}")
+    if len(candidates) > _MAX_DISPLAY_CANDIDATES:
+        hidden = candidates[_MAX_DISPLAY_CANDIDATES:]
+        hidden_bytes = sum(item.get("size_bytes", 0) for item in hidden)
+        click.echo(
+            f"  ... i {len(hidden)} pozostałych pozycji "
+            f"({_format_bytes(hidden_bytes)})"
+        )
+    total_bytes = sum(item.get("size_bytes", 0) for item in candidates)
+    click.echo(
+        f"\n  Kandydatów: {len(candidates)} (łącznie {_format_bytes(total_bytes)})"
+    )
+
+
+def _batch_sudo_remove_tmp(items: list[dict], path_key: str = "path") -> tuple[int, int]:
+    """Remove root-owned /tmp items in batches using non-interactive sudo if available."""
+    if not items or shutil.which("sudo") is None:
+        return 0, 0
+    safe_items = []
+    for item in items:
+        p = Path(item[path_key])
+        if p.parent == Path("/tmp") and not any(
+            p.name.startswith(pref) for pref in _EXCLUDED_TMP_PREFIXES
+        ):
+            safe_items.append(item)
+    if not safe_items:
+        return 0, 0
+    removed = 0
+    freed = 0
+    chunk_size = 500
+    for start in range(0, len(safe_items), chunk_size):
+        chunk = safe_items[start : start + chunk_size]
+        cmd = ["sudo", "-n", "rm", "-rf", "--", *[str(it[path_key]) for it in chunk]]
+        try:
+            res = _run_cmd(cmd, timeout=60)
+            if res.returncode == 0:
+                removed += len(chunk)
+                freed += sum(int(it.get("size_bytes", 0) or 0) for it in chunk)
+        except (OSError, subprocess.TimeoutExpired):
+            break
+    return removed, freed
 
 
 def _remove_selected(
     candidates: list[dict], selected: list[int], path_key: str = "path"
 ) -> None:
+    verbose = len(selected) <= _MAX_DISPLAY_CANDIDATES
+    removed_count = 0
+    failed_count = 0
+    freed_bytes = 0
+    perm_denied_items: list[dict] = []
     for index in selected:
         item = candidates[index]
         ok, detail = _remove_path(item[path_key])
-        style = "green" if ok else "red"
-        click.echo(click.style(f"  {item['description']}: {detail}", fg=style))
+        if ok:
+            removed_count += 1
+            freed_bytes += int(item.get("size_bytes", 0) or 0)
+        elif detail.startswith("PERMISSION_DENIED:"):
+            perm_denied_items.append(item)
+            detail = detail.removeprefix("PERMISSION_DENIED:")
+            failed_count += 1
+        else:
+            failed_count += 1
+        if verbose:
+            style = "green" if ok else "red"
+            click.echo(click.style(f"  {item['description']}: {detail}", fg=style))
+    if perm_denied_items:
+        sudo_removed, sudo_freed = _batch_sudo_remove_tmp(perm_denied_items, path_key=path_key)
+        if sudo_removed > 0:
+            removed_count += sudo_removed
+            freed_bytes += sudo_freed
+            failed_count = max(0, failed_count - sudo_removed)
+            if verbose:
+                click.echo(
+                    click.style(
+                        f"  Usunięto przez sudo (/tmp): {sudo_removed} pozycji ({_format_bytes(sudo_freed)})",
+                        fg="green",
+                    )
+                )
+    if not verbose:
+        click.echo(
+            click.style(
+                f"  Usunięto {removed_count}/{len(selected)} pozycji "
+                f"(zwolniono {_format_bytes(freed_bytes)})",
+                fg="green" if failed_count == 0 else "yellow",
+            )
+        )
+        if failed_count:
+            click.echo(
+                click.style(f"  Nie udało się usunąć: {failed_count} pozycji", fg="red")
+            )
 
 
 def _show_dry_run_commands(commands: list[list[str]]) -> None:
     click.echo(click.style("[TRYB DRY-RUN] - brak faktycznych zmian", fg="cyan"))
-    for command in commands:
+    for command in commands[:_MAX_DISPLAY_CANDIDATES]:
         click.echo(f"  $ {' '.join(command)}")
+    if len(commands) > _MAX_DISPLAY_CANDIDATES:
+        click.echo(f"  ... i {len(commands) - _MAX_DISPLAY_CANDIDATES} pozostałych komend")
 
 
 # ── snap revisions ───────────────────────────────────────────────────────
@@ -194,11 +286,16 @@ def _snap_disabled_revisions() -> list[dict] | None:
         if len(parts) < 3 or "disabled" not in line.lower():
             continue
         name, version, rev = parts[0], parts[1], parts[2]
+        snap_file = Path(f"/var/lib/snapd/snaps/{name}_{rev}.snap")
+        try:
+            size_bytes = snap_file.stat().st_size if snap_file.is_file() else 0
+        except OSError:
+            size_bytes = 0
         candidates.append(
             {
                 "description": f"{name} (rewizja {rev})",
                 "note": f"v{version}",
-                "size_bytes": 0,
+                "size_bytes": size_bytes,
                 "command": ["sudo", "snap", "remove", name, "--revision", rev],
             }
         )
@@ -604,6 +701,21 @@ def _gitive_container_names() -> set[str] | None:
     return {name for name in result.stdout.split() if name}
 
 
+def _discover_gitive_rootfs_dirs(root: Path) -> list[Path]:
+    """Find workspace `rootfs` directories under `root` without descending into `rootfs`."""
+    import os
+
+    found: list[Path] = []
+    for dirpath, dirnames, _filenames in os.walk(root):
+        if "rootfs" in dirnames:
+            rootfs_path = Path(dirpath) / "rootfs"
+            if rootfs_path.is_dir():
+                found.append(rootfs_path)
+            dirnames.remove("rootfs")
+    found.sort()
+    return found
+
+
 def _cleanup_gitive(
     json_output: bool, dry_run: bool, list_only: bool, yes: bool
 ) -> None:
@@ -615,7 +727,7 @@ def _cleanup_gitive(
     if names is None:
         error = "Nie udało się zweryfikować powiązania z kontenerami (docker niedostępny)"
     elif root.is_dir():
-        for rootfs in sorted(root.rglob("rootfs")):
+        for rootfs in _discover_gitive_rootfs_dirs(root):
             workspace = rootfs.parent
             if not rootfs.is_dir() or workspace.is_symlink():
                 continue
@@ -1593,3 +1705,113 @@ def _display_cleanup_policies(json_output: bool = False) -> None:
     click.echo("  fixos cleanup --policy                      # wyświetla tę tabelę polityk i retencji\n")
 
 
+def _cleanup_build_caches(
+    json_output: bool,
+    dry_run: bool,
+    list_only: bool,
+    yes: bool,
+    home_dir: Path | None = None,
+) -> None:
+    """Clean safe regenerable build/package caches (Cargo target/debug, ~/.npm/_cacache, conda tarballs)."""
+    home = home_dir or Path.home()
+    dirs_to_size: list[Path] = []
+    seen_resolved: set[Path] = set()
+    file_candidates: list[dict] = []
+
+    github_root = home / "github"
+    if github_root.is_dir():
+        for pat in ("*/*/target/debug", "*/*/packages/*/target/debug"):
+            for dbg in sorted(github_root.glob(pat)):
+                if dbg.is_dir() and not dbg.is_symlink():
+                    try:
+                        real = dbg.resolve()
+                    except OSError:
+                        real = dbg
+                    if real not in seen_resolved:
+                        seen_resolved.add(real)
+                        dirs_to_size.append(dbg)
+
+    npm_cache = home / ".npm" / "_cacache"
+    if npm_cache.is_dir() and not npm_cache.is_symlink():
+        dirs_to_size.append(npm_cache)
+
+    conda_pkgs = home / "miniconda3" / "pkgs"
+    if conda_pkgs.is_dir():
+        for ext in ("*.tar.bz2", "*.conda"):
+            for archive in sorted(conda_pkgs.glob(ext)):
+                try:
+                    if archive.is_file() and not archive.is_symlink():
+                        file_candidates.append(
+                            {
+                                "description": f"miniconda3/pkgs/{archive.name}",
+                                "path": archive,
+                                "size_bytes": archive.stat().st_size,
+                                "note": "archiwum pakietu conda",
+                            }
+                        )
+                except OSError:
+                    continue
+
+    sizes = _dir_sizes(dirs_to_size) if dirs_to_size else {}
+    candidates: list[dict] = []
+    for d in dirs_to_size:
+        sz = sizes.get(str(d))
+        if sz is None:
+            sz = _dir_size(d)
+        if sz <= 0:
+            continue
+        try:
+            rel = str(d.relative_to(home))
+        except ValueError:
+            rel = str(d)
+        candidates.append(
+            {
+                "description": f"~/{rel}",
+                "path": d,
+                "size_bytes": sz,
+                "note": "regenerowalny cache kompilacji/pakietów",
+            }
+        )
+    candidates.extend(file_candidates)
+    candidates.sort(key=lambda item: (-item.get("size_bytes", 0), item["description"]))
+
+    if json_output:
+        _echo_json(
+            {
+                "candidates": [
+                    {
+                        "description": c["description"],
+                        "path": str(c["path"]),
+                        "size_bytes": c["size_bytes"],
+                        "note": c["note"],
+                    }
+                    for c in candidates
+                ],
+                "total_bytes": sum(c["size_bytes"] for c in candidates),
+            }
+        )
+        return
+
+    if not candidates:
+        click.echo(click.style("Brak cache kompilacji/pakietów do wyczyszczenia.", fg="green"))
+        return
+
+    _display_candidates("CACHE KOMPILACJI I PAKIETÓW (target/debug, npm, conda):", candidates)
+    if list_only:
+        return
+
+    selected = (
+        list(range(len(candidates)))
+        if yes
+        else _choose(candidates, "Numery pozycji do usunięcia (np. 1,2, all)")
+    )
+    if not selected:
+        click.echo("Pominięto.")
+        return
+    if dry_run:
+        _show_dry_run_commands([["rm", "-rf", str(candidates[i]["path"])] for i in selected])
+        return
+    if not yes and not _confirm_remove():
+        click.echo("Anulowano.")
+        return
+    _remove_selected(candidates, selected)
