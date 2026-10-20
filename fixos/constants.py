@@ -105,6 +105,7 @@ MIN_STALE_DAYS = 90
 DEFAULT_TMP_UNUSED_DAYS = 1.0
 DEFAULT_TRASH_UNUSED_DAYS = 14.0
 DEFAULT_THUMBNAILS_UNUSED_DAYS = 30.0
+DEFAULT_STATE_OLD_DAYS = 14
 
 # Developer project artifact scanner (venvs, node_modules, build caches, ...)
 PROJECT_SCAN_DEFAULT_PATH = "~/github"
