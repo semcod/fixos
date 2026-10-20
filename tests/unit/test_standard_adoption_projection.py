@@ -22,6 +22,7 @@ def test_standard_pack_check_reports_no_findings():
         capture_output=True,
         text=True,
         timeout=120,
+        check=False,
     )
     report = json.loads(result.stdout)
     assert report["findings"] == [], report["findings"]
