@@ -139,10 +139,7 @@ def test_handler_json_reports_reclaimable_and_apparent(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "fixos.diagnostics.state_retention.time.time", lambda: NOW
     )
-    monkeypatch.setattr(
-        "fixos.diagnostics.state_retention.date",
-        type("FixedDate", (date,), {"today": classmethod(lambda cls: TODAY)}),
-    )
+    monkeypatch.setattr("fixos.diagnostics.state_retention._today", lambda: TODAY)
     result = _invoke(
         space._cleanup_state_old, True, False, False, False,
         days=14, roots=[tmp_path / "state"],

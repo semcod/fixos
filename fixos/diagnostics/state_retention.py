@@ -19,7 +19,7 @@ import os
 import shutil
 import time
 from dataclasses import dataclass, field
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 DEFAULT_STATE_ROOTS = ("~/.local/state", "~/.local/share")
@@ -60,9 +60,13 @@ def _numeric_children(path: Path, width: int, low: int, high: int) -> list[tuple
         return found
     for entry in entries:
         name = entry.name
-        if len(name) == width and name.isdigit() and low <= int(name) <= high:
-            if entry.is_dir(follow_symlinks=False):
-                found.append((int(name), Path(entry.path)))
+        if (
+            len(name) == width
+            and name.isdigit()
+            and low <= int(name) <= high
+            and entry.is_dir(follow_symlinks=False)
+        ):
+            found.append((int(name), Path(entry.path)))
     return sorted(found)
 
 
@@ -116,6 +120,11 @@ def _reclaimable(partitions: list[DayPartition]) -> int:
     return sum(size for key, (size, nlink) in sizes.items() if links[key] >= nlink)
 
 
+def _today() -> date:
+    """Local calendar day, the same clock collectors use to name partitions."""
+    return datetime.now().astimezone().date()
+
+
 def find_partitioned_stores(roots: list[Path], max_depth: int = MAX_STORE_DEPTH) -> list[Path]:
     """Directories that contain a ``YYYY/MM/DD`` tree, without descending into them."""
     stores: list[Path] = []
@@ -150,7 +159,7 @@ def scan_state_retention(
     if days < 1:
         raise ValueError("--days must be at least 1; the current day is never removed")
     roots = roots or [Path(root).expanduser() for root in DEFAULT_STATE_ROOTS]
-    today = today or date.today()
+    today = today or _today()
     now = now if now is not None else time.time()
     cutoff_day = today - timedelta(days=days)
     cutoff_mtime = now - days * 86400
