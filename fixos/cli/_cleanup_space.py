@@ -20,6 +20,7 @@ import click
 
 from fixos.cli._cleanup_utils import _format_bytes, _parse_selection
 from fixos.constants import (
+    DEFAULT_STATE_OLD_DAYS,
     DEFAULT_THUMBNAILS_UNUSED_DAYS,
     DEFAULT_TMP_UNUSED_DAYS,
     DEFAULT_TRASH_UNUSED_DAYS,
@@ -496,10 +497,81 @@ def _cleanup_user_cache(
 # ── JetBrains Toolbox / caches ───────────────────────────────────────────
 
 
-def _jetbrains_candidates() -> list[dict]:
-    """Stale Toolbox channels (all but newest per app) + IDE caches."""
-    home = Path.home()
+_JETBRAINS_DATA_DIR = re.compile(r"([A-Za-z]+)(\d{4})\.(\d+)")
+
+
+def _toolbox_installs(home: Path) -> list[dict] | None:
+    """Installs registered in Toolbox state.json; None when any cannot be read."""
+    state = home / ".local/share/JetBrains/Toolbox/state.json"
+    try:
+        tools = json.loads(state.read_text(encoding="utf-8"))["tools"]
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    installs = []
+    for tool in tools:
+        location = Path(str(tool.get("installLocation") or ""))
+        try:
+            info = json.loads((location / "product-info.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        installs.append(
+            {
+                "tool_id": tool.get("toolId"),
+                "build": tool.get("buildNumber"),
+                "version": tool.get("displayVersion"),
+                "location": location,
+                "data_dir": info.get("dataDirectoryName"),
+            }
+        )
+    return installs
+
+
+def _jetbrains_stale_data_dirs(home: Path, installs: list[dict] | None) -> list[dict]:
+    """Version data dirs no install uses and that a newer version superseded."""
+    data_root = home / ".local/share/JetBrains"
+    if installs is None or not data_root.is_dir():
+        return []
+    in_use = {install["data_dir"] for install in installs if install["data_dir"]}
+    versions: dict[str, list[tuple[tuple[int, int], Path]]] = {}
+    for entry in data_root.iterdir():
+        match = _JETBRAINS_DATA_DIR.fullmatch(entry.name)
+        if match and entry.is_dir() and not entry.is_symlink():
+            version = (int(match.group(2)), int(match.group(3)))
+            versions.setdefault(match.group(1), []).append((version, entry))
     candidates = []
+    for items in versions.values():
+        newest = max(version for version, _ in items)
+        for version, entry in items:
+            if version < newest and entry.name not in in_use:
+                candidates.append(
+                    {
+                        "description": entry.name,
+                        "path": entry,
+                        "size_bytes": _dir_size(entry),
+                        "note": "dane starej wersji IDE, żadna instalacja ich nie używa",
+                    }
+                )
+    return candidates
+
+
+def _toolbox_duplicate_installs(installs: list[dict] | None) -> list[str]:
+    """Same tool and build registered more than once; remove through Toolbox."""
+    groups: dict[tuple[str, str], list[dict]] = {}
+    for install in installs or []:
+        groups.setdefault((str(install["tool_id"]), str(install["build"])), []).append(install)
+    return [
+        f"{tool} {items[0]['version']} ({build}) zainstalowany {len(items)}×: "
+        + ", ".join(str(item["location"]) for item in items)
+        + " — usuń zbędny kanał w JetBrains Toolbox"
+        for (tool, build), items in sorted(groups.items())
+        if len(items) > 1
+    ]
+
+
+def _jetbrains_candidates() -> list[dict]:
+    """Stale Toolbox channels (all but newest per app), unused version data and IDE caches."""
+    home = Path.home()
+    candidates = _jetbrains_stale_data_dirs(home, _toolbox_installs(home))
     apps_dir = home / ".local/share/JetBrains/Toolbox/apps"
     if apps_dir.is_dir():
         for app_dir in sorted(apps_dir.iterdir()):
@@ -542,8 +614,9 @@ def _jetbrains_candidates() -> list[dict]:
 def _cleanup_jetbrains(
     json_output: bool, dry_run: bool, list_only: bool, yes: bool
 ) -> None:
-    """Remove stale JetBrains Toolbox channels and IDE caches."""
+    """Remove stale JetBrains Toolbox channels, unused version data and IDE caches."""
     candidates = _jetbrains_candidates()
+    advisories = _toolbox_duplicate_installs(_toolbox_installs(Path.home()))
     if json_output:
         _echo_json(
             {
@@ -554,16 +627,19 @@ def _cleanup_jetbrains(
                         "path": str(c["path"]),
                     }
                     for c in candidates
-                ]
+                ],
+                "advisories": advisories,
             }
         )
         return
+    for advisory in advisories:
+        click.echo(click.style(f"  Uwaga: {advisory}", fg="yellow"))
     if not candidates:
         click.echo(
             click.style("Brak starych kanałów Toolbox ani cache IDE.", fg="green")
         )
         return
-    _display_candidates("JETBRAINS — stare kanały i cache:", candidates)
+    _display_candidates("JETBRAINS — stare kanały, dane starych wersji i cache:", candidates)
     if list_only:
         return
     selected = (
@@ -1616,8 +1692,8 @@ CLEANUP_POLICIES: list[dict[str, Any]] = [
         "default_days": 0.0,
         "risk_level": "safe",
         "default_safe": True,
-        "description": "Stare wersje IDE z Toolbox oraz ~/.cache/JetBrains",
-        "protected": "Ustawienia i konfiguracja w ~/.local/share/JetBrains",
+        "description": "Stare wersje IDE z Toolbox, nieużywane dane starszych wersji oraz ~/.cache/JetBrains",
+        "protected": "Dane wersji używanych przez instalacje z Toolbox state.json (także snap), ~/.config/JetBrains",
         "example": "fixos cleanup --jetbrains",
     },
     {
@@ -1645,6 +1721,19 @@ CLEANUP_POLICIES: list[dict[str, Any]] = [
         "description": "Stare katalogi w ~/.local/share/gitive-isolated",
         "protected": "Workspace'y powiązane z działającymi kontenerami",
         "example": "fixos cleanup --gitive",
+    },
+    {
+        "id": "state-old",
+        "flag": "--state-old",
+        "name": "Stare partycje dzienne stanu aplikacji",
+        "direct": True,
+        "default_retention": f"{DEFAULT_STATE_OLD_DAYS} dni",
+        "default_days": float(DEFAULT_STATE_OLD_DAYS),
+        "risk_level": "review",
+        "default_safe": False,
+        "description": "Katalogi YYYY/MM/DD w ~/.local/state i ~/.local/share starsze niż --days",
+        "protected": "Bieżący dzień, pliki poza partycjami (np. checkpoint.sqlite3), dowiązania, inne systemy plików",
+        "example": "fixos cleanup --state-old --days 14 --dry-run",
     },
 ]
 
@@ -1815,3 +1904,118 @@ def _cleanup_build_caches(
         click.echo("Anulowano.")
         return
     _remove_selected(candidates, selected)
+
+
+# ── date-partitioned state stores ────────────────────────────────────────
+
+
+def _cleanup_state_old(
+    json_output: bool,
+    dry_run: bool,
+    list_only: bool,
+    yes: bool,
+    days: int = DEFAULT_STATE_OLD_DAYS,
+    roots: list[Path] | None = None,
+) -> None:
+    """Remove YYYY/MM/DD partitions of application state stores older than `days`."""
+    from fixos.diagnostics.state_retention import (
+        remove_old_partitions,
+        scan_state_retention,
+    )
+
+    try:
+        stores = scan_state_retention(int(days), roots=roots)
+    except ValueError as exc:
+        click.echo(click.style(f"Błąd: {exc}", fg="red"))
+        return
+    candidates = [
+        {
+            "description": str(store.path),
+            "path": store.path,
+            "store": store,
+            "size_bytes": store.reclaimable_bytes,
+            "note": (
+                f"{len(store.old_days)} dni {store.oldest}..{store.newest}, "
+                f"zostaje {store.kept_days}"
+                + (
+                    f", pozorny rozmiar {_format_bytes(store.apparent_bytes)} (twarde dowiązania)"
+                    if store.apparent_bytes != store.reclaimable_bytes
+                    else ""
+                )
+            ),
+        }
+        for store in stores
+    ]
+
+    if json_output:
+        _echo_json({
+            "days": days,
+            "candidates": [
+                {
+                    "path": str(c["path"]),
+                    "partitions": len(c["store"].old_days),
+                    "oldest": str(c["store"].oldest),
+                    "newest": str(c["store"].newest),
+                    "kept_partitions": c["store"].kept_days,
+                    "apparent_bytes": c["store"].apparent_bytes,
+                    "reclaimable_bytes": c["size_bytes"],
+                }
+                for c in candidates
+            ],
+            "total_bytes": sum(c["size_bytes"] for c in candidates),
+        })
+        return
+
+    if not candidates:
+        click.echo(
+            click.style(
+                f"Brak partycji dziennych YYYY/MM/DD starszych niż {days} dni.",
+                fg="green",
+            )
+        )
+        return
+
+    _display_candidates(
+        f"Magazyny stanu z partycjami dziennymi starszymi niż {days} dni:", candidates
+    )
+    if list_only:
+        return
+
+    selected = (
+        list(range(len(candidates)))
+        if yes
+        else _choose(candidates, "Numery magazynów do przycięcia (np. 1,2, all)")
+    )
+    if not selected:
+        click.echo("Pominięto.")
+        return
+
+    if dry_run:
+        _show_dry_run_commands(
+            [
+                ["rm", "-rf", str(p.path)]
+                for i in selected
+                for p in candidates[i]["store"].old_days
+            ]
+        )
+        return
+
+    if not yes and not _confirm_remove():
+        click.echo("Anulowano.")
+        return
+    freed = 0
+    for index in selected:
+        store = candidates[index]["store"]
+        removed, errors = remove_old_partitions(store)
+        if removed == len(store.old_days):
+            freed += store.reclaimable_bytes
+        style = "green" if not errors else "yellow"
+        click.echo(
+            click.style(
+                f"  {store.path}: usunięto {removed}/{len(store.old_days)} partycji",
+                fg=style,
+            )
+        )
+        for error in errors[:5]:
+            click.echo(click.style(f"    {error}", fg="red"))
+    click.echo(click.style(f"  Zwolniono około {_format_bytes(freed)}", fg="green"))

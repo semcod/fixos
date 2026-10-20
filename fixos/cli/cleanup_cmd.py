@@ -25,6 +25,7 @@ from fixos.cli._cleanup_space import (
     _cleanup_journal,
     _cleanup_libvirt,
     _cleanup_snap_old,
+    _cleanup_state_old,
     _cleanup_thumbnails,
     _cleanup_tmp,
     _cleanup_trash,
@@ -37,6 +38,7 @@ from fixos.cli._cleanup_utils import _format_bytes, _parse_numeric_range_set
 from fixos.cli._cleanup_venvs import _cleanup_venvs
 from fixos.constants import (
     DEFAULT_CLEANUP_THRESHOLD_MB,
+    DEFAULT_STATE_OLD_DAYS,
     DEFAULT_THUMBNAILS_UNUSED_DAYS,
     DEFAULT_TMP_UNUSED_DAYS,
     DEFAULT_TRASH_UNUSED_DAYS,
@@ -1614,6 +1616,7 @@ def _execute_yes_cleanup(plan: dict, scanner, dry_run: bool = False) -> None:
         "(docker, docker-all, docker-old, docker-containers, docker-networks, "
         "docker-stale-services, orphaned-projects, ollama-old, snap-old, "
         "journal, user-cache, jetbrains, libvirt, gitive, docker-buildcache, docker-volumes, tmp, venvs-old, "
+        "state-old, "
         "npm, ...)"
     ),
 )
@@ -1820,6 +1823,17 @@ def _execute_yes_cleanup(plan: dict, scanner, dry_run: bool = False) -> None:
     help="Usuń wygenerowane miniaturki (~/.cache/thumbnails) starsze niż retencja (domyślnie 30 dni)",
 )
 @click.option(
+    "--state-old",
+    "state_old",
+    is_flag=True,
+    default=False,
+    help=(
+        "Przytnij partycje dzienne YYYY/MM/DD w ~/.local/state i ~/.local/share "
+        f"starsze niż --days (domyślnie {DEFAULT_STATE_OLD_DAYS}); bieżący dzień "
+        "i pliki poza partycjami pozostają"
+    ),
+)
+@click.option(
     "--venvs-old",
     is_flag=True,
     help="Stare venv/.venv w nieaktywnych projektach; domyślnie 30 dni",
@@ -1923,6 +1937,7 @@ def cleanup_services(
     tmp_cleanup,
     trash_cleanup,
     thumbnails_cleanup,
+    state_old,
     venvs_old,
     projects_path,
     days,
@@ -2036,6 +2051,7 @@ def cleanup_services(
                 tmp_cleanup,
                 trash_cleanup,
                 thumbnails_cleanup,
+                state_old,
             )
         ) or cleanup not in (None, "venvs-old"):
             raise click.UsageError("--venvs-old uruchom jako osobną akcję")
@@ -2086,6 +2102,7 @@ def cleanup_services(
                 tmp_cleanup,
                 trash_cleanup,
                 thumbnails_cleanup,
+                state_old,
                 days is not None,
                 retention is not None,
                 hours is not None,
@@ -2176,6 +2193,18 @@ def cleanup_services(
                 days=effective_days
                 if effective_days is not None
                 else DEFAULT_THUMBNAILS_UNUSED_DAYS,
+            ),
+        ),
+        "state-old": (
+            state_old,
+            lambda j, d, lst, y: _cleanup_state_old(
+                j,
+                d,
+                lst,
+                y,
+                days=int(effective_days)
+                if effective_days is not None
+                else DEFAULT_STATE_OLD_DAYS,
             ),
         ),
     }

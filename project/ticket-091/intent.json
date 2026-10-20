@@ -1,0 +1,99 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-091",
+  "summary": "Retention for date-partitioned state stores in fixos cleanup",
+  "workstream": "application",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P1",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-091/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/cli/_cleanup_space.py",
+    "fixos/cli/cleanup_cmd.py",
+    "fixos/constants.py",
+    "fixos/diagnostics/state_retention.py",
+    "tests/unit/test_state_retention.py",
+    "tests/unit/test_jetbrains_toolbox_v2.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "48b29790f2d88397712dc91f44a2ecf7109c5ab0",
+    "targetBranch": "main",
+    "outcome": "fixos cleanup finds date-partitioned application state stores under ~/.local/state and ~/.local/share and prunes whole day partitions older than --days with a hardlink-aware reclaim estimate. JetBrains cleanup also finds data directories of superseded IDE versions that no registered install uses, and reports duplicate Toolbox installs instead of deleting them.",
+    "nonGoals": [
+      "No deletion outside YYYY/MM/DD day partitions",
+      "No change to the collectors that write these stores",
+      "No automatic selection without --yes or an explicit choice"
+    ],
+    "complexity": "M",
+    "estimatedMinutes": 90,
+    "budgets": {
+      "maxImplementationFiles": 7,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 2,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Pure scanner/remover in fixos/diagnostics/state_retention.py; CLI handler in _cleanup_space.py following the thumbnails pattern; --state-old flag and -c state-old in cleanup_cmd space_actions; policy matrix entry with review risk.",
+      "components": [
+        {
+          "name": "state-retention",
+          "paths": [
+            "fixos/diagnostics/state_retention.py",
+            "tests/unit/test_state_retention.py"
+          ]
+        },
+        {
+          "name": "cleanup-cli",
+          "paths": [
+            "fixos/cli/_cleanup_space.py",
+            "fixos/cli/cleanup_cmd.py",
+            "fixos/constants.py",
+            "tests/unit/test_jetbrains_toolbox_v2.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [
+        "New fixos cleanup --state-old option (default 14 days)",
+        "fixos cleanup --jetbrains lists stale version data dirs and duplicate-install advisories"
+      ],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the commit; the option is opt-in and existing cleanup paths are unchanged."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python -m pytest tests/unit/test_state_retention.py"
+        ],
+        "evidence": "project/ticket-091/README.md"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "fixos cleanup --state-old --list",
+          "./project/governance-check.sh"
+        ],
+        "evidence": "project/ticket-091/README.md"
+      }
+    ]
+  }
+}
