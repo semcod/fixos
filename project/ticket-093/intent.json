@@ -1,0 +1,86 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-093",
+  "summary": "Target-driven cleanup that reclaims disk until a free-space goal is met",
+  "workstream": "application",
+  "classification": {
+    "kind": "FEATURE",
+    "priority": "P1",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-093/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/cli/_cleanup_free_target.py",
+    "fixos/cli/cleanup_cmd.py",
+    "tests/unit/test_cleanup_free_target.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "e13966afc627ea3aa71197d72fb82d94d39864d0",
+    "targetBranch": "main",
+    "outcome": "fixos cleanup --free-gb N (alias --target-free-gb) reclaims disk space in a bounded ladder of no-privilege tiers - safe service caches, stale /tmp entries, stale agent release caches under ~/.local/share/*/releases older than 7 days, Docker dangling images and build cache, and Docker images unreferenced by any container and older than --days - stopping as soon as statvfs free space reaches the goal. Every Docker call runs with a hard timeout so a busy daemon skips its tier instead of hanging, non-writable (protected) release directories are skipped, and when the goal is still unmet the command prints the exact privileged next steps (old snap revisions, rotated syslog) instead of failing silently. --threshold-gb keeps its per-service scan meaning and its help text now says it is not a free-space goal.",
+    "nonGoals": [
+      "No deletion of user documents, Ollama models, editor extensions, Docker volumes or any path requiring elevated privileges",
+      "No change to existing sub-action flags or their semantics",
+      "No scheduler/daemon: the ladder runs only when explicitly requested"
+    ],
+    "complexity": "M",
+    "estimatedMinutes": 60,
+    "budgets": {
+      "maxImplementationFiles": 3,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 1,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Add fixos/cli/_cleanup_free_target.py with pure helpers (statvfs free bytes, stale release-cache discovery by mtime with protected-path skipping, batched docker subprocess calls with timeouts) and a generic ladder runner that measures free space before and after each tier and stops at the goal. cleanup_cmd.py gains --free-gb/--target-free-gb which must run as a standalone action (same guard pattern as --venvs-old) and composes existing handlers (safe plan via --yes executor, _cleanup_tmp for stale temp) with the new tiers. Unit tests mock df and docker so the ladder logic is verified without touching a real system.",
+      "components": [
+        {
+          "name": "cleanup-free-target",
+          "paths": [
+            "fixos/cli/_cleanup_free_target.py",
+            "fixos/cli/cleanup_cmd.py",
+            "tests/unit/test_cleanup_free_target.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [
+        "New cleanup options --free-gb/--target-free-gb (standalone action, implies the safe --yes pass first)"
+      ],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the commit; cleanup keeps only the pre-existing per-service and sub-action modes."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python -m pytest tests/unit/test_cleanup_free_target.py tests/unit/test_cleanup_cmd.py tests/unit/test_cleanup_tmp.py -q"
+        ],
+        "evidence": "project/ticket-093/README.md"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "./project/governance-check.sh"
+        ],
+        "evidence": "project/ticket-093/README.md"
+      }
+    ]
+  }
+}
