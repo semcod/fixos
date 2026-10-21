@@ -91,6 +91,22 @@ def _dir_size(path: Path) -> int:
         return total
 
 
+def _write_allowed(path: Path) -> bool:
+    """True when a deployment has not cleared the owner-write bit.
+
+    ``os.access(W_OK)`` alone is useless under root (root can write
+    everywhere), and exactly the protected deployment trees are marked by
+    clearing the write bits.
+    """
+    try:
+        stat = path.stat(follow_symlinks=False)
+    except OSError:
+        return False
+    if not stat.st_mode & 0o200:
+        return False
+    return os.access(path, os.W_OK)
+
+
 def find_stale_release_caches(
     share_root: Path | str | None = None,
     min_days: float = DEFAULT_RELEASE_CACHE_MIN_DAYS,
@@ -101,11 +117,10 @@ def find_stale_release_caches(
 
     An entry is a directory directly below
     ``<share_root>/<owner>/releases|release|snapshots/`` whose own mtime is
-    older than ``min_days`` days. ``<owner>`` directories holding the current
-    working tree of a running tool are indistinguishable by mtime alone, so
-    callers should rely on the write-protection check: entries inside a
-    non-writable parent are returned as ``protected`` and never selected for
-    removal.
+    older than ``min_days`` days. Protection is detected from the write bits:
+    entries inside a read-only (deployment-protected) parent are returned as
+    ``protected`` and never selected for removal — also when running as root,
+    where ``os.access`` alone would claim write access everywhere.
     """
     root = Path(share_root) if share_root is not None else Path.home() / ".local/share"
     now = time.time() if now is None else now
@@ -140,7 +155,7 @@ def find_stale_release_caches(
                     "mtime": stat.st_mtime,
                     "size_bytes": _dir_size(child),
                 }
-                if os.access(parent, os.W_OK) and os.access(child, os.W_OK):
+                if _write_allowed(parent) and _write_allowed(child):
                     removable.append(entry)
                 else:
                     protected.append(entry)

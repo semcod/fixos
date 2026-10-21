@@ -153,6 +153,23 @@ def test_find_stale_release_caches_reports_readonly_as_protected(tmp_path):
         os.chmod(parent, 0o755)
 
 
+def test_readonly_protection_also_holds_under_root(tmp_path, monkeypatch):
+    # CI distro jobs run as root, where os.access(W_OK) is always True;
+    # the write-bit check must still classify the tree as protected.
+    old = _make_release_tree(tmp_path, "agent-e", "rel-root", age_days=30)
+    parent = old.parent
+    os.chmod(parent, 0o555)
+    monkeypatch.setattr(os, "access", lambda *_a, **_k: True)
+    try:
+        removable, protected = find_stale_release_caches(
+            share_root=tmp_path, min_days=7.0
+        )
+        assert removable == []
+        assert [e["path"] for e in protected] == [old]
+    finally:
+        os.chmod(parent, 0o755)
+
+
 def test_remove_release_caches_skips_failures_and_returns_bytes(tmp_path):
     kept = _make_release_tree(tmp_path, "agent-c", "rel-busy", age_days=30)
     gone = _make_release_tree(tmp_path, "agent-c", "rel-gone", age_days=30)
