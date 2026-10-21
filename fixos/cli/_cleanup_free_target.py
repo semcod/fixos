@@ -163,11 +163,18 @@ def find_stale_release_caches(
 
 
 def remove_release_caches(entries: Iterable[dict], *, dry_run: bool = False) -> int:
-    """Remove stale release-cache entries; return bytes reclaimed."""
+    """Remove stale release-cache entries; return bytes reclaimed.
+
+    Defense in depth: even if a protected entry slips into ``entries``, a
+    missing owner-write bit on the entry or its parent aborts that removal —
+    also under root, where permission bits would not stop ``rmtree``.
+    """
     reclaimed = 0
     for entry in entries:
         path = Path(entry["path"])
         size = int(entry.get("size_bytes") or 0)
+        if not _write_allowed(path) or not _write_allowed(path.parent):
+            continue
         if dry_run:
             reclaimed += size
             continue

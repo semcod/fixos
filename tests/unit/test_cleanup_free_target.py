@@ -170,22 +170,41 @@ def test_readonly_protection_also_holds_under_root(tmp_path, monkeypatch):
         os.chmod(parent, 0o755)
 
 
-def test_remove_release_caches_skips_failures_and_returns_bytes(tmp_path):
+def test_remove_release_caches_skips_failures_and_returns_bytes(tmp_path, monkeypatch):
     kept = _make_release_tree(tmp_path, "agent-c", "rel-busy", age_days=30)
     gone = _make_release_tree(tmp_path, "agent-c", "rel-gone", age_days=30)
-    os.chmod(kept, 0o555)
+
+    import shutil as real_shutil
+
+    original_rmtree = real_shutil.rmtree
+
+    def fake_rmtree(path, **_kwargs):
+        if Path(path) == kept:
+            raise OSError("device busy")
+        original_rmtree(path, **_kwargs)
+
+    monkeypatch.setattr("fixos.cli._cleanup_free_target.shutil.rmtree", fake_rmtree)
+    reclaimed = remove_release_caches(
+        [
+            {"path": kept, "size_bytes": 123},
+            {"path": gone, "size_bytes": 456},
+        ]
+    )
+    assert reclaimed == 456
+    assert kept.exists()
+    assert not gone.exists()
+
+
+def test_remove_release_caches_refuses_readonly_even_under_root(tmp_path, monkeypatch):
+    entry = _make_release_tree(tmp_path, "agent-f", "rel-locked", age_days=30)
+    os.chmod(entry, 0o555)
+    monkeypatch.setattr(os, "access", lambda *_a, **_k: True)
     try:
-        reclaimed = remove_release_caches(
-            [
-                {"path": kept, "size_bytes": 123},
-                {"path": gone, "size_bytes": 456},
-            ]
-        )
-        assert reclaimed == 456
-        assert kept.exists()
-        assert not gone.exists()
+        reclaimed = remove_release_caches([{"path": entry, "size_bytes": 100}])
+        assert reclaimed == 0
+        assert entry.exists()
     finally:
-        os.chmod(kept, 0o755)
+        os.chmod(entry, 0o755)
 
 
 def test_remove_release_caches_dry_run_keeps_everything(tmp_path):
