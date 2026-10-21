@@ -18,6 +18,15 @@ from fixos.cli._cleanup_docker_volumes import _cleanup_docker_volumes
 
 # Re-export public symbols used by fixos.cli (backward-compat)
 from fixos.cli._cleanup_flatpak import _cleanup_flatpak_detailed
+from fixos.cli._cleanup_free_target import (
+    TierResult,
+    docker_prune_dangling,
+    docker_remove_unused_old_images,
+    find_stale_release_caches,
+    print_privileged_hints,
+    remove_release_caches,
+    run_free_target_ladder,
+)
 from fixos.cli._cleanup_space import (
     _cleanup_docker_buildcache,
     _cleanup_gitive,
@@ -1580,6 +1589,128 @@ def _execute_yes_cleanup(plan: dict, scanner, dry_run: bool = False) -> None:
         _display_dangerous_services(plan["dangerous"])
 
 
+def _run_free_target_mode(
+    goal_gb: float,
+    threshold_mb: int,
+    json_output: bool,
+    dry_run: bool,
+    days: float | None,
+) -> None:
+    """Reclaim disk space in a bounded ladder until ``goal_gb`` is free."""
+    from fixos.cli._cleanup_free_target import DEFAULT_DOCKER_IMAGE_MIN_DAYS
+
+    def _echo(message: str) -> None:
+        if not json_output:
+            click.echo(message)
+
+    def _safe_service_caches() -> TierResult:
+        scanner = ServiceDataScanner(threshold_mb=threshold_mb)
+        plan = scanner.get_cleanup_plan(selected_services=None)
+        _execute_yes_cleanup(plan, scanner, dry_run=dry_run)
+        return TierResult("safe-service-caches")
+
+    def _stale_tmp() -> TierResult:
+        _cleanup_tmp(
+            json_output,
+            dry_run,
+            list_only=False,
+            yes=True,
+            days=3,
+        )
+        return TierResult("tmp-stale-3d")
+
+    def _stale_release_caches() -> TierResult:
+        removable, protected = find_stale_release_caches()
+        _echo(
+            f"    release caches: {len(removable)} do usunięcia, "
+            f"{len(protected)} chronionych (tylko do odczytu)"
+        )
+        remove_release_caches(removable, dry_run=dry_run)
+        return TierResult("stale-release-caches")
+
+    min_days = days if days is not None else DEFAULT_DOCKER_IMAGE_MIN_DAYS
+
+    def _docker_tier(action, name: str):
+        def _tier() -> TierResult:
+            if dry_run:
+                return TierResult(
+                    name,
+                    attempted=False,
+                    skipped_reason="dry-run pomija efekty Dockera",
+                )
+            return action()
+
+        return _tier
+
+    tiers = [
+        _safe_service_caches,
+        _stale_tmp,
+        _stale_release_caches,
+        _docker_tier(docker_prune_dangling, "docker-dangling"),
+        _docker_tier(
+            lambda: docker_remove_unused_old_images(min_days=min_days),
+            "docker-unused-images",
+        ),
+    ]
+    _echo(
+        click.style(
+            f"Cel: {goal_gb:.1f} GB wolnego miejsca — schodzę po bezpiecznych szczeblach.",
+            fg="cyan",
+            bold=True,
+        )
+    )
+    report = run_free_target_ladder(
+        goal_gb,
+        tiers=tiers,
+        echo=_echo,
+        dry_run=dry_run,
+    )
+    freed = (report.ended_free_bytes - report.started_free_bytes) / 1024**3
+    _echo("")
+    if report.goal_reached:
+        _echo(
+            click.style(
+                f"Cel osiągnięty: {report.ended_free_bytes / 1024**3:.1f} GB wolnego "
+                f"(zwolniono {freed:.2f} GB).",
+                fg="green",
+                bold=True,
+            )
+        )
+    else:
+        _echo(
+            click.style(
+                f"Zwolniono {freed:.2f} GB, wolne: "
+                f"{report.ended_free_bytes / 1024**3:.1f} GB — cel nieosiągnięty.",
+                fg="yellow",
+                bold=True,
+            )
+        )
+        print_privileged_hints(goal_gb, report)
+    if json_output:
+        import json
+
+        click.echo(
+            json.dumps(
+                {
+                    "goal_gb": goal_gb,
+                    "goal_reached": report.goal_reached,
+                    "started_free_gb": round(report.started_free_bytes / 1024**3, 2),
+                    "ended_free_gb": round(report.ended_free_bytes / 1024**3, 2),
+                    "tiers": [
+                        {
+                            "name": tier.name,
+                            "attempted": tier.attempted,
+                            "skipped_reason": tier.skipped_reason,
+                            "bytes_freed": tier.bytes_freed,
+                        }
+                        for tier in report.tiers
+                    ],
+                },
+                indent=2,
+            )
+        )
+
+
 # ── Main CLI command ──────────────────────────────────────────────────────
 
 
@@ -1596,7 +1727,21 @@ def _execute_yes_cleanup(plan: dict, scanner, dry_run: bool = False) -> None:
     "threshold_gb",
     default=None,
     type=float,
-    help="Próg wielkości w GB (nadpisuje --threshold)",
+    help=(
+        "Próg wielkości w GB (nadpisuje --threshold). To NIE jest docelowa "
+        "wolna przestrzeń — do celu czyszczenia użyj --free-gb"
+    ),
+)
+@click.option(
+    "--free-gb",
+    "--target-free-gb",
+    "free_gb",
+    default=None,
+    type=float,
+    help=(
+        "Czyść schodząc po bezpiecznych szczeblach aż do osiągnięcia "
+        "N GB wolnego miejsca (domyślnie 10). Uruchamiaj jako osobną akcję"
+    ),
 )
 @click.option(
     "--services",
@@ -1947,6 +2092,7 @@ def cleanup_services(
     dry_run,
     list_only,
     yes,
+    free_gb,
     full_analysis,
 ) -> None:
     """
@@ -1965,6 +2111,8 @@ def cleanup_services(
       fixos cleanup -s docker,ollama  # tylko Docker i Ollama
       fixos cleanup --list              # tylko lista, bez czyszczenia
       fixos cleanup --yes               # bez pytań: wszystkie bezpieczne
+      fixos cleanup --free-gb 10        # czyść schodami aż do 10 GB wolnego
+      fixos cleanup --free-gb 10 --dry-run # tylko symulacja drabiny
       fixos cleanup -c docker --dry-run  # tylko cache buildów >7 dni
       fixos cleanup --docker-all --dry-run
       # wszystkie unused images/cache + osierocone sieci
@@ -2067,6 +2215,46 @@ def cleanup_services(
         return
     if projects_path is not None:
         raise click.UsageError("--projects-path wymaga --venvs-old")
+    if free_gb is not None:
+        if any(
+            (
+                full_analysis,
+                bool(services),
+                bool(cleanup),
+                docker_old,
+                docker_all,
+                docker_buildcache,
+                docker_networks,
+                docker_stale_services,
+                orphaned_projects,
+                pin_orphan_project is not None,
+                unpin_orphan_project is not None,
+                list_orphan_pins,
+                ollama_old,
+                snap_old,
+                docker_volumes,
+                journal_cleanup,
+                user_cache,
+                jetbrains,
+                libvirt,
+                gitive,
+                tmp_cleanup,
+                trash_cleanup,
+                thumbnails_cleanup,
+                state_old,
+                venvs_old,
+                policy_matrix,
+            )
+        ):
+            raise click.UsageError("--free-gb uruchom jako osobną akcję")
+        _run_free_target_mode(
+            goal_gb=free_gb,
+            threshold_mb=threshold,
+            json_output=json_output,
+            dry_run=dry_run,
+            days=effective_days,
+        )
+        return
     pin_actions = sum(
         value is not None and value is not False
         for value in (pin_orphan_project, unpin_orphan_project, list_orphan_pins)
