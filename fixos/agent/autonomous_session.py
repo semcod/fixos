@@ -94,18 +94,34 @@ class AgentReport:
 
     def summary(self) -> str:
         elapsed = int(time.time() - self.start_time)
+        successful = failed = simulated = 0
+        action_lines = []
+        for i, action in enumerate(self.fixes_applied, 1):
+            if action.result == "[DRY-RUN]":
+                simulated += 1
+                icon = "🧪"
+            elif action.success is True:
+                successful += 1
+                icon = "✅"
+            elif action.success is False:
+                failed += 1
+                icon = "❌"
+            else:
+                icon = "❔"
+            action_lines.append(f"    {i}. {icon} `{action.command}`")
+            action_lines.append(f"       Powód: {action.reason}")
+
         lines = [
             f"  ⏱️  Czas: {elapsed}s",
-            f"  🔧 Naprawiono: {len(self.fixes_applied)} operacji",
+            f"  🔧 Udane operacje: {successful}",
+            f"  ❌ Nieudane operacje: {failed}",
+            f"  🧪 Symulacje: {simulated}",
             f"  🔎 Wyszukiwania: {len(self.searches_done)}",
             f"  🔴 Wykryte problemy: {len(self.problems_found)}",
         ]
-        if self.fixes_applied:
-            lines.append("\n  Wykonane akcje:")
-            for i, a in enumerate(self.fixes_applied, 1):
-                icon = "✅" if a.success else "❌"
-                lines.append(f"    {i}. {icon} `{a.command}`")
-                lines.append(f"       Powód: {a.reason}")
+        if action_lines:
+            lines.append("\n  Akcje sesji:")
+            lines.extend(action_lines)
         return "\n".join(lines)
 
 
@@ -180,7 +196,10 @@ class AutonomousSession:
             else "heurystyki lokalne (bez LLM)"
         )
         print(f"\n{'═' * UI_BORDER_WIDTH}")
-        print("  ⚠️  TRYB AUTONOMICZNY – agent sam wykonuje komendy!")
+        if self.dry_run:
+            print("  🧪 TRYB SYMULACJI – komendy nie będą wykonywane.")
+        else:
+            print("  ⚠️  TRYB AUTONOMICZNY – agent sam wykonuje komendy!")
         print("  Naciśnij Ctrl+C w dowolnym momencie aby przerwać.")
         print("═" * UI_BORDER_WIDTH)
         print(f"\n  Max napraw: {self.max_fixes}")
@@ -358,17 +377,8 @@ class AutonomousSession:
         action_data = self._heuristic_queue.pop(0)
         analysis = action_data.get("analysis", "")
         reason = action_data.get("reason", "")
-        cmd = action_data.get("command", "")
         print(f"\n  📋 Analiza: {analysis}")
         print(f"  🎯 Akcja: EXEC – {reason}")
-
-        if getattr(self, "dry_run", False):
-            print(f"  [DRY-RUN] Pominięto wykonanie: {cmd}")
-            self.report.fixes_applied.append(
-                FixAction(command=cmd, reason=reason, result="[DRY-RUN]", success=True)
-            )
-            self.fix_count += 1
-            return True
 
         self._handle_exec(action_data)
         return True
@@ -523,6 +533,14 @@ class AutonomousSession:
 
         cmd = deanonymize(cmd_raw)
         cmd = self._add_sudo(cmd)
+        if getattr(self, "dry_run", False):
+            print(f"  [DRY-RUN] Pominięto wykonanie: {cmd}")
+            self.report.fixes_applied.append(
+                FixAction(command=cmd, reason=reason, result="[DRY-RUN]", success=True)
+            )
+            self.fix_count += 1
+            return True
+
         print(f"  ▶️  Wykonuję: {cmd}")
 
         ok, out = self._execute_command(cmd)
@@ -561,7 +579,7 @@ class AutonomousSession:
 
     def _handle_done(self) -> None:
         """Handle DONE action - session complete."""
-        print("\n  ✅ Agent zakończył – wszystkie problemy naprawione!")
+        print("\n  ℹ️ Agent zakończył sesję.")
 
     def _process_turn(self) -> bool:
         """Process one turn of the autonomous session.
