@@ -5,12 +5,10 @@ The NoLimits LIM-STORAGE-001 runbook wants "cleanup until N GB free".
 reported), so this module provides the goal-oriented pieces:
 
 - :func:`free_bytes` — statvfs-based free space of a filesystem.
-- :func:`find_stale_release_caches` — agent/release cache directories under
-  ``~/.local/share/*/releases|release|snapshots`` untouched for a minimum
-  number of days. Read-only (protected) trees are reported separately so the
-  caller never tries to delete them.
-- :func:`remove_release_caches` — best-effort removal that skips protected
-  paths and returns the bytes actually reclaimed.
+- :func:`find_stale_release_caches` — compatibility inventory of old persistent
+  releases/snapshots. Every entry is protected, regardless of write bits.
+- :func:`remove_release_caches` — compatibility guard that never deletes
+  persistent deployment/rollback data or counts it as reclaimable space.
 - :func:`docker_call` — batched ``docker`` subprocess with a hard timeout so a
   busy daemon skips a tier instead of hanging the whole command.
 - :func:`run_free_target_ladder` — generic runner that measures free space
@@ -23,7 +21,6 @@ anything that needs elevated privileges.
 from __future__ import annotations
 
 import os
-import shutil
 import subprocess
 import time
 from collections.abc import Callable, Iterable
@@ -71,56 +68,22 @@ def free_bytes(path: str | Path = "/") -> int:
     return stat.f_bavail * stat.f_frsize
 
 
-def _dir_size(path: Path) -> int:
-    """Best-effort recursive size (0 on error, like du with ignored errors)."""
-    total = 0
-    try:
-        with os.scandir(path) as entries:
-            for entry in entries:
-                try:
-                    if entry.is_symlink():
-                        continue
-                    if entry.is_dir(follow_symlinks=False):
-                        total += _dir_size(Path(entry.path))
-                    else:
-                        total += entry.stat(follow_symlinks=False).st_size
-                except OSError:
-                    continue
-        return total
-    except OSError:
-        return total
-
-
-def _write_allowed(path: Path) -> bool:
-    """True when a deployment has not cleared the owner-write bit.
-
-    ``os.access(W_OK)`` alone is useless under root (root can write
-    everywhere), and exactly the protected deployment trees are marked by
-    clearing the write bits.
-    """
-    try:
-        stat = path.stat(follow_symlinks=False)
-    except OSError:
-        return False
-    if not stat.st_mode & 0o200:
-        return False
-    return os.access(path, os.W_OK)
-
-
 def find_stale_release_caches(
     share_root: Path | str | None = None,
     min_days: float = DEFAULT_RELEASE_CACHE_MIN_DAYS,
     *,
     now: float | None = None,
 ) -> tuple[list[dict], list[dict]]:
-    """Return ``(removable, protected)`` stale release-cache entries.
+    """Return ``([], protected)`` old persistent release/snapshot entries.
 
     An entry is a directory directly below
     ``<share_root>/<owner>/releases|release|snapshots/`` whose own mtime is
-    older than ``min_days`` days. Protection is detected from the write bits:
-    entries inside a read-only (deployment-protected) parent are returned as
-    ``protected`` and never selected for removal — also when running as root,
-    where ``os.access`` alone would claim write access everywhere.
+    older than ``min_days`` days. Neither age nor writable mode bits prove that
+    immutable deployed releases or rollback snapshots are disposable caches.
+    Preserve all of them: partial systemd/process reference discovery cannot
+    establish that an unreferenced entry is safe to delete either. The owning
+    deployment lifecycle must retire these trees. Do not traverse their payloads
+    merely to report protected entries; size_bytes=0 means unmeasured here.
     """
     root = Path(share_root) if share_root is not None else Path.home() / ".local/share"
     now = time.time() if now is None else now
@@ -153,38 +116,22 @@ def find_stale_release_caches(
                     "path": child,
                     "owner": owner.name,
                     "mtime": stat.st_mtime,
-                    "size_bytes": _dir_size(child),
+                    "size_bytes": 0,
+                    "size_measured": False,
+                    "reason": "persistent deployment/rollback data",
                 }
-                if _write_allowed(parent) and _write_allowed(child):
-                    removable.append(entry)
-                else:
-                    protected.append(entry)
+                protected.append(entry)
     return removable, protected
 
 
 def remove_release_caches(entries: Iterable[dict], *, dry_run: bool = False) -> int:
-    """Remove stale release-cache entries; return bytes reclaimed.
+    """Preserve persistent releases/snapshots; always return zero bytes.
 
-    Defense in depth: even if a protected entry slips into ``entries``, a
-    missing owner-write bit on the entry or its parent aborts that removal —
-    also under root, where permission bits would not stop ``rmtree``.
+    Retained for compatibility with callers holding a precomputed cleanup plan.
+    Reject every candidate, including stale or forged writable entries, without
+    inspecting or deleting its path. Dry-run must not promise this space either.
     """
-    reclaimed = 0
-    for entry in entries:
-        path = Path(entry["path"])
-        size = int(entry.get("size_bytes") or 0)
-        if not _write_allowed(path) or not _write_allowed(path.parent):
-            continue
-        if dry_run:
-            reclaimed += size
-            continue
-        try:
-            shutil.rmtree(path)
-        except OSError:
-            # Newly protected or busy: skip without counting.
-            continue
-        reclaimed += size
-    return reclaimed
+    return 0
 
 
 def docker_call(
