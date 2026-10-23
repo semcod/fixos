@@ -231,3 +231,60 @@ def test_invalid_goal_rejected_before_cleanup(auto_cli, value):
     assert result.exit_code == 2
     for action in auto_cli:
         action.assert_not_called()
+
+
+@pytest.mark.parametrize("dry_run", [False, True])
+def test_interactive_cache_skips_nested_mounts(tmp_path, monkeypatch, capsys, dry_run):
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    protected = put(tmp_path, ".cache/pip/mounted/document.txt")
+    original = Path.is_mount
+    monkeypatch.setattr(Path, "is_mount", lambda p: p.name == "mounted" or original(p))
+    monkeypatch.setattr(space, "_choose", lambda *a: [0])
+    monkeypatch.setattr(space, "_confirm_remove", lambda: True)
+    space._cleanup_user_cache(False, dry_run, False, False)
+    assert protected.exists()
+    output = capsys.readouterr().out
+    assert "rm -rf" not in output
+    assert "pominięto" in output.lower()
+
+
+@pytest.mark.parametrize("replacement", ["symlink", "mount"])
+def test_interactive_cache_rechecks_after_confirmation(
+    tmp_path, monkeypatch, replacement
+):
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    cache_file = put(tmp_path, ".cache/pip/cache")
+    protected = put(tmp_path, "Downloads/document.txt")
+    monkeypatch.setattr(space, "_choose", lambda *a: [0])
+
+    def confirm():
+        if replacement == "symlink":
+            cache_file.unlink()
+            cache_file.parent.rmdir()
+            cache_file.parent.symlink_to(protected.parent, target_is_directory=True)
+        else:
+            original = Path.is_mount
+            monkeypatch.setattr(
+                Path, "is_mount", lambda p: p == cache_file.parent or original(p)
+            )
+        return True
+
+    monkeypatch.setattr(space, "_confirm_remove", confirm)
+    remove = Mock()
+    monkeypatch.setattr(space, "_remove_selected", remove)
+    space._cleanup_user_cache(False, False, False, False)
+    remove.assert_not_called()
+    assert protected.exists()
+
+
+def test_interactive_cache_still_removes_selected_regular_unknown_cache(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    cache_file = put(tmp_path, ".cache/custom-tool/cache")
+    protected = put(tmp_path, "Downloads/document.txt")
+    monkeypatch.setattr(space, "_choose", lambda *a: [0])
+    monkeypatch.setattr(space, "_confirm_remove", lambda: True)
+    space._cleanup_user_cache(False, False, False, False)
+    assert not cache_file.exists()
+    assert protected.exists()

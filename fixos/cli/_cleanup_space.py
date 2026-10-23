@@ -454,6 +454,8 @@ def _cleanup_user_cache(
     json_output: bool, dry_run: bool, list_only: bool, yes: bool
 ) -> None:
     """Remove selected ~/.cache entries; --yes touches only known-safe caches."""
+    from fixos.cli._auto_cleanup import cache_path_allowed
+
     candidates = _user_cache_candidates()
     if json_output:
         _echo_json(
@@ -477,10 +479,7 @@ def _cleanup_user_cache(
     if list_only:
         return
     if yes:
-        from fixos.cli._auto_cleanup import cache_path_allowed
-
-        selected = [i for i, item in enumerate(candidates)
-                    if item["safe"] and cache_path_allowed(Path.home(), item["path"])]
+        selected = [i for i, item in enumerate(candidates) if item["safe"]]
         skipped = len(candidates) - len(selected)
         if skipped:
             click.echo(
@@ -492,6 +491,18 @@ def _cleanup_user_cache(
             )
     else:
         selected = _choose(candidates, "Numery katalogów do usunięcia (np. 1,2, all)")
+
+    def safe_selection(indices: list[int]) -> list[int]:
+        allowed = []
+        for index in indices:
+            path = candidates[index]["path"]
+            if cache_path_allowed(Path.home(), path):
+                allowed.append(index)
+            else:
+                click.echo(f"  {path}: pominięto (niebezpieczna ścieżka lub punkt montowania)")
+        return allowed
+
+    selected = safe_selection(selected)
     if not selected:
         click.echo("Pominięto.")
         return
@@ -503,10 +514,9 @@ def _cleanup_user_cache(
     if not yes and not _confirm_remove():
         click.echo("Anulowano.")
         return
-    if yes:
-        selected = [i for i in selected
-                    if cache_path_allowed(Path.home(), candidates[i]["path"])]
-    _remove_selected(candidates, selected, path_key="path")
+    selected = safe_selection(selected)
+    if selected:
+        _remove_selected(candidates, selected, path_key="path")
 
 
 # ── JetBrains Toolbox / caches ───────────────────────────────────────────
