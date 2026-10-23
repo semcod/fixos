@@ -45,6 +45,15 @@ _USER_CACHE_SAFE = {
     "thumbnails",
     "pre-commit",
     "vcpkg",
+    "ccache",
+    "sccache",
+    "ruff",
+    "mypy",
+    "node",
+    "node-gyp",
+    "cursor-compile-cache",
+    "gstreamer-1.0",
+    "mesa_shader_cache_sf",
 }
 
 
@@ -422,7 +431,7 @@ def _cleanup_journal(
 def _user_cache_candidates() -> list[dict]:
     """Top-level ~/.cache entries; safe ones are regenerable tool caches."""
     root = Path.home() / ".cache"
-    if not root.is_dir():
+    if root.is_symlink() or not root.is_dir():
         return []
     candidates = []
     for entry in sorted(root.iterdir()):
@@ -468,7 +477,10 @@ def _cleanup_user_cache(
     if list_only:
         return
     if yes:
-        selected = [i for i, item in enumerate(candidates) if item["safe"]]
+        from fixos.cli._auto_cleanup import cache_path_allowed
+
+        selected = [i for i, item in enumerate(candidates)
+                    if item["safe"] and cache_path_allowed(Path.home(), item["path"])]
         skipped = len(candidates) - len(selected)
         if skipped:
             click.echo(
@@ -491,6 +503,9 @@ def _cleanup_user_cache(
     if not yes and not _confirm_remove():
         click.echo("Anulowano.")
         return
+    if yes:
+        selected = [i for i in selected
+                    if cache_path_allowed(Path.home(), candidates[i]["path"])]
     _remove_selected(candidates, selected, path_key="path")
 
 
