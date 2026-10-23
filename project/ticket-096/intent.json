@@ -1,0 +1,83 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-096",
+  "summary": "PLF-020: simplify cleanup planning without changing risk or reclaim semantics",
+  "workstream": "application",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P2",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-096/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/diagnostics/service_cleanup.py",
+    "tests/unit/test_cleanup_plan_contract.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [
+    "python"
+  ],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "b1ce52525d586c08e7644777dfb9aa4ffb9ddd06",
+    "targetBranch": "main",
+    "outcome": "PLF-020: reduce ServiceCleaner.get_cleanup_plan complexity from current radon CC24 to at most15 by extracting risk partitioning and safe full/prune totals, preserving every output field, ordering, rounding, warnings and exact cleanup target.",
+    "nonGoals": [
+      "No new cleanup targets, risk classifications, command changes, dependencies or data deletion."
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 20,
+    "budgets": {
+      "maxImplementationFiles": 2,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Extract two private helpers in service_cleanup.py for risk-tier grouping and safe full-versus-prune size totals. Keep get_cleanup_plan as the orchestrator and preserve filtering, serialization, ordering and independent top-level dictionaries.",
+      "components": [
+        {
+          "name": "cleanup-planning",
+          "paths": [
+            "fixos/diagnostics/service_cleanup.py",
+            "tests/unit/test_cleanup_plan_contract.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert this refactoring commit."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python -m pytest tests/unit/test_cleanup_plan_contract.py tests/unit/test_cleanup*.py tests/unit/test_service_cleanup.py tests/unit/test_service_scanner.py -q"
+        ],
+        "evidence": "project/ticket-096/README.md"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "ruff check fixos/diagnostics/service_cleanup.py tests/unit/test_cleanup_plan_contract.py",
+          "./project/governance-check.sh"
+        ],
+        "evidence": "project/ticket-096/README.md"
+      }
+    ]
+  }
+}
