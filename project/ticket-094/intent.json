@@ -1,0 +1,95 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-094",
+  "summary": "Expand fixos auto safe cache reclamation and report remaining disk pressure",
+  "workstream": "application",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P1",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-094/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/cli/_auto_cleanup.py",
+    "fixos/cli/_cleanup_space.py",
+    "fixos/cli/fix_cmd.py",
+    "tests/unit/test_auto_cleanup.py",
+    "tests/unit/test_auto_no_llm.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [
+    "python"
+  ],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "a32982f64d55b99709b2e4d2c0b2534ef25a8212",
+    "targetBranch": "main",
+    "outcome": "Expand fixos auto safe cache reclamation and report remaining disk pressure",
+    "nonGoals": [
+      "Do not delete user files, Downloads, models, Docker volumes, application profiles, IDE history or installations. No release/install cache pruning."
+    ],
+    "complexity": "M",
+    "estimatedMinutes": 60,
+    "budgets": {
+      "maxImplementationFiles": 5,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 2,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Explicit allowlist for regenerable leaf caches, bounded Docker builder prune with retention, root-only free-space accounting and remaining-pressure status; preserve opt-outs, dry-run and JSON.",
+      "components": [
+        {
+          "name": "auto-cleanup",
+          "paths": [
+            "fixos/cli/fix_cmd.py",
+            "fixos/cli/_auto_cleanup.py",
+            "fixos/cli/_cleanup_space.py"
+          ]
+        },
+        {
+          "name": "tests",
+          "paths": [
+            "tests/unit/test_auto_cleanup.py",
+            "tests/unit/test_auto_no_llm.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [
+        "auto --free-gb goal and --docker-build-cache/--no-docker-build-cache"
+      ],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert ticket implementation."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python -m pytest tests/unit/test_auto_cleanup.py tests/unit/test_auto_no_llm.py -q"
+        ],
+        "evidence": "project/ticket-094/README.md"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "./project/governance-check.sh"
+        ],
+        "evidence": "project/ticket-094/README.md"
+      }
+    ]
+  }
+}

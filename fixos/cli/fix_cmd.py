@@ -343,9 +343,9 @@ def fix(
 @click.option(
     "--trash/--no-trash",
     "clean_trash",
-    default=True,
+    default=False,
     show_default=True,
-    help="Czyść przedawnione pliki z kosza (~/.local/share/Trash)",
+    help="Opcjonalnie czyść przedawnione pliki z kosza (~/.local/share/Trash)",
 )
 @click.option(
     "--thumbnails/--no-thumbnails",
@@ -374,6 +374,20 @@ def fix(
     default=False,
     show_default=True,
     help="Usuwaj wyłączone (disabled) rewizje pakietów snap",
+)
+@click.option(
+    "--docker-build-cache/--no-docker-build-cache",
+    "clean_docker_build_cache",
+    default=True,
+    show_default=True,
+    help="Czyść wyłącznie nieużywany cache budowania Dockera starszy niż 7 dni (timeout 30 s)",
+)
+@click.option(
+    "--free-gb",
+    type=click.FloatRange(min=0.0, min_open=True),
+    default=10.0,
+    show_default=True,
+    help="Minimalny cel wolnego miejsca w /; raportuj, gdy bezpieczne czyszczenie go nie osiągnie",
 )
 @click.option(
     "--journal/--no-journal",
@@ -431,6 +445,8 @@ def auto_cmd(
     clean_jetbrains,
     clean_build_cache,
     clean_snap_old,
+    clean_docker_build_cache,
+    free_gb,
     clean_journal,
     clean_services,
     retention,
@@ -457,9 +473,17 @@ def auto_cmd(
       fixos auto --services           # dołącz skanowanie usług (Docker/npm/cargo)
       fixos auto --json               # wynik maszynowy JSON
     """
+    import math
     import os
     import shutil
 
+    if not math.isfinite(free_gb):
+        raise click.BadParameter("Cel musi być skończoną liczbą dodatnią", param_hint="--free-gb")
+
+    from fixos.cli._auto_cleanup import (
+        cleanup_additional_caches,
+        cleanup_docker_builder,
+    )
     from fixos.cli._cleanup_space import (
         _cleanup_build_caches,
         _cleanup_jetbrains,
@@ -511,160 +535,171 @@ def auto_cmd(
     tmp_days = parse_retention_days(retention, default_days=1.0)
     steps_executed: list[str] = []
 
-    if disc:
-        if clean_tmp:
-            if not json_output:
-                click.echo(
-                    click.style(
-                        f"\n[1/7] Czyszczenie /tmp (retencja: {retention})...",
-                        fg="cyan",
-                        bold=True,
-                    )
-                )
-            _cleanup_tmp(
-                json_output=False,
-                dry_run=dry_run,
-                list_only=False,
-                yes=yes,
-                days=tmp_days,
-            )
-            steps_executed.append("tmp")
+    from contextlib import nullcontext, redirect_stdout
 
-        if clean_user_cache:
-            if not json_output:
-                click.echo(
-                    click.style(
-                        "\n[2/7] Czyszczenie bezpiecznych cache w ~/.cache...",
-                        fg="cyan",
-                        bold=True,
+    with redirect_stdout(sys.stderr) if json_output else nullcontext():
+        if disc:
+            if clean_tmp:
+                if not json_output:
+                    click.echo(
+                        click.style(
+                            f"\n[1/7] Czyszczenie /tmp (retencja: {retention})...",
+                            fg="cyan",
+                            bold=True,
+                        )
                     )
+                _cleanup_tmp(
+                    json_output=False,
+                    dry_run=dry_run,
+                    list_only=False,
+                    yes=yes,
+                    days=tmp_days,
                 )
-            _cleanup_user_cache(
-                json_output=False,
-                dry_run=dry_run,
-                list_only=False,
-                yes=yes,
-            )
-            steps_executed.append("user-cache")
+                steps_executed.append("tmp")
 
-        if clean_jetbrains:
-            if not json_output:
-                click.echo(
-                    click.style(
-                        "\n[3/7] Czyszczenie starych kanałów i cache JetBrains...",
-                        fg="cyan",
-                        bold=True,
+            if clean_user_cache:
+                if not json_output:
+                    click.echo(
+                        click.style(
+                            "\n[2/7] Czyszczenie bezpiecznych cache w ~/.cache...",
+                            fg="cyan",
+                            bold=True,
+                        )
                     )
+                _cleanup_user_cache(
+                    json_output=False,
+                    dry_run=dry_run,
+                    list_only=False,
+                    yes=yes,
                 )
-            _cleanup_jetbrains(
-                json_output=False,
-                dry_run=dry_run,
-                list_only=False,
-                yes=yes,
-            )
-            steps_executed.append("jetbrains")
+                steps_executed.append("user-cache")
+                cleanup_additional_caches(dry_run=dry_run, yes=yes)
+                steps_executed.append("additional-cache")
 
-        if clean_build_cache:
-            if not json_output:
-                click.echo(
-                    click.style(
-                        "\n[4/7] Czyszczenie cache kompilacji i pakietów (target/debug, npm, conda)...",
-                        fg="cyan",
-                        bold=True,
+            if clean_jetbrains:
+                if not json_output:
+                    click.echo(
+                        click.style(
+                            "\n[3/7] Czyszczenie starych kanałów i cache JetBrains...",
+                            fg="cyan",
+                            bold=True,
+                        )
                     )
+                _cleanup_jetbrains(
+                    json_output=False,
+                    dry_run=dry_run,
+                    list_only=False,
+                    yes=yes,
                 )
-            _cleanup_build_caches(
-                json_output=False,
-                dry_run=dry_run,
-                list_only=False,
-                yes=yes,
-            )
-            steps_executed.append("build-cache")
+                steps_executed.append("jetbrains")
 
-        if clean_snap_old:
-            if not json_output:
-                click.echo(
-                    click.style(
-                        "\n[+] Czyszczenie wyłączonych rewizji snap...",
-                        fg="cyan",
-                        bold=True,
+            if clean_build_cache:
+                if not json_output:
+                    click.echo(
+                        click.style(
+                            "\n[4/7] Czyszczenie cache kompilacji i pakietów (target/debug, npm, conda)...",
+                            fg="cyan",
+                            bold=True,
+                        )
                     )
+                _cleanup_build_caches(
+                    json_output=False,
+                    dry_run=dry_run,
+                    list_only=False,
+                    yes=yes,
                 )
-            _cleanup_snap_old(
-                json_output=False,
-                dry_run=dry_run,
-                list_only=False,
-                yes=yes,
-            )
-            steps_executed.append("snap-old")
+                steps_executed.append("build-cache")
 
-        if clean_journal:
-            if not json_output:
-                click.echo(
-                    click.style(
-                        "\n[5/7] Ograniczanie rozmiaru logów systemd journald...",
-                        fg="cyan",
-                        bold=True,
+            if clean_docker_build_cache:
+                if not json_output:
+                    click.echo("\n[+] Nieużywany cache budowania Dockera (retencja: 7 dni)...")
+                cleanup_docker_builder(dry_run=dry_run, yes=yes)
+                steps_executed.append("docker-build-cache")
+
+            if clean_snap_old:
+                if not json_output:
+                    click.echo(
+                        click.style(
+                            "\n[+] Czyszczenie wyłączonych rewizji snap...",
+                            fg="cyan",
+                            bold=True,
+                        )
                     )
+                _cleanup_snap_old(
+                    json_output=False,
+                    dry_run=dry_run,
+                    list_only=False,
+                    yes=yes,
                 )
-            _cleanup_journal(
-                json_output=False,
-                dry_run=dry_run,
-                list_only=False,
-                yes=yes,
-            )
-            steps_executed.append("journal")
+                steps_executed.append("snap-old")
 
-        if clean_trash:
-            if not json_output:
-                click.echo(
-                    click.style(
-                        "\n[6/7] Czyszczenie kosza (~/.local/share/Trash)...",
-                        fg="cyan",
-                        bold=True,
+            if clean_journal:
+                if not json_output:
+                    click.echo(
+                        click.style(
+                            "\n[5/7] Ograniczanie rozmiaru logów systemd journald...",
+                            fg="cyan",
+                            bold=True,
+                        )
                     )
+                _cleanup_journal(
+                    json_output=False,
+                    dry_run=dry_run,
+                    list_only=False,
+                    yes=yes,
                 )
-            _cleanup_trash(
-                json_output=False,
-                dry_run=dry_run,
-                list_only=False,
-                yes=yes,
-            )
-            steps_executed.append("trash")
+                steps_executed.append("journal")
 
-        if clean_thumbnails:
-            if not json_output:
-                click.echo(
-                    click.style(
-                        "\n[7/7] Czyszczenie miniaturek (~/.cache/thumbnails)...",
-                        fg="cyan",
-                        bold=True,
+            if clean_trash:
+                if not json_output:
+                    click.echo(
+                        click.style(
+                            "\n[6/7] Czyszczenie kosza (~/.local/share/Trash)...",
+                            fg="cyan",
+                            bold=True,
+                        )
                     )
+                _cleanup_trash(
+                    json_output=False,
+                    dry_run=dry_run,
+                    list_only=False,
+                    yes=yes,
                 )
-            _cleanup_thumbnails(
-                json_output=False,
-                dry_run=dry_run,
-                list_only=False,
-                yes=yes,
-            )
-            steps_executed.append("thumbnails")
+                steps_executed.append("trash")
 
-        if clean_services:
-            from fixos.cli.cleanup_cmd import _execute_yes_cleanup
-            from fixos.diagnostics.service_scanner import ServiceDataScanner
-
-            if not json_output:
-                click.echo(
-                    click.style(
-                        "\n[+] Skanowanie i czyszczenie bezpiecznych danych usług...",
-                        fg="cyan",
-                        bold=True,
+            if clean_thumbnails:
+                if not json_output:
+                    click.echo(
+                        click.style(
+                            "\n[7/7] Czyszczenie miniaturek (~/.cache/thumbnails)...",
+                            fg="cyan",
+                            bold=True,
+                        )
                     )
+                _cleanup_thumbnails(
+                    json_output=False,
+                    dry_run=dry_run,
+                    list_only=False,
+                    yes=yes,
                 )
-            scanner = ServiceDataScanner()
-            plan = scanner.get_cleanup_plan()
-            _execute_yes_cleanup(plan, scanner, dry_run=dry_run)
-            steps_executed.append("services")
+                steps_executed.append("thumbnails")
+
+            if clean_services:
+                from fixos.cli.cleanup_cmd import _execute_yes_cleanup
+                from fixos.diagnostics.service_scanner import ServiceDataScanner
+
+                if not json_output:
+                    click.echo(
+                        click.style(
+                            "\n[+] Skanowanie i czyszczenie bezpiecznych danych usług...",
+                            fg="cyan",
+                            bold=True,
+                        )
+                    )
+                scanner = ServiceDataScanner()
+                plan = scanner.get_cleanup_plan()
+                _execute_yes_cleanup(plan, scanner, dry_run=dry_run)
+                steps_executed.append("services")
 
     cfg = FixOsConfig.load(
         provider=provider,
@@ -681,29 +716,40 @@ def auto_cmd(
 
         diagnostics_data.update(get_full_diagnostics(modules.split(",")))
 
-    report = run_autonomous_session(
-        diagnostics=diagnostics_data,
-        config=cfg,
-        show_data=False,
-        max_fixes=max_fixes,
-        auto_confirm=yes,
-        use_llm=use_llm,
-        dry_run=dry_run,
-    )
+    with redirect_stdout(sys.stderr) if json_output else nullcontext():
+        report = run_autonomous_session(
+            diagnostics=diagnostics_data,
+            config=cfg,
+            show_data=False,
+            max_fixes=max_fixes,
+            auto_confirm=yes,
+            use_llm=use_llm,
+            dry_run=dry_run,
+        )
 
     after_usage = shutil.disk_usage("/")
     after_free_bytes = after_usage.free
-    root_freed_bytes = max(0, after_free_bytes - before_free_bytes)
+    root_freed_bytes = 0 if dry_run else max(0, after_free_bytes - before_free_bytes)
     tmp_freed_bytes = 0
-    if tmp_separate_mount:
+    if tmp_separate_mount and not dry_run:
         try:
             tmp_freed_bytes = max(0, shutil.disk_usage("/tmp").free - before_tmp_free_bytes)
         except OSError:
             tmp_freed_bytes = 0
-    freed_bytes = root_freed_bytes + tmp_freed_bytes
+    # /tmp may be tmpfs: its free-space increase must never inflate disk recovery.
+    freed_bytes = root_freed_bytes
+    target_free_bytes = int(free_gb * 1024**3)
+    goal_reached = after_free_bytes >= target_free_bytes
+    disk_pressure_remaining = (
+        (after_usage.total - after_free_bytes) / after_usage.total >= 0.95
+        if after_usage.total else False
+    )
 
     summary_payload = {
-        "status": "dry_run" if dry_run else "ok",
+        "status": "dry_run" if dry_run else (
+            "disk_pressure_remaining" if disk_pressure_remaining else
+            "goal_unmet" if not goal_reached else "ok"
+        ),
         "mode": "llm" if use_llm else "heuristic_no_llm",
         "steps_executed": steps_executed,
         "fixes_applied": len(report.fixes_applied),
@@ -713,6 +759,9 @@ def auto_cmd(
         "disk_freed_bytes": freed_bytes,
         "root_freed_bytes": root_freed_bytes,
         "tmp_freed_bytes": tmp_freed_bytes,
+        "target_free_bytes": target_free_bytes,
+        "goal_reached": goal_reached,
+        "disk_pressure_remaining": disk_pressure_remaining,
         "disk_free_before_human": _format_bytes(before_free_bytes),
         "disk_free_after_human": _format_bytes(after_free_bytes),
         "disk_freed_human": _format_bytes(freed_bytes),
@@ -741,7 +790,15 @@ def auto_cmd(
     click.echo(f"  Wolne przed (/)  : {_format_bytes(before_free_bytes)}")
     click.echo(f"  Wolne po (/)     : {_format_bytes(after_free_bytes)}")
     if tmp_separate_mount and tmp_freed_bytes > 0:
-        click.echo(f"  Zwolniono w /tmp : {_format_bytes(tmp_freed_bytes)}")
+        click.echo(f"  Osobny /tmp      : {_format_bytes(tmp_freed_bytes)} (poza bilansem /)")
+    click.echo(f"  Cel wolnego (/)  : {_format_bytes(target_free_bytes)}")
+    if not dry_run and (disk_pressure_remaining or not goal_reached):
+        click.echo(click.style(
+            "  UWAGA: czyszczenie nie rozwiązało problemu miejsca w /. "
+            "Dane użytkownika pozostają chronione. "
+            "Sprawdź największe kategorie: fixos scan --disc",
+            fg="yellow",
+        ))
     click.echo(
         click.style(
             f"  Odzyskane miejsce: {_format_bytes(freed_bytes)}",

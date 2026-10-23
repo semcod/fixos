@@ -127,6 +127,8 @@ class TestFixosAutoCommand:
         monkeypatch.setattr("fixos.cli._cleanup_space._cleanup_journal", lambda *a, **k: None)
         monkeypatch.setattr("fixos.cli._cleanup_space._cleanup_trash", lambda *a, **k: None)
         monkeypatch.setattr("fixos.cli._cleanup_space._cleanup_thumbnails", lambda *a, **k: None)
+        monkeypatch.setattr("fixos.cli._auto_cleanup.cleanup_additional_caches", lambda **k: None)
+        monkeypatch.setattr("fixos.cli._auto_cleanup.cleanup_docker_builder", lambda **k: None)
         monkeypatch.setattr(
             "fixos.cli.fix_cmd.run_autonomous_session",
             lambda **kwargs: SimpleNamespace(fixes_applied=[1], problems_found=["p1"]),
@@ -134,7 +136,7 @@ class TestFixosAutoCommand:
 
         result = runner.invoke(cli, ["auto", "--dry-run", "--json"])
         assert result.exit_code == 0, result.output
-        payload = json.loads(result.output)
+        payload = json.loads(result.stdout)
         assert payload["status"] == "dry_run"
         assert payload["mode"] == "heuristic_no_llm"
         assert "tmp" in payload["steps_executed"]
