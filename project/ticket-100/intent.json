@@ -1,0 +1,83 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-100",
+  "summary": "Preserve persistent releases during target cleanup",
+  "workstream": "application",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P1",
+    "origin": "regression"
+  },
+  "allowedPaths": [
+    "project/ticket-100/**",
+    "fixos/cli/_cleanup_free_target.py",
+    "fixos/cli/cleanup_cmd.py",
+    "tests/unit/test_cleanup_free_target.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "3ee557df0f36b0fd39f07a7d3936ca48e2c199ef",
+    "targetBranch": "main",
+    "outcome": "FixOS126: persistent release/release snapshots cannot be inferred safe from age, mode bits or partial references. Exclude all such trees from automatic target cleanup and reject stale/forged direct removal candidates; report them as preserved owner-managed data.",
+    "nonGoals": [
+      "No deleted-service restoration, service restart or user-data cleanup",
+      "No process/reference scanner presented as proof of deletion safety",
+      "No unrelated Docker/cache policy or dependencies"
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 45,
+    "budgets": {
+      "maxImplementationFiles": 3,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Keep compatibility discovery/removal APIs but make discovery preservation-only and removal fail closed. Preserve all immutable runtime/rollback releases and snapshots; target ladder continues other existing cache tiers and reports protected data.",
+      "components": [
+        {
+          "name": "target-cleanup",
+          "paths": [
+            "fixos/cli/_cleanup_free_target.py",
+            "fixos/cli/cleanup_cmd.py",
+            "tests/unit/test_cleanup_free_target.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert material code only through protected publication; do not restore unsafe automatic release deletion on the host."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "pytest tests/unit/test_cleanup_free_target.py -q"
+        ],
+        "evidence": "Synthetic old referenced/unreferenced and forged candidates retained; no recursive release payload reads or deletion; CLI reports preservation."
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "ruff check affected files",
+          "./project/governance-check.sh"
+        ],
+        "evidence": "Affected cleanup regression gates and independent exact-head CI."
+      }
+    ]
+  }
+}

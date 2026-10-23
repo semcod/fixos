@@ -7,6 +7,7 @@ import subprocess
 import time
 from pathlib import Path
 
+import pytest
 from click.testing import CliRunner
 
 from fixos.cli import cleanup_cmd
@@ -131,12 +132,40 @@ def _make_release_tree(
     return entry
 
 
-def test_find_stale_release_caches_selects_only_old_entries(tmp_path):
+def test_find_stale_release_caches_preserves_writable_old_entries(tmp_path):
     old = _make_release_tree(tmp_path, "agent-a", "rel-old", age_days=10)
     _make_release_tree(tmp_path, "agent-a", "rel-new", age_days=1)
     removable, protected = find_stale_release_caches(share_root=tmp_path, min_days=7.0)
-    assert [e["path"] for e in removable] == [old]
-    assert protected == []
+    assert removable == []
+    assert [e["path"] for e in protected] == [old]
+    assert protected[0]["reason"] == "persistent deployment/rollback data"
+    assert protected[0]["size_measured"] is False
+
+
+@pytest.mark.parametrize("parent_name", ["releases", "release", "snapshots"])
+def test_old_release_referenced_by_unit_and_current_link_is_preserved(tmp_path, parent_name, monkeypatch):
+    share = tmp_path / "share"
+    release = share / "agent" / parent_name / "pinned"
+    release.mkdir(parents=True)
+    payload = release / "worker.py"
+    payload.write_text("# immutable deployed worker\n")
+    stamp = time.time() - 8 * 86400
+    os.utime(release, (stamp, stamp))
+    (release.parent / "current").symlink_to(release, target_is_directory=True)
+    unit = tmp_path / "worker.service"
+    unit.write_text(f"[Service]\nExecStart=/usr/bin/python3 {payload}\nWorkingDirectory={release}\n")
+    original_iterdir = Path.iterdir
+
+    def no_payload_walk(path):
+        assert path != release, "protected payloads must not be traversed to estimate space"
+        return original_iterdir(path)
+
+    monkeypatch.setattr(Path, "iterdir", no_payload_walk)
+    removable, protected = find_stale_release_caches(share_root=share)
+    assert removable == []
+    assert [entry["path"] for entry in protected] == [release]
+    assert remove_release_caches(protected) == 0
+    assert payload.read_text() == "# immutable deployed worker\n"
 
 
 def test_find_stale_release_caches_reports_readonly_as_protected(tmp_path):
@@ -170,29 +199,26 @@ def test_readonly_protection_also_holds_under_root(tmp_path, monkeypatch):
         os.chmod(parent, 0o755)
 
 
-def test_remove_release_caches_skips_failures_and_returns_bytes(tmp_path, monkeypatch):
+def test_remove_release_caches_rejects_precomputed_and_forged_candidates(tmp_path, monkeypatch):
     kept = _make_release_tree(tmp_path, "agent-c", "rel-busy", age_days=30)
-    gone = _make_release_tree(tmp_path, "agent-c", "rel-gone", age_days=30)
+    other = tmp_path / "Documents"
+    other.mkdir()
+    payload = other / "important.txt"
+    payload.write_text("keep")
 
-    import shutil as real_shutil
+    def forbidden_delete(*_args, **_kwargs):
+        pytest.fail("release cleanup must never attempt recursive deletion")
 
-    original_rmtree = real_shutil.rmtree
-
-    def fake_rmtree(path, **_kwargs):
-        if Path(path) == kept:
-            raise OSError("device busy")
-        original_rmtree(path, **_kwargs)
-
-    monkeypatch.setattr("fixos.cli._cleanup_free_target.shutil.rmtree", fake_rmtree)
+    monkeypatch.setattr("shutil.rmtree", forbidden_delete)
     reclaimed = remove_release_caches(
         [
             {"path": kept, "size_bytes": 123},
-            {"path": gone, "size_bytes": 456},
+            {"path": other, "size_bytes": 456},
         ]
     )
-    assert reclaimed == 456
+    assert reclaimed == 0
     assert kept.exists()
-    assert not gone.exists()
+    assert payload.read_text() == "keep"
 
 
 def test_remove_release_caches_refuses_readonly_even_under_root(tmp_path, monkeypatch):
@@ -212,7 +238,7 @@ def test_remove_release_caches_dry_run_keeps_everything(tmp_path):
     reclaimed = remove_release_caches(
         [{"path": entry, "size_bytes": 100}], dry_run=True
     )
-    assert reclaimed == 100
+    assert reclaimed == 0
     assert entry.exists()
 
 
@@ -274,6 +300,42 @@ def test_free_gb_runs_ladder_and_reports_goal(monkeypatch, tmp_path):
     assert result.exit_code == 0, result.output
     assert captured["goal_gb"] == 12.0
     assert captured["dry_run"] is True
+
+
+@pytest.mark.parametrize("dry_run", [False, True])
+def test_free_target_ladder_preserves_releases_and_continues_cache_tiers(monkeypatch, tmp_path, capsys, dry_run):
+    import fixos.cli._cleanup_free_target as target
+
+    release = _make_release_tree(tmp_path, "agent", "old", age_days=30)
+    candidates = target.find_stale_release_caches(share_root=tmp_path)
+    monkeypatch.setattr(cleanup_cmd, "find_stale_release_caches", lambda: candidates)
+    monkeypatch.setattr(target, "free_bytes", lambda *_: 0)
+    monkeypatch.setattr(cleanup_cmd, "print_privileged_hints", lambda *_: None)
+    monkeypatch.setattr(cleanup_cmd, "_cleanup_tmp", lambda *_a, **_k: None)
+
+    class EmptyScanner:
+        def __init__(self, **_kwargs):
+            pass
+
+        def get_cleanup_plan(self, **_kwargs):
+            return {}
+
+    monkeypatch.setattr(cleanup_cmd, "ServiceDataScanner", EmptyScanner)
+    monkeypatch.setattr(cleanup_cmd, "_execute_yes_cleanup", lambda *_a, **_k: None)
+    calls = []
+
+    def cache_tier(name):
+        calls.append(name)
+        return TierResult(name)
+
+    monkeypatch.setattr(cleanup_cmd, "docker_prune_dangling", lambda: cache_tier("dangling"))
+    monkeypatch.setattr(cleanup_cmd, "docker_remove_unused_old_images", lambda **_: cache_tier("images"))
+    cleanup_cmd._run_free_target_mode(10, 100, False, dry_run, None)
+    output = capsys.readouterr().out
+    assert "1 starych katalogów zachowanych" in output
+    assert "dane wdrożeń i przywracania, nie cache" in output
+    assert (release / "payload.bin").read_bytes() == b"x" * 4096
+    assert calls == ([] if dry_run else ["dangling", "images"])
 
 
 def test_free_gb_rejects_other_actions():

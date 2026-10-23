@@ -1622,11 +1622,15 @@ def _run_free_target_mode(
     def _stale_release_caches() -> TierResult:
         removable, protected = find_stale_release_caches()
         _echo(
-            f"    release caches: {len(removable)} do usunięcia, "
-            f"{len(protected)} chronionych (tylko do odczytu)"
+            f"    Wydania i snapshoty: {len(protected)} starych katalogów zachowanych "
+            "(dane wdrożeń i przywracania, nie cache)."
         )
         remove_release_caches(removable, dry_run=dry_run)
-        return TierResult("stale-release-caches")
+        return TierResult(
+            "stale-release-caches",
+            attempted=False,
+            skipped_reason="wydania i snapshoty są zarządzane przez właściciela wdrożenia",
+        )
 
     min_days = days if days is not None else DEFAULT_DOCKER_IMAGE_MIN_DAYS
 
