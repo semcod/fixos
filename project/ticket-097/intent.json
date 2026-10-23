@@ -1,0 +1,90 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-097",
+  "summary": "PLF-034: make autonomous completion and action counts truthful",
+  "workstream": "application",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P1",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-097/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/agent/autonomous_session.py",
+    "tests/unit/test_autonomous_reporting.py",
+    "fixos/cli/fix_cmd.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [
+    "python"
+  ],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "266f85f5d09fb6f501d7ae5736bb38dea165e366",
+    "targetBranch": "main",
+    "outcome": "PLF-034: autonomous DONE means session ended, not all issues repaired. Distinguish successful execution, failed attempts and dry-run proposals in human reports; centralize dry-run action handling so both heuristic and LLM modes never execute commands during simulation. Label the CLI legacy attempt count as actions while preserving machine-output fields.",
+    "nonGoals": [
+      "No new cleanup targets, live command policy changes, dependencies or machine report schema changes. No changes to protected fleet adoption or deletion of retained worktrees."
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 30,
+    "budgets": {
+      "maxImplementationFiles": 3,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Use a neutral completion message and truthful counts/icons in AgentReport.summary. Move heuristic-only dry-run handling into _handle_exec before command execution so both modes share the guard. Rename the human auto summary attempt label to actions. Preserve FixAction data and JSON schema; use mocked commands and fake LLM responses in tests.",
+      "components": [
+        {
+          "name": "autonomous-reporting",
+          "paths": [
+            "fixos/agent/autonomous_session.py",
+            "tests/unit/test_autonomous_reporting.py"
+          ]
+        },
+        {
+          "name": "auto-cli",
+          "paths": [
+            "fixos/cli/fix_cmd.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert this material ticket commit."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python -m pytest tests/unit/test_autonomous_reporting.py tests/unit/test_auto_no_llm.py tests/unit/test_auto_cleanup.py -q"
+        ],
+        "evidence": "project/ticket-097/README.md"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "ruff check fixos/agent/autonomous_session.py fixos/cli/fix_cmd.py tests/unit/test_autonomous_reporting.py",
+          "./project/governance-check.sh"
+        ],
+        "evidence": "project/ticket-097/README.md"
+      }
+    ]
+  }
+}

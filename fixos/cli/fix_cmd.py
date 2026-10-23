@@ -786,7 +786,7 @@ def auto_cmd(
     click.echo(click.style("═" * 60, fg="cyan"))
     click.echo(f"  Tryb             : {'LLM' if use_llm else 'Deterministyczny (bez LLM)'}")
     click.echo(f"  Kroki czyszczenia: {', '.join(steps_executed) or 'brak'}")
-    click.echo(f"  Naprawy agenta   : {len(report.fixes_applied)}")
+    click.echo(f"  Akcje agenta     : {len(report.fixes_applied)}")
     click.echo(f"  Wolne przed (/)  : {_format_bytes(before_free_bytes)}")
     click.echo(f"  Wolne po (/)     : {_format_bytes(after_free_bytes)}")
     if tmp_separate_mount and tmp_freed_bytes > 0:
