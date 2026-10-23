@@ -1334,6 +1334,33 @@ class ServiceCleaner:
 
         return actions
 
+    @staticmethod
+    def _group_cleanup_services_by_risk(services: list[Any]) -> dict[str, list[Any]]:
+        """Keep scanner order within each recognized risk tier."""
+        from .service_scanner import RiskLevel
+
+        groups = {risk.value: [] for risk in RiskLevel}
+        for service in services:
+            if service.risk_level in groups:
+                groups[service.risk_level].append(service)
+        return groups
+
+    @staticmethod
+    def _safe_reclaim_totals(actions: list[dict[str, Any]]) -> dict[str, float]:
+        """Separate full cache removal from uncertain tool-managed prunes."""
+        return {
+            "safe_cleanup_gb": round(
+                sum(item["size_gb"] for item in actions
+                    if item.get("reclaim", "full") == "full"),
+                2,
+            ),
+            "safe_prune_gb": round(
+                sum(item["size_gb"] for item in actions
+                    if item.get("reclaim") == PRUNE_UNREFERENCED),
+                2,
+            ),
+        }
+
     def get_cleanup_plan(
         self, selected_services: list[str] | None = None
     ) -> dict[str, Any]:
@@ -1348,13 +1375,10 @@ class ServiceCleaner:
             ]
 
         total_size_gb = sum(s.size_gb for s in services)
-        safe_services = [s for s in services if s.risk_level == RiskLevel.SAFE.value]
-        review_services = [
-            s for s in services if s.risk_level == RiskLevel.REVIEW.value
-        ]
-        dangerous_services = [
-            s for s in services if s.risk_level == RiskLevel.DANGEROUS.value
-        ]
+        risk_groups = self._group_cleanup_services_by_risk(services)
+        safe_services = risk_groups[RiskLevel.SAFE.value]
+        review_services = risk_groups[RiskLevel.REVIEW.value]
+        dangerous_services = risk_groups[RiskLevel.DANGEROUS.value]
 
         age_actions = self.build_safe_age_actions(selected_services)
         safe_dicts = [self._service_to_dict(s) for s in safe_services]
@@ -1370,22 +1394,7 @@ class ServiceCleaner:
             ),
             # Tool-managed prunes remove only unreferenced packages, so their
             # scanned size is not a promise of reclaimable space.
-            "safe_cleanup_gb": round(
-                sum(
-                    item["size_gb"]
-                    for item in safe_to_cleanup
-                    if item.get("reclaim", "full") == "full"
-                ),
-                2,
-            ),
-            "safe_prune_gb": round(
-                sum(
-                    item["size_gb"]
-                    for item in safe_to_cleanup
-                    if item.get("reclaim") == PRUNE_UNREFERENCED
-                ),
-                2,
-            ),
+            **self._safe_reclaim_totals(safe_to_cleanup),
             "requires_review_gb": round(sum(s.size_gb for s in review_services), 2),
             "dangerous_gb": round(sum(s.size_gb for s in dangerous_services), 2),
             "manager_reported_reclaimable_gb": round(
