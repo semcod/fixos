@@ -1,6 +1,9 @@
 """Tests for fixos.cli._cleanup_space disk-reclaim handlers."""
 
+import os
+import shutil
 import subprocess
+import time
 from pathlib import Path
 
 import click
@@ -308,8 +311,6 @@ def test_cli_rejects_space_flag_with_foreign_cleanup(monkeypatch):
 
 
 def _make_unused_project(base: Path, name: str, age_days: float) -> Path:
-    import os
-    import time
 
     proj = base / name
     (proj / ".git").mkdir(parents=True)
@@ -337,8 +338,6 @@ def _make_unused_project(base: Path, name: str, age_days: float) -> Path:
 
 
 def test_projects_old_reclaims_only_unused_7d_safe_artifacts(monkeypatch, tmp_path):
-    import os
-    import time
 
     from fixos.diagnostics import venv_cleanup as vc
 
@@ -375,4 +374,203 @@ def test_projects_old_reclaims_only_unused_7d_safe_artifacts(monkeypatch, tmp_pa
     assert (stale_proj / "src" / "main.py").is_file()
     assert (fresh_proj / ".venv").is_dir()
     assert (active_proj / ".venv").is_dir()
+
+
+def test_project_artifact_allowed_validation(tmp_path, monkeypatch):
+    proj = tmp_path / "myproj"
+    proj.mkdir()
+    (proj / ".git").mkdir()
+    (proj / "node_modules").mkdir()
+    (proj / "src").mkdir()
+    (proj / "file.txt").write_text("hello")
+
+    # Valid artifact
+    assert space._project_artifact_allowed(proj / "node_modules", proj) is True
+    # Dict input
+    assert space._project_artifact_allowed({"path": proj / "node_modules", "project": proj}) is True
+    assert space._project_artifact_allowed({"path": proj / "node_modules"}) is True
+
+    # Project root itself
+    assert space._project_artifact_allowed(proj, proj) is False
+    # Parent of project root
+    assert space._project_artifact_allowed(proj.parent, proj) is False
+    # Regular file
+    assert space._project_artifact_allowed(proj / "file.txt", proj) is False
+    # Forbidden .git directory
+    assert space._project_artifact_allowed(proj / ".git", proj) is False
+    # Non-existent directory
+    assert space._project_artifact_allowed(proj / "nonexistent", proj) is False
+
+    # Direct symlink
+    sym = proj / "symlink_art"
+    sym.symlink_to(tmp_path)
+    assert space._project_artifact_allowed(sym, proj) is False
+
+    # Symlink pointing inside project
+    sym_inside = proj / "symlink_inside"
+    sym_inside.symlink_to(proj / "node_modules")
+    assert space._project_artifact_allowed(sym_inside, proj) is False
+
+    # Intermediate symlink directory
+    sym_parent = proj / "sym_parent"
+    real_target = tmp_path / "real_target"
+    real_target.mkdir()
+    (real_target / "nested_art").mkdir()
+    sym_parent.symlink_to(real_target)
+    assert space._project_artifact_allowed(sym_parent / "nested_art", proj) is False
+
+    # Mount point checks
+    orig_is_mount = Path.is_mount
+    monkeypatch.setattr(
+        Path, "is_mount", lambda p: p == (proj / "node_modules") or orig_is_mount(p)
+    )
+    assert space._project_artifact_allowed(proj / "node_modules", proj) is False
+
+    # Child mount point inside artifact
+    child_dir = proj / "node_modules" / "submount"
+    child_dir.mkdir(parents=True)
+    monkeypatch.setattr(
+        Path, "is_mount", lambda p: p == child_dir or orig_is_mount(p)
+    )
+    assert space._project_artifact_allowed(proj / "node_modules", proj) is False
+
+
+def test_projects_old_permission_error_with_sudo_success(monkeypatch, tmp_path):
+    from fixos.diagnostics import venv_cleanup as vc
+
+    monkeypatch.setattr(vc, "active_paths", lambda: (set(), []))
+    monkeypatch.setenv("FIXOS_NATIVE", "off")
+
+    stale_proj = _make_unused_project(tmp_path, "stale-app", age_days=10)
+    target_art = stale_proj / "node_modules"
+
+    orig_rmtree = shutil.rmtree
+
+    def mock_rmtree(path, *args, **kwargs):
+        if Path(path) == target_art:
+            raise PermissionError(f"[Errno 13] Permission denied: '{path}'")
+        return orig_rmtree(path, *args, **kwargs)
+
+    calls = []
+
+    def runner(argv, timeout=60):
+        calls.append(list(argv))
+        if argv[:4] == ["sudo", "-n", "rm", "-rf"]:
+            orig_rmtree(target_art, ignore_errors=True)
+            return _cp(stdout="", returncode=0)
+        return _cp(stdout="")
+
+    monkeypatch.setattr(shutil, "rmtree", mock_rmtree)
+    monkeypatch.setattr(shutil, "which", lambda cmd: "/usr/bin/sudo" if cmd == "sudo" else None)
+    monkeypatch.setattr(space, "_run_cmd", runner)
+
+    result = CliRunner().invoke(
+        cleanup_cmd.cleanup_services,
+        ["--projects-old", "--projects-path", str(tmp_path), "--yes"],
+    )
+    assert result.exit_code == 0, result.output
+    assert any(
+        c[:4] == ["sudo", "-n", "rm", "-rf"] and str(target_art) in c
+        for c in calls
+    )
+    assert "Usunięto przez sudo (projekty)" in result.output
+    assert not target_art.exists()
+    assert not (stale_proj / ".venv").exists()
+
+
+def test_projects_old_permission_error_without_sudo_reports_and_remediates(monkeypatch, tmp_path):
+    from fixos.diagnostics import venv_cleanup as vc
+
+    monkeypatch.setattr(vc, "active_paths", lambda: (set(), []))
+    monkeypatch.setenv("FIXOS_NATIVE", "off")
+
+    stale_proj = _make_unused_project(tmp_path, "stale-app", age_days=10)
+    target_art = stale_proj / "node_modules"
+
+    orig_rmtree = shutil.rmtree
+
+    def mock_rmtree(path, *args, **kwargs):
+        if Path(path) == target_art:
+            raise PermissionError(f"[Errno 13] Permission denied: '{path}'")
+        return orig_rmtree(path, *args, **kwargs)
+
+    monkeypatch.setattr(shutil, "rmtree", mock_rmtree)
+    monkeypatch.setattr(shutil, "which", lambda cmd: None)
+
+    result = CliRunner().invoke(
+        cleanup_cmd.cleanup_services,
+        ["--projects-old", "--projects-path", str(tmp_path), "--yes"],
+    )
+    assert "Brak uprawnień (PermissionError)" in result.output
+    assert "node_modules" in result.output
+    assert "Polecenie naprawcze" in result.output
+    assert f"sudo rm -rf -- '{target_art}'" in result.output or f"sudo rm -rf -- {target_art}" in result.output
+
+
+def test_projects_old_permission_error_sudo_fails_reports_and_remediates(monkeypatch, tmp_path):
+    from fixos.diagnostics import venv_cleanup as vc
+
+    monkeypatch.setattr(vc, "active_paths", lambda: (set(), []))
+    monkeypatch.setenv("FIXOS_NATIVE", "off")
+
+    stale_proj = _make_unused_project(tmp_path, "stale-app", age_days=10)
+    target_art = stale_proj / "node_modules"
+
+    orig_rmtree = shutil.rmtree
+
+    def mock_rmtree(path, *args, **kwargs):
+        if Path(path) == target_art:
+            raise PermissionError(f"[Errno 13] Permission denied: '{path}'")
+        return orig_rmtree(path, *args, **kwargs)
+
+    calls = []
+
+    def runner(argv, timeout=60):
+        calls.append(list(argv))
+        if argv[:4] == ["sudo", "-n", "rm", "-rf"]:
+            return _cp(returncode=1, stderr="sudo: a password is required")
+        return _cp(stdout="")
+
+    monkeypatch.setattr(shutil, "rmtree", mock_rmtree)
+    monkeypatch.setattr(shutil, "which", lambda cmd: "/usr/bin/sudo" if cmd == "sudo" else None)
+    monkeypatch.setattr(space, "_run_cmd", runner)
+
+    result = CliRunner().invoke(
+        cleanup_cmd.cleanup_services,
+        ["--projects-old", "--projects-path", str(tmp_path), "--yes"],
+    )
+    assert any(
+        c[:4] == ["sudo", "-n", "rm", "-rf"] and str(target_art) in c
+        for c in calls
+    )
+    assert "Brak uprawnień (PermissionError)" in result.output
+    assert "Polecenie naprawcze" in result.output
+    assert f"sudo rm -rf -- {target_art}" in result.output or f"sudo rm -rf -- '{target_art}'" in result.output
+
+
+def test_projects_old_permission_error_never_sudo_removes_unallowed_artifacts(monkeypatch, tmp_path):
+    proj = tmp_path / "demo_proj"
+    proj.mkdir()
+    sym_art = proj / "node_modules"
+    sym_art.symlink_to(tmp_path)
+
+    calls = []
+    monkeypatch.setattr(space, "_run_cmd", lambda argv, timeout=60: (calls.append(list(argv)), _cp())[1])
+
+    candidates = [
+        {
+            "description": "demo/node_modules (node)",
+            "path": sym_art,
+            "project": proj,
+            "artifact_name": "node_modules",
+            "size_bytes": 1024,
+        }
+    ]
+
+    monkeypatch.setattr(space, "_remove_path", lambda p: (False, "PERMISSION_DENIED:[Errno 13] Permission denied"))
+
+    space._remove_selected(candidates, [0])
+
+    assert not any(c[:2] == ["sudo", "-n"] for c in calls)
+
 
