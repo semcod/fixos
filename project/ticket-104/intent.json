@@ -1,0 +1,84 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-104",
+  "summary": "Integrate auto cleanup with target ladder and report findings honestly",
+  "workstream": "application",
+  "classification": {
+    "kind": "FEATURE",
+    "priority": "P1",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-104/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/cli/fix_cmd.py",
+    "fixos/agent/autonomous_session.py",
+    "tests/unit/test_auto_cleanup.py",
+    "tests/unit/test_autonomous_reporting.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [
+    "python"
+  ],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "e8412226e7cba29f1bd4ddbb1097263bceb545ad",
+    "targetBranch": "main",
+    "outcome": "Integrate fixos auto with target ladder prune for dangling/unused docker layers when safe caches do not satisfy target free space, and honestly report diagnosed problems and quick alerts in autonomous session.",
+    "nonGoals": [
+      "Do not delete active containers, user files, persistent release directories, or docker volumes"
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 30,
+    "budgets": {
+      "maxImplementationFiles": 5,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Wire docker_prune_dangling and docker_remove_unused_old_images into auto_cmd when disk free space is below target free bytes after safe cache tiers; record findings and quick alerts in autonomous_session.problems_found even when no shell command is attached.",
+      "components": [
+        {
+          "name": "auto-cli-and-agent",
+          "paths": [
+            "fixos/cli/fix_cmd.py",
+            "fixos/agent/autonomous_session.py"
+          ]
+        },
+        {
+          "name": "tests",
+          "paths": [
+            "tests/unit/test_auto_cleanup.py",
+            "tests/unit/test_autonomous_reporting.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert ticket-104 commit via protected publication."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "pytest tests/unit/test_auto_cleanup.py tests/unit/test_autonomous_reporting.py -q"
+        ],
+        "evidence": "project/ticket-104/README.md"
+      }
+    ]
+  }
+}
