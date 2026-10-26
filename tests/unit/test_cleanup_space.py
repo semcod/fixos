@@ -1,7 +1,7 @@
 """Tests for fixos.cli._cleanup_space disk-reclaim handlers."""
 
-from pathlib import Path
 import subprocess
+from pathlib import Path
 
 import click
 from click.testing import CliRunner
@@ -302,3 +302,77 @@ def test_cli_rejects_space_flag_with_foreign_cleanup(monkeypatch):
     )
     assert result.exit_code == 0
     assert "osobną, pojedynczą akcję" in result.output
+
+
+# ── unused projects (> 7 days) ────────────────────────────────────────────
+
+
+def _make_unused_project(base: Path, name: str, age_days: float) -> Path:
+    import os
+    import time
+
+    proj = base / name
+    (proj / ".git").mkdir(parents=True)
+    (proj / "pyproject.toml").write_text("[project]\nname='demo'\n")
+    (proj / "package.json").write_text("{}")
+    (proj / "src").mkdir()
+    (proj / "src" / "main.py").write_text("print('hi')\n")
+    venv = proj / ".venv"
+    venv.mkdir()
+    (venv / "pyvenv.cfg").write_text("home = /usr/bin\n")
+    (venv / "blob.bin").write_bytes(b"a" * 4096)
+    node_modules = proj / "node_modules"
+    node_modules.mkdir()
+    (node_modules / "pkg.js").write_bytes(b"b" * 2048)
+    dist = proj / "dist"
+    dist.mkdir()
+    (dist / "bundle.js").write_bytes(b"c" * 1024)
+
+    stamp = time.time() - age_days * 86400.0
+    for root, dirs, files in os.walk(proj):
+        for entry in files + dirs:
+            os.utime(Path(root) / entry, (stamp, stamp), follow_symlinks=False)
+    os.utime(proj, (stamp, stamp))
+    return proj
+
+
+def test_projects_old_reclaims_only_unused_7d_safe_artifacts(monkeypatch, tmp_path):
+    import os
+    import time
+
+    from fixos.diagnostics import venv_cleanup as vc
+
+    monkeypatch.setattr(vc, "active_paths", lambda: (set(), []))
+    monkeypatch.setenv("FIXOS_NATIVE", "off")
+
+    stale_proj = _make_unused_project(tmp_path, "stale-app", age_days=10)
+    fresh_proj = _make_unused_project(tmp_path, "fresh-app", age_days=10)
+    now = time.time()
+    os.utime(fresh_proj / "src" / "main.py", (now, now))
+
+    active_proj = _make_unused_project(tmp_path, "active-app", age_days=12)
+    monkeypatch.setattr(
+        vc, "active_paths", lambda: ({active_proj / ".venv" / "bin" / "python"}, [])
+    )
+
+    candidates = space._scan_unused_projects(days=7, base_dir=tmp_path)
+    paths = {c["path"] for c in candidates}
+    assert paths == {
+        stale_proj / ".venv",
+        stale_proj / "node_modules",
+    }
+    # dist is 'review' risk, never selected in safe auto cleanup
+    assert (stale_proj / "dist") not in paths
+
+    result = CliRunner().invoke(
+        cleanup_cmd.cleanup_services,
+        ["--projects-old", "--projects-path", str(tmp_path), "--yes"],
+    )
+    assert result.exit_code == 0, result.output
+    assert not (stale_proj / ".venv").exists()
+    assert not (stale_proj / "node_modules").exists()
+    assert (stale_proj / "dist" / "bundle.js").is_file()
+    assert (stale_proj / "src" / "main.py").is_file()
+    assert (fresh_proj / ".venv").is_dir()
+    assert (active_proj / ".venv").is_dir()
+

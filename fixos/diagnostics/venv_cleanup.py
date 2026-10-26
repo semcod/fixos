@@ -156,6 +156,13 @@ def inspect_project(
     *,
     now_ns: int | None = None,
 ) -> list[dict]:
+    envs = [
+        project / name
+        for name in VENV_NAMES
+        if (project / name).exists() or (project / name).is_symlink()
+    ]
+    if not envs:
+        return []
     cutoff = (now_ns if now_ns is not None else time.time_ns()) - days * 86400 * 10**9
     source = _measure_project_source(project, PROJECT_SOURCE_EXCLUDE)
     project_active = any(_within(p, project) for p in paths)
@@ -166,10 +173,7 @@ def inspect_project(
         mounts = {Path(part.mountpoint) for part in psutil.disk_partitions(all=True)}
     except OSError:
         mounts = None
-    for name in VENV_NAMES:
-        env = project / name
-        if not env.exists() and not env.is_symlink():
-            continue
+    for env in envs:
         reasons = []
         if not _plain_path(env) or not env.is_dir():
             reasons.append("ścieżka jest dowiązaniem lub nie jest katalogiem")

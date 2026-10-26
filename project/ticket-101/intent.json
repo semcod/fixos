@@ -1,0 +1,110 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-101",
+  "summary": "Reclaim unused 7d project artifacts and state partitions in auto and target cleanup",
+  "workstream": "application",
+  "classification": {
+    "kind": "FEATURE",
+    "priority": "P1",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-101/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/cli/_cleanup_space.py",
+    "fixos/cli/cleanup_cmd.py",
+    "fixos/cli/fix_cmd.py",
+    "fixos/constants.py",
+    "fixos/diagnostics/project_scanner.py",
+    "fixos/diagnostics/venv_cleanup.py",
+    "tests/unit/test_auto_cleanup.py",
+    "tests/unit/test_cleanup_free_target.py",
+    "tests/unit/test_cleanup_space.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [
+    "python"
+  ],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "042ccc2284d242142a5cc9958517e78e2a9a6649",
+    "targetBranch": "main",
+    "outcome": "Reclaim unused 7-day-old date-partitioned state data and safe developer project artifacts in fixos auto, cleanup --free-gb, and cleanup --projects-old/--state-old while preserving active/recent projects, user files, and persistent releases.",
+    "nonGoals": [
+      "Do not delete user personal files, Downloads, Videos, persistent deployment releases/snapshots, or active/recently modified (< 7 days) projects and worktrees"
+    ],
+    "complexity": "M",
+    "estimatedMinutes": 60,
+    "budgets": {
+      "maxImplementationFiles": 9,
+      "maxAffectedComponents": 3,
+      "maxPublicInterfaceChanges": 2,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Set default state partition and project staleness retention to 7 days; add safe 7-day unused project artifact scanner and cleanup handler (_cleanup_projects_old) with process/symlink/mount/source-activity guards; wire 7-day state-old and projects-old into fixos auto and the free-target ladder; optimize venv_cleanup.inspect_project to skip full source scans when a project has no venv/.venv.",
+      "components": [
+        {
+          "name": "project-and-state-diagnostics",
+          "paths": [
+            "fixos/constants.py",
+            "fixos/diagnostics/project_scanner.py",
+            "fixos/diagnostics/venv_cleanup.py"
+          ]
+        },
+        {
+          "name": "cleanup-cli",
+          "paths": [
+            "fixos/cli/_cleanup_space.py",
+            "fixos/cli/cleanup_cmd.py",
+            "fixos/cli/fix_cmd.py"
+          ]
+        },
+        {
+          "name": "tests",
+          "paths": [
+            "tests/unit/test_auto_cleanup.py",
+            "tests/unit/test_cleanup_free_target.py",
+            "tests/unit/test_cleanup_space.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [
+        "fixos auto --state-old/--no-state-old and --projects-old/--no-projects-old",
+        "fixos cleanup --projects-old"
+      ],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert ticket-101 commit via protected publication."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "pytest tests/unit/test_auto_cleanup.py tests/unit/test_cleanup_space.py tests/unit/test_cleanup_free_target.py tests/unit/test_venv_cleanup.py tests/unit/test_state_retention.py tests/unit/test_project_scanner.py -q"
+        ],
+        "evidence": "project/ticket-101/README.md"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "ruff check fixos/constants.py fixos/diagnostics/venv_cleanup.py fixos/diagnostics/project_scanner.py fixos/cli/_cleanup_space.py fixos/cli/cleanup_cmd.py fixos/cli/fix_cmd.py tests/unit/test_auto_cleanup.py tests/unit/test_cleanup_space.py tests/unit/test_cleanup_free_target.py",
+          "./project/governance-check.sh"
+        ],
+        "evidence": "project/ticket-101/README.md"
+      }
+    ]
+  }
+}

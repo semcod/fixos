@@ -288,3 +288,27 @@ def test_interactive_cache_still_removes_selected_regular_unknown_cache(
     space._cleanup_user_cache(False, False, False, False)
     assert not cache_file.exists()
     assert protected.exists()
+
+
+def test_auto_executes_7d_state_and_projects_cleanup_by_default(auto_cli):
+    result = CliRunner().invoke(cli, ["auto", "--json"])
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert "state-old" in payload["steps_executed"]
+    assert "projects-old" in payload["steps_executed"]
+    space._cleanup_build_caches.assert_called_once()
+    kwargs = space._cleanup_build_caches.call_args.kwargs
+    assert kwargs["clean_state_old"] is True
+    assert kwargs["clean_projects_old"] is True
+    assert kwargs["stale_days"] == 7
+
+
+def test_auto_respects_no_state_old_and_no_projects_old(auto_cli):
+    result = CliRunner().invoke(
+        cli, ["auto", "--json", "--no-state-old", "--no-projects-old"]
+    )
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert "state-old" not in payload["steps_executed"]
+    assert "projects-old" not in payload["steps_executed"]
+
