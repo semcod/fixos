@@ -1,0 +1,82 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-106",
+  "summary": "Expand additional_cache_candidates and quick_snapshot CACHE_RULES for developer caches",
+  "workstream": "application",
+  "classification": {
+    "kind": "FEATURE",
+    "priority": "P2",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-106/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/cli/_auto_cleanup.py",
+    "fixos/diagnostics/quick_snapshot.py",
+    "tests/unit/test_auto_cleanup.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [
+    "python"
+  ],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "98e8f0214df0900ff3dc16b8a42a102de5e67e3e",
+    "targetBranch": "main",
+    "outcome": "Expand _CACHE_PATHS in fixos/cli/_auto_cleanup.py and CACHE_RULES in fixos/diagnostics/quick_snapshot.py to cover safe regenerable developer caches (.cache/go-build, .cache/ruff, .cache/mypy, .cache/Flake8, .cache/black) while preserving strict path guards for model weights and browser profile data, with comprehensive unit tests.",
+    "nonGoals": [
+      "Never touch model weights in .cache/huggingface or browser profile databases/bookmarks/cookies."
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 30,
+    "budgets": {
+      "maxImplementationFiles": 3,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Add safe regenerable developer cache leaf paths (.cache/go-build, .cache/ruff, .cache/mypy, .cache/Flake8, .cache/black) to _CACHE_PATHS in _auto_cleanup.py and align CACHE_RULES in quick_snapshot.py with go-build and python-linters rules plus pnpm ~/.cache/pnpm coverage; verify path protections and safe_reclaim accounting in unit tests.",
+      "components": [
+        {
+          "name": "developer-cache-cleanup",
+          "paths": [
+            "fixos/cli/_auto_cleanup.py",
+            "fixos/diagnostics/quick_snapshot.py"
+          ]
+        },
+        {
+          "name": "tests",
+          "paths": [
+            "tests/unit/test_auto_cleanup.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert ticket-106 commit via protected publication."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "pytest tests/unit/test_auto_cleanup.py tests/unit/test_quick_snapshot.py -q"
+        ],
+        "evidence": "project/ticket-106/README.md"
+      }
+    ]
+  }
+}

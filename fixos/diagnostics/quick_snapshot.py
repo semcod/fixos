@@ -74,7 +74,12 @@ CACHE_RULES: tuple[CacheRule, ...] = (
     CacheRule(
         "pnpm",
         "pnpm store",
-        ("~/.local/share/pnpm/store", "~/.pnpm-store"),
+        (
+            "~/.local/share/pnpm/store",
+            "~/.pnpm-store",
+            "~/.cache/pnpm",
+            "~/Library/Caches/pnpm",
+        ),
         "pnpm store prune",
         stack="node",
     ),
@@ -93,6 +98,33 @@ CACHE_RULES: tuple[CacheRule, ...] = (
         "Poetry cache",
         ("~/.cache/pypoetry/cache", "~/.cache/pypoetry/artifacts"),
         "poetry cache clear --all pypi",
+        stack="python",
+    ),
+    CacheRule(
+        "go-build",
+        "Go build cache",
+        (
+            "~/.cache/go-build",
+            "~/Library/Caches/go-build",
+            "~/AppData/Local/go-build",
+        ),
+        "go clean -cache",
+        stack="go",
+    ),
+    CacheRule(
+        "python-linters",
+        "Python linters and typecheck cache",
+        (
+            "~/.cache/ruff",
+            "~/.cache/mypy",
+            "~/.cache/Flake8",
+            "~/.cache/flake8",
+            "~/.cache/black",
+            "~/Library/Caches/ruff",
+            "~/Library/Caches/mypy",
+            "~/AppData/Local/ruff/Cache",
+        ),
+        "rm -rf ~/.cache/ruff ~/.cache/mypy ~/.cache/Flake8 ~/.cache/black",
         stack="python",
     ),
     CacheRule(

@@ -1,5 +1,6 @@
 """Safety and reporting regressions for expanded autonomous cleanup."""
 
+import inspect
 import json
 import subprocess
 from pathlib import Path
@@ -12,6 +13,12 @@ from click.testing import CliRunner
 from fixos.cli import _auto_cleanup as auto
 from fixos.cli import _cleanup_space as space
 from fixos.cli.main import cli
+
+
+def _cli_runner() -> CliRunner:
+    if "mix_stderr" in inspect.signature(CliRunner.__init__).parameters:
+        return CliRunner(mix_stderr=False)
+    return CliRunner()
 
 
 def put(home, relative, content="cached"):
@@ -32,6 +39,11 @@ def test_cleanup_keeps_downloads_profiles_models_and_unknown_cache(
             ".cache/pypoetry/artifacts/pkg.whl",
             ".cache/google-chrome/Default/Cache/data",
             ".cargo/registry/cache/repo/a.crate",
+            ".cache/go-build/leaf/cache",
+            ".cache/ruff/leaf/cache",
+            ".cache/mypy/leaf/cache",
+            ".cache/Flake8/leaf/cache",
+            ".cache/black/leaf/cache",
         )
     ]
     protected = [
@@ -168,8 +180,8 @@ def auto_cli(monkeypatch):
         "thumbnails",
     ):
         monkeypatch.setattr(space, "_cleanup_" + name, Mock())
-    extra = Mock(side_effect=lambda **k: print("cache progress"))
-    docker = Mock(side_effect=lambda **k: print("docker progress"))
+    extra = Mock(side_effect=lambda **k: print("cache progress", flush=True))
+    docker = Mock(side_effect=lambda **k: print("docker progress", flush=True))
     monkeypatch.setattr(auto, "cleanup_additional_caches", extra)
     monkeypatch.setattr(auto, "cleanup_docker_builder", docker)
     return extra, docker
@@ -204,7 +216,7 @@ def test_root_accounting_excludes_tmp_and_reports_remaining_pressure(
         return stat_original(path, *args, **kwargs)
 
     monkeypatch.setattr(os, "stat", stat)
-    result = CliRunner().invoke(cli, ["auto", "--json"])
+    result = _cli_runner().invoke(cli, ["auto", "--json"])
     assert result.exit_code == 0, result.output
     payload = json.loads(result.stdout)
     assert payload["disk_freed_bytes"] == 1024**3
@@ -291,7 +303,7 @@ def test_interactive_cache_still_removes_selected_regular_unknown_cache(
 
 
 def test_auto_executes_7d_state_and_projects_cleanup_by_default(auto_cli):
-    result = CliRunner().invoke(cli, ["auto", "--json"])
+    result = _cli_runner().invoke(cli, ["auto", "--json"])
     assert result.exit_code == 0, result.output
     payload = json.loads(result.stdout)
     assert "state-old" in payload["steps_executed"]
@@ -304,11 +316,115 @@ def test_auto_executes_7d_state_and_projects_cleanup_by_default(auto_cli):
 
 
 def test_auto_respects_no_state_old_and_no_projects_old(auto_cli):
-    result = CliRunner().invoke(
+    result = _cli_runner().invoke(
         cli, ["auto", "--json", "--no-state-old", "--no-projects-old"]
     )
     assert result.exit_code == 0, result.output
     payload = json.loads(result.stdout)
     assert "state-old" not in payload["steps_executed"]
     assert "projects-old" not in payload["steps_executed"]
+
+
+def test_cleanup_removes_developer_caches_and_preserves_models_and_browser_data(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    caches = [
+        put(tmp_path, p)
+        for p in (
+            ".cache/go-build/leaf/cache",
+            ".cache/ruff/leaf/cache",
+            ".cache/mypy/leaf/cache",
+            ".cache/Flake8/leaf/cache",
+            ".cache/black/leaf/cache",
+        )
+    ]
+    protected = [
+        put(tmp_path, p)
+        for p in (
+            ".cache/huggingface/hub/models--bert-base-uncased/model.safetensors",
+            ".cache/google-chrome/Default/History",
+            ".cache/google-chrome/Default/Cookies",
+            ".config/google-chrome/Default/Bookmarks",
+            ".cache/unknown_tool/cache",
+        )
+    ]
+    auto.cleanup_additional_caches(dry_run=False, yes=True)
+    assert all(not p.exists() for p in caches)
+    assert all(p.exists() for p in protected)
+
+
+def test_additional_cache_candidates_includes_developer_caches(tmp_path):
+    for p in (
+        ".cache/go-build/data",
+        ".cache/ruff/data",
+        ".cache/mypy/data",
+        ".cache/Flake8/data",
+        ".cache/black/data",
+    ):
+        put(tmp_path, p, "data")
+    candidates = auto.additional_cache_candidates(tmp_path)
+    descriptions = {c["description"] for c in candidates}
+    assert "~/.cache/go-build" in descriptions
+    assert "~/.cache/ruff" in descriptions
+    assert "~/.cache/mypy" in descriptions
+    assert "~/.cache/Flake8" in descriptions
+    assert "~/.cache/black" in descriptions
+
+
+def test_quick_snapshot_reflects_go_and_python_caches_in_safe_reclaim(
+    tmp_path, monkeypatch
+):
+    from datetime import datetime, timezone
+
+    from fixos.diagnostics import quick_snapshot as qs
+
+    put(tmp_path, ".cache/go-build/sample.bin", "x" * 2048)
+    put(tmp_path, ".cache/ruff/sample.bin", "y" * 4096)
+    put(tmp_path, ".cache/mypy/sample.bin", "z" * 1024)
+
+    monkeypatch.setattr(
+        qs,
+        "_resource_snapshot",
+        lambda: {
+            "cpu": {
+                "percent": 10,
+                "logical_cpus": 4,
+                "load": [0.1, 0.1, 0.1],
+                "load_1_normalized_percent": 2,
+            },
+            "memory": {
+                "total_bytes": 1000,
+                "used_bytes": 300,
+                "available_bytes": 700,
+                "percent": 30,
+            },
+            "swap": {"total_bytes": 1000, "used_bytes": 0, "percent": 0},
+            "disk": {
+                "mount": "/",
+                "total_bytes": 10 * 1024**3,
+                "used_bytes": 1024**3,
+                "free_bytes": 9 * 1024**3,
+                "percent": 10,
+            },
+            "top_processes": [],
+        },
+    )
+    monkeypatch.setattr(qs, "_cached_docker_review", lambda now, **_: None)
+
+    snapshot = qs.collect_quick_snapshot(
+        state_dir=tmp_path,
+        home=tmp_path,
+        cwd=tmp_path,
+        save=False,
+        now=datetime.now(timezone.utc),
+    )
+
+    safe_items = snapshot["safe_reclaim"]["items"]
+    item_ids = {item["id"] for item in safe_items}
+    assert "go-build" in item_ids
+    assert "python-linters" in item_ids
+    assert snapshot["safe_reclaim"]["estimated_max_bytes"] > 0
+
+
 
