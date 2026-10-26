@@ -1,0 +1,81 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-102",
+  "summary": "Avoid unconditional LLMClient initialization in AutonomousSession and FixOrchestrator when LLM is disabled (#129)",
+  "workstream": "application",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P1",
+    "origin": "regression"
+  },
+  "allowedPaths": [
+    "project/ticket-102/**",
+    "fixos/agent/autonomous_session.py",
+    "fixos/orchestrator/orchestrator.py",
+    "tests/unit/test_auto_no_llm.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "042ccc2284d242142a5cc9958517e78e2a9a6649",
+    "targetBranch": "main",
+    "outcome": "FixOS #129 (PLF-038): prevent unconditional LLMClient(config) initialization in AutonomousSession.__init__ and FixOrchestrator.__init__ when use_llm=False or when use_llm=None and native Gemini transport lacks an API key.",
+    "nonGoals": [
+      "No changes to GeminiNativeClient API key validation when LLM is explicitly active",
+      "No changes to HITL session LLM requirements"
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 30,
+    "budgets": {
+      "maxImplementationFiles": 3,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Skip LLMClient construction when use_llm is False, and catch LLMError during default (use_llm=None) construction so heuristic mode operates without an API key under gemini_transport='native'.",
+      "components": [
+        {
+          "name": "autonomous-agent",
+          "paths": [
+            "fixos/agent/autonomous_session.py",
+            "fixos/orchestrator/orchestrator.py",
+            "tests/unit/test_auto_no_llm.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the commit via protected PR if needed."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "pytest tests/unit/test_auto_no_llm.py -q"
+        ],
+        "evidence": "AutonomousSession and FixOrchestrator run in heuristic mode with gemini_transport='native' and empty api_key without raising LLMError."
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "./project/governance-check.sh"
+        ],
+        "evidence": "Governance check and unit tests pass."
+      }
+    ]
+  }
+}
