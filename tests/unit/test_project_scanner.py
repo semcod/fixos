@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import time
+from datetime import timezone
 
 from fixos.diagnostics import project_scanner as ps
 
@@ -303,4 +304,218 @@ class TestNativeScanProjectScanner:
 
     def test_get_dir_size_mb_handles_nonexistent_path(self, tmp_path):
         assert ps._get_dir_size_mb(str(tmp_path / "nonexistent")) == 0.0
+
+
+class TestDevProjectAnalyzerRegression:
+    def test_get_dir_size_uses_native_scan(self, tmp_path, monkeypatch):
+        from unittest.mock import MagicMock
+
+        from fixos.diagnostics.dev_project_analyzer import DevProjectAnalyzer
+
+        test_dir = tmp_path / "node_modules"
+        test_dir.mkdir()
+        (test_dir / "pkg.json").write_text("{}")
+
+        mock_measure = MagicMock(return_value={"bytes": 4194304, "mtime_ns": 1000})
+        monkeypatch.setattr("fixos.diagnostics.native_scan.measure_tree", mock_measure)
+
+        analyzer = DevProjectAnalyzer(str(tmp_path))
+        size = analyzer._get_dir_size(test_dir)
+        assert size == 4194304
+        mock_measure.assert_called_once()
+
+    def test_get_dir_size_falls_back_to_du(self, tmp_path, monkeypatch):
+        from unittest.mock import MagicMock
+
+        from fixos.diagnostics.dev_project_analyzer import DevProjectAnalyzer
+
+        test_dir = tmp_path / "venv"
+        test_dir.mkdir()
+
+        monkeypatch.setattr(
+            "fixos.diagnostics.native_scan.measure_tree",
+            MagicMock(side_effect=OSError("native unavailable")),
+        )
+        fake_du = MagicMock(
+            return_value=MagicMock(returncode=0, stdout="8388608\t/fake/venv\n")
+        )
+        monkeypatch.setattr("subprocess.run", fake_du)
+
+        analyzer = DevProjectAnalyzer(str(tmp_path))
+        size = analyzer._get_dir_size(test_dir)
+        assert size == 8388608
+        fake_du.assert_called_once()
+
+    def test_7d_staleness_reporting_in_summary(self, tmp_path, monkeypatch):
+        from datetime import datetime, timedelta
+
+        from fixos.diagnostics.dev_project_analyzer import (
+            DevProjectAnalyzer,
+            ProjectDependency,
+        )
+
+        analyzer = DevProjectAnalyzer(str(tmp_path))
+
+        stale_dep = ProjectDependency(
+            name="node_modules",
+            path=str(tmp_path / "old_proj" / "node_modules"),
+            size_bytes=100 * 1024 * 1024,
+            dep_type="node_modules",
+            project_name="old_proj",
+            last_modified=datetime.now() - timedelta(days=8),
+            can_recreate=True,
+            recreate_command="npm install",
+        )
+        fresh_dep = ProjectDependency(
+            name="venv",
+            path=str(tmp_path / "new_proj" / "venv"),
+            size_bytes=50 * 1024 * 1024,
+            dep_type="venv",
+            project_name="new_proj",
+            last_modified=datetime.now() - timedelta(days=2),
+            can_recreate=True,
+            recreate_command="python -m venv venv",
+        )
+        deps = [stale_dep, fresh_dep]
+        monkeypatch.setattr(
+            analyzer,
+            "analyze",
+            lambda: {
+                "dependencies": [d.to_dict() for d in deps],
+                "total_size": sum(d.size_bytes for d in deps),
+                "total_size_human": "150.0 MB",
+                "projects_affected": 2,
+            },
+        )
+        analyzer.dependencies = deps
+        analyzer.total_size = sum(d.size_bytes for d in deps)
+
+        summary = analyzer.get_summary()
+        assert "[8d old]" in summary
+        assert "old_proj" in summary
+        assert "new_proj" in summary
+        assert "[2d old]" not in summary
+
+    def test_git_activity_updates_last_modified(self, tmp_path, monkeypatch):
+        from datetime import datetime
+
+        from fixos.diagnostics.dev_project_analyzer import DevProjectAnalyzer
+
+        project = tmp_path / "my_project"
+        git_dir = project / ".git"
+        git_dir.mkdir(parents=True)
+        dep_dir = project / "node_modules"
+        dep_dir.mkdir()
+        (project / "package.json").write_text("{}")
+
+        old_mtime = time.time() - (20 * 86400)
+        os.utime(dep_dir, (old_mtime, old_mtime))
+
+        git_index = git_dir / "index"
+        git_index.write_text("dummy")
+        recent_mtime = time.time() - 3600
+        os.utime(git_index, (recent_mtime, recent_mtime))
+
+        monkeypatch.setattr(DevProjectAnalyzer, "_get_dir_size", lambda self, path: 1024)
+
+        analyzer = DevProjectAnalyzer(str(tmp_path))
+        dep = analyzer._check_dependency_folder(dep_dir)
+        assert dep is not None
+        assert dep.last_modified is not None
+        assert (datetime.now() - dep.last_modified).days == 0
+
+    def test_batch_measure_caches_results(self, tmp_path, monkeypatch):
+        from unittest.mock import MagicMock
+
+        from fixos.diagnostics.dev_project_analyzer import DevProjectAnalyzer
+
+        d1 = tmp_path / "d1"
+        d1.mkdir()
+        d2 = tmp_path / "d2"
+        d2.mkdir()
+
+        mock_batch = MagicMock(
+            return_value={
+                str(d1.resolve()): {"bytes": 1000, "mtime_ns": 100},
+                str(d2.resolve()): {"bytes": 2000, "mtime_ns": 200},
+            }
+        )
+        monkeypatch.setattr("fixos.diagnostics.native_scan.measure_batch", mock_batch)
+
+        analyzer = DevProjectAnalyzer(str(tmp_path))
+        results = analyzer._batch_measure([d1, d2])
+        assert len(results) == 2
+        mock_batch.assert_called_once()
+        assert analyzer._get_dir_size(d1) == 1000
+        assert analyzer._get_dir_size(d2) == 2000
+
+
+class TestDiskAnalyzerBoundedExecution:
+    def test_newest_file_date_uses_measure_tree(self, tmp_path, monkeypatch):
+        from datetime import datetime
+        from unittest.mock import MagicMock
+
+        from fixos.diagnostics.disk_analyzer import DiskAnalyzer
+
+        test_dir = tmp_path / "logs"
+        test_dir.mkdir()
+
+        ts_ns = int(
+            datetime(2026, 10, 20, 12, 0, tzinfo=timezone.utc).timestamp() * 1e9
+        )
+        mock_measure = MagicMock(return_value={"mtime_ns": ts_ns})
+        monkeypatch.setattr("fixos.diagnostics.native_scan.measure_tree", mock_measure)
+
+        analyzer = DiskAnalyzer()
+        res = analyzer._get_newest_file_date(test_dir)
+        assert "2026-10-20" in res
+        mock_measure.assert_called_once()
+
+    def test_bounded_walk_never_calls_rglob(self, tmp_path, monkeypatch):
+        from pathlib import Path
+        from unittest.mock import MagicMock
+
+        from fixos.diagnostics.disk_analyzer import DiskAnalyzer
+
+        test_dir = tmp_path / "deep_logs"
+        test_dir.mkdir()
+        (test_dir / "test.log").write_text("log line")
+
+        def fail_rglob(*args, **kwargs):
+            raise AssertionError("rglob must not be called")
+
+        monkeypatch.setattr(Path, "rglob", fail_rglob)
+        monkeypatch.setattr(
+            "fixos.diagnostics.native_scan.measure_tree",
+            MagicMock(side_effect=OSError("no native")),
+        )
+
+        analyzer = DiskAnalyzer()
+        oldest = analyzer._get_oldest_file_date(test_dir)
+        newest = analyzer._get_newest_file_date(test_dir)
+        assert oldest != "unknown"
+        assert newest != "unknown"
+
+    def test_bounded_walk_respects_max_depth_and_max_files(
+        self, tmp_path, monkeypatch
+    ):
+        from unittest.mock import MagicMock
+
+        from fixos.diagnostics.disk_analyzer import DiskAnalyzer
+
+        monkeypatch.setattr(
+            "fixos.diagnostics.native_scan.measure_tree",
+            MagicMock(side_effect=OSError("no native")),
+        )
+        base = tmp_path / "logs"
+        deep = base / "l1" / "l2" / "l3" / "l4" / "l5"
+        deep.mkdir(parents=True)
+        (deep / "very_deep.log").write_text("deep")
+
+        analyzer = DiskAnalyzer()
+        res = analyzer._get_oldest_file_date(base, max_depth=2)
+        assert res == "unknown"
+
+        res = analyzer._get_oldest_file_date(base, max_depth=6)
+        assert res != "unknown"
 

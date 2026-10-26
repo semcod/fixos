@@ -12,14 +12,16 @@ bezpiecznie usunąć i odtworzyć później:
 - .mypy_cache (type checker cache)
 """
 
+import contextlib
 import os
 import subprocess
-from pathlib import Path
-from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Any, ClassVar
 
 from fixos.diagnostics.utils import format_size as _format_size
+
 from ..constants import (
     DEV_PROJECT_MAX_DEPTH,
     DEV_PROJECT_MIN_SIZE_MB,
@@ -37,11 +39,11 @@ class ProjectDependency:
     size_bytes: int
     dep_type: str  # node_modules, venv, target, etc.
     project_name: str
-    last_modified: Optional[datetime]
+    last_modified: datetime | None
     can_recreate: bool
     recreate_command: str
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "name": self.name,
             "path": self.path,
@@ -74,7 +76,7 @@ class DevProjectAnalyzer:
     """
 
     # Dependency folder patterns with recreate commands
-    DEP_PATTERNS = {
+    DEP_PATTERNS: ClassVar[dict[str, dict[str, Any]]] = {
         # Node.js
         "node_modules": {
             "indicators": [
@@ -193,12 +195,13 @@ class DevProjectAnalyzer:
         },
     }
 
-    def __init__(self, home_dir: Optional[str] = None):
+    def __init__(self, home_dir: str | None = None):
         self.home_dir = Path(home_dir or os.path.expanduser("~"))
-        self.dependencies: List[ProjectDependency] = []
+        self.dependencies: list[ProjectDependency] = []
         self.total_size = 0
+        self._measure_cache: dict[str, dict] = {}
 
-    def analyze(self, max_depth: int = DEV_PROJECT_MAX_DEPTH) -> Dict[str, Any]:
+    def analyze(self, max_depth: int = DEV_PROJECT_MAX_DEPTH) -> dict[str, Any]:
         """
         Scan home directory for dependency folders.
 
@@ -248,7 +251,7 @@ class DevProjectAnalyzer:
             "total_size_human": ProjectDependency._format_size(self.total_size),
             "total_count": len(self.dependencies),
             "projects_affected": len(
-                set(dep.project_name for dep in self.dependencies)
+                {dep.project_name for dep in self.dependencies}
             ),
         }
 
@@ -278,12 +281,10 @@ class DevProjectAnalyzer:
                 # Recurse into subdirectories
                 self._scan_directory(item, max_depth, current_depth + 1)
 
-        except PermissionError:
-            pass
-        except Exception:
+        except OSError:
             pass
 
-    def _check_dependency_folder(self, folder: Path) -> Optional[ProjectDependency]:
+    def _check_dependency_folder(self, folder: Path) -> ProjectDependency | None:
         """Check if folder is a dependency folder and return info"""
         folder_name = folder.name
 
@@ -311,10 +312,7 @@ class DevProjectAnalyzer:
         size_bytes = self._get_dir_size(folder)
 
         # Get last modified time
-        try:
-            last_modified = datetime.fromtimestamp(folder.stat().st_mtime)
-        except Exception:
-            last_modified = None
+        last_modified = self._get_last_modified(folder)
 
         # Get project name (parent directory)
         project_name = folder.parent.name
@@ -342,22 +340,99 @@ class DevProjectAnalyzer:
             recreate_command=recreate_command,
         )
 
+    def _get_last_modified(self, folder: Path) -> datetime | None:
+        """Get last modified time considering directory mtime, native scan, and git/project activity."""
+        mtimes: list[float] = []
+
+        with contextlib.suppress(OSError):
+            mtimes.append(folder.stat().st_mtime)
+
+        cached = self._measure_cache.get(str(folder))
+        if not cached:
+            with contextlib.suppress(OSError):
+                cached = self._measure_cache.get(str(folder.resolve()))
+        if cached and cached.get("mtime_ns", 0) > 0:
+            mtimes.append(cached["mtime_ns"] / 1e9)
+
+        parent = folder.parent
+        for git_rel in (".git/index", ".git/HEAD", ".git/FETCH_HEAD"):
+            try:
+                git_path = parent / git_rel
+                if git_path.exists():
+                    mtimes.append(git_path.stat().st_mtime)
+            except OSError:
+                pass
+
+        for indicator in (
+            "pyproject.toml",
+            "package.json",
+            "Cargo.toml",
+            "go.mod",
+            "pom.xml",
+            "build.gradle",
+        ):
+            try:
+                ind_path = parent / indicator
+                if ind_path.exists():
+                    mtimes.append(ind_path.stat().st_mtime)
+            except OSError:
+                pass
+
+        if mtimes:
+            return datetime.fromtimestamp(max(mtimes))
+        return None
+
+    def _batch_measure(self, folders: list[Path]) -> dict[str, dict]:
+        """Batch-measure dependency folders using native_scan.measure_batch if available."""
+        if not folders:
+            return {}
+        try:
+            from fixos.diagnostics.native_scan import measure_batch
+
+            results = measure_batch(folders, native=True, python_fallback=False)
+            if results:
+                self._measure_cache.update(results)
+                return results
+        except (OSError, ValueError, TypeError, subprocess.SubprocessError):
+            pass
+        return {}
+
     def _get_dir_size(self, path: Path) -> int:
-        """Get directory size using du"""
+        """Get directory size in bytes using native measure_tree, with du fallback."""
+        key = str(path)
+        if key in self._measure_cache:
+            m = self._measure_cache[key]
+            if isinstance(m, dict) and "bytes" in m and m["bytes"] > 0:
+                return int(m["bytes"])
+
+        if not path.is_dir():
+            return 0
+
+        try:
+            from fixos.diagnostics.native_scan import measure_tree
+
+            m = measure_tree(path, native=True)
+            if isinstance(m, dict) and "bytes" in m and m["bytes"] > 0:
+                self._measure_cache[key] = m
+                return int(m["bytes"])
+        except (OSError, ValueError, TypeError, subprocess.SubprocessError):
+            pass
+
         try:
             result = subprocess.run(
                 ["du", "-sb", str(path)],
                 capture_output=True,
                 text=True,
                 timeout=FAST_COMMAND_TIMEOUT,
+                check=False,
             )
-            if result.returncode == 0:
+            if result.returncode == 0 and result.stdout.strip():
                 return int(result.stdout.split()[0])
-        except Exception:
+        except (OSError, ValueError, subprocess.SubprocessError):
             pass
         return 0
 
-    def _check_can_recreate(self, folder: Path, indicators: List[str]) -> bool:
+    def _check_can_recreate(self, folder: Path, indicators: list[str]) -> bool:
         """Check if dependency can be recreated (has indicator files)"""
         if not indicators:
             return True  # Always safe (like __pycache__)
@@ -376,7 +451,7 @@ class DevProjectAnalyzer:
 
     def get_old_dependencies(
         self, days: int = DEV_PROJECT_OLD_DAYS
-    ) -> List[ProjectDependency]:
+    ) -> list[ProjectDependency]:
         """Get dependencies not modified in X days"""
         cutoff = datetime.now() - timedelta(days=days)
         return [
@@ -387,7 +462,7 @@ class DevProjectAnalyzer:
 
     def get_large_dependencies(
         self, min_size_mb: int = DEV_PROJECT_MIN_SIZE_MB
-    ) -> List[ProjectDependency]:
+    ) -> list[ProjectDependency]:
         """Get dependencies larger than X MB"""
         min_bytes = min_size_mb * 1024 * 1024
         return [dep for dep in self.dependencies if dep.size_bytes >= min_bytes]
@@ -425,7 +500,7 @@ class DevProjectAnalyzer:
                 days = ""
                 if dep.last_modified:
                     days_old = (datetime.now() - dep.last_modified).days
-                    if days_old > 30:
+                    if days_old >= DEV_PROJECT_OLD_DAYS:
                         days = f" [{days_old}d old]"
                 lines.append(
                     f"  • {dep.project_name}: {ProjectDependency._format_size(dep.size_bytes)}{days}"
@@ -440,7 +515,7 @@ class DevProjectAnalyzer:
 
         return "\n".join(lines)
 
-    def get_cleanup_commands(self) -> List[Dict[str, Any]]:
+    def get_cleanup_commands(self) -> list[dict[str, Any]]:
         """Get cleanup commands for each dependency"""
         commands = []
 

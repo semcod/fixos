@@ -1,0 +1,104 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-107",
+  "summary": "Accelerate DevProjectAnalyzer and DiskAnalyzer with fixos-native measurement and 7d activity checks",
+  "workstream": "application",
+  "classification": {
+    "kind": "SERVICE",
+    "priority": "P2",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-107/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/diagnostics/dev_project_analyzer.py",
+    "fixos/diagnostics/disk_analyzer.py",
+    "tests/unit/test_project_scanner.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [
+    "python"
+  ],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "98e8f0214df0900ff3dc16b8a42a102de5e67e3e",
+    "targetBranch": "main",
+    "outcome": "Accelerate DevProjectAnalyzer and DiskAnalyzer using fixos-native tree and batch measurements, git and source activity checks, and bounded log walks, replacing unbounded rglob walks and 30-day hardcoded threshold.",
+    "nonGoals": [
+      "No changes to deletion safety boundaries or deletion authority",
+      "No destructive actions without explicit confirmation"
+    ],
+    "complexity": "M",
+    "estimatedMinutes": 30,
+    "budgets": {
+      "maxImplementationFiles": 3,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "1. Update DevProjectAnalyzer._get_dir_size to use fixos.diagnostics.native_scan.measure_tree first with bounded du fallback, and inspect native mtime and git activity in _get_last_modified. 2. Replace hardcoded 30-day threshold in DevProjectAnalyzer.get_summary() with DEV_PROJECT_OLD_DAYS. 3. Replace unbounded rglob('*') in DiskAnalyzer._get_oldest_file_date and _get_newest_file_date with bounded os.walk and native_scan.measure_tree. 4. Add unit regression tests in test_project_scanner.py.",
+      "components": [
+        {
+          "name": "diagnostics",
+          "paths": [
+            "fixos/diagnostics/dev_project_analyzer.py",
+            "fixos/diagnostics/disk_analyzer.py"
+          ]
+        },
+        {
+          "name": "tests",
+          "paths": [
+            "tests/unit/test_project_scanner.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the commit via protected PR if needed."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "pytest tests/unit/test_project_scanner.py -k TestDevProjectAnalyzerRegression"
+        ],
+        "evidence": "DevProjectAnalyzer uses native scan and git activity."
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "pytest tests/unit/test_project_scanner.py -k test_7d_staleness_reporting_in_summary"
+        ],
+        "evidence": "DevProjectAnalyzer reports staleness for >= DEV_PROJECT_OLD_DAYS."
+      },
+      {
+        "criterion": "AC-03",
+        "commands": [
+          "pytest tests/unit/test_project_scanner.py -k TestDiskAnalyzerBoundedExecution"
+        ],
+        "evidence": "DiskAnalyzer oldest and newest file dates use native scan and bounded walks without rglob."
+      },
+      {
+        "criterion": "AC-04",
+        "commands": [
+          "pytest tests/unit/test_dev_project_analyzer.py tests/unit/test_disk_analyzer.py tests/unit/test_project_scanner.py"
+        ],
+        "evidence": "All focused unit tests pass cleanly."
+      }
+    ]
+  }
+}
