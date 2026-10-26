@@ -25,6 +25,7 @@ import psutil
 
 HISTORY_SCHEMA = "fixos-quick-history-v1"
 MAX_HISTORY_ITEMS = 192
+SAFE_DISK_FREE_BYTES = 50 * 1024**3
 
 
 @dataclass(frozen=True)
@@ -797,16 +798,30 @@ def _alerts(
     swap_warning = thresholds["swap_usage_warning"]
     cpu_warning = thresholds["cpu_usage_warning"]
     if disk["percent"] >= disk_critical:
-        alerts.append(
-            {
-                "resource": "disk",
-                "severity": "critical",
-                "message": (
-                    "Dysk systemowy przekroczył próg krytyczny "
-                    f"{disk_critical:.0f}%."
-                ),
-            }
-        )
+        free_bytes = disk.get("free_bytes", 0)
+        if free_bytes >= SAFE_DISK_FREE_BYTES:
+            free_gb = free_bytes / 1024**3
+            alerts.append(
+                {
+                    "resource": "disk",
+                    "severity": "warning",
+                    "message": (
+                        "Dysk systemowy przekroczył próg krytyczny "
+                        f"{disk_critical:.0f}%, ale pozostało {free_gb:.1f} GB wolnego."
+                    ),
+                }
+            )
+        else:
+            alerts.append(
+                {
+                    "resource": "disk",
+                    "severity": "critical",
+                    "message": (
+                        "Dysk systemowy przekroczył próg krytyczny "
+                        f"{disk_critical:.0f}%."
+                    ),
+                }
+            )
     elif disk["percent"] >= disk_warning:
         alerts.append(
             {

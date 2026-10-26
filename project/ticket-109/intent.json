@@ -1,0 +1,81 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-109",
+  "summary": "fix(quick): suppress false-positive critical disk alert when absolute free space exceeds safe threshold on multi-TB filesystems",
+  "workstream": "application",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P2",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-109/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/diagnostics/quick_snapshot.py",
+    "tests/unit/test_quick_snapshot.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [
+    "python"
+  ],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "f787fa4192b39fffd79aa781469dff405f640406",
+    "targetBranch": "main",
+    "outcome": "In fixos/diagnostics/quick_snapshot.py (_alerts), downgrade critical disk alerts to warning when disk['free_bytes'] >= 50 * 1024**3 (50 GiB) and include human-readable free GB in the alert message. Verified by unit tests in tests/unit/test_quick_snapshot.py covering small and multi-TB filesystems.",
+    "nonGoals": [
+      "Do not modify full fixos analysis or service scanner disk logic",
+      "Do not modify percentage threshold configuration profiles"
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 30,
+    "budgets": {
+      "maxImplementationFiles": 5,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "In _alerts, check disk free_bytes against SAFE_DISK_FREE_BYTES (50 GiB) before emitting critical disk alert. When free space exceeds safe threshold, emit warning severity with formatted free GB.",
+      "components": [
+        {
+          "name": "quick-snapshot",
+          "paths": [
+            "fixos/diagnostics/quick_snapshot.py"
+          ]
+        },
+        {
+          "name": "tests",
+          "paths": [
+            "tests/unit/test_quick_snapshot.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert ticket-109 commit."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "pytest tests/unit/test_quick_snapshot.py -q"
+        ],
+        "evidence": "project/ticket-109/README.md"
+      }
+    ]
+  }
+}
