@@ -95,6 +95,35 @@ def test_empty_queue_does_not_claim_unactionable_problems_were_fixed(
     assert re.search(r"Udane operacje:\s*0", output)
 
 
+def test_quick_alerts_and_commandless_findings_are_recorded_in_problems_found(
+    session_factory, capsys
+):
+    session = session_factory(
+        diagnostics={
+            "_run_plugins": False,
+            "quick": {
+                "alerts": [
+                    {
+                        "resource": "disk",
+                        "severity": "critical",
+                        "message": "Dysk systemowy przekroczył próg krytyczny 95%.",
+                    }
+                ],
+                "findings": [
+                    {
+                        "title": "Mało miejsca na partycji",
+                        "severity": "warning",
+                    }
+                ],
+            },
+        }
+    )
+    report = session.run()
+    assert "Dysk systemowy przekroczył próg krytyczny 95%." in report.problems_found
+    assert "Mało miejsca na partycji" in report.problems_found
+    assert len(report.problems_found) == 2
+
+
 @pytest.mark.parametrize("use_llm", [False, True])
 def test_dry_run_never_executes_commands_in_either_mode(
     session_factory, capsys, use_llm

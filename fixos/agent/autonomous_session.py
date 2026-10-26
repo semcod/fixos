@@ -312,18 +312,29 @@ class AutonomousSession:
 
         diag = self.diagnostics if isinstance(self.diagnostics, dict) else {}
 
-        # 1. Inspect findings already present in diagnostics dict
+        # 1. Inspect findings and alerts already present in diagnostics dict
         for key, val in diag.items():
             if isinstance(val, dict):
                 for item in val.get("findings", []) or val.get("problems", []) or []:
-                    if isinstance(item, dict) and item.get("command"):
+                    if isinstance(item, dict):
                         sev = str(item.get("severity", "warning")).lower()
+                        title = str(item.get("title") or item.get("description") or key)
                         if sev in ("critical", "warning", "high", "error"):
-                            _add_candidate(
-                                str(item["command"]),
-                                str(item.get("title") or item.get("description") or key),
-                                sev,
-                            )
+                            if title and title not in self.report.problems_found:
+                                self.report.problems_found.append(title)
+                            if item.get("command"):
+                                _add_candidate(str(item["command"]), title, sev)
+                if key == "quick" or "alerts" in val:
+                    for alert in val.get("alerts", []):
+                        if isinstance(alert, dict):
+                            msg = alert.get("message") or alert.get("resource")
+                            sev = str(alert.get("severity", "warning")).lower()
+                            if (
+                                sev in ("critical", "warning", "high", "error")
+                                and msg
+                                and msg not in self.report.problems_found
+                            ):
+                                self.report.problems_found.append(msg)
 
         # 2. Run offline diagnostic plugins if no findings were pre-populated
         if not actions and diag.get("_run_plugins", True) is not False:
@@ -335,15 +346,19 @@ class AutonomousSession:
                 registry.discover()
                 for res in registry.run():
                     for finding in res.findings:
-                        if finding.command and finding.severity in (
+                        if finding.severity in (
                             Severity.CRITICAL,
                             Severity.WARNING,
                         ):
-                            _add_candidate(
-                                finding.command,
-                                f"{finding.title}: {finding.description}",
-                                finding.severity.value,
-                            )
+                            ftitle = f"{finding.title}: {finding.description}"
+                            if ftitle not in self.report.problems_found:
+                                self.report.problems_found.append(ftitle)
+                            if finding.command:
+                                _add_candidate(
+                                    finding.command,
+                                    ftitle,
+                                    finding.severity.value,
+                                )
             except Exception:  # noqa: BLE001, S110
                 pass
 
