@@ -49,6 +49,7 @@
           "CHANGELOG.md",
           ".env.example",
           "goal.yaml",
+          "planfile.yaml",
           "project.sh",
           "project.bat",
           "project/**",

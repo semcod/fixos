@@ -1,0 +1,80 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-103",
+  "summary": "Allow planfile.yaml in governance workstream and fix corrupted trailing YAML block",
+  "workstream": "governance",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P1",
+    "origin": "regression"
+  },
+  "allowedPaths": [
+    "project/ticket-103/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    ".governance/manifest.json",
+    "planfile.yaml"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "20b37e0d290e4adbefd3fa8369ca1c6051eb4f56",
+    "targetBranch": "main",
+    "outcome": "Remove the truncated duplicate trailing block in planfile.yaml that caused yaml.scanner.ScannerError during Monag/Willman intake observation, and declare planfile.yaml under governance ownedPaths in .governance/manifest.json.",
+    "nonGoals": [
+      "No changes to application runtime or cleanup modules"
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 20,
+    "budgets": {
+      "maxImplementationFiles": 2,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Register planfile.yaml in .governance/manifest.json governance workstream ownedPaths and strip the corrupted 12-line tail in planfile.yaml.",
+      "components": [
+        {
+          "name": "governance-planfile",
+          "paths": [
+            ".governance/manifest.json",
+            "planfile.yaml"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the commit via protected PR if needed."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python3 -c \"import yaml; yaml.safe_load(open('planfile.yaml'))\""
+        ],
+        "evidence": "planfile.yaml parses cleanly with yaml.safe_load without ScannerError."
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "./project/governance-check.sh"
+        ],
+        "evidence": "Governance check passes with 0 errors and 0 warnings."
+      }
+    ]
+  }
+}

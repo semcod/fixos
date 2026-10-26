@@ -110,15 +110,7 @@ class FixOrchestrator:
         self.max_iterations = max_iterations
         self.use_llm = use_llm
         self.session_id = f"orch_{uuid.uuid4().hex[:8]}"
-        if self.use_llm is False:
-            self.llm = None
-        else:
-            try:
-                self.llm = LLMClient(config)
-            except LLMError:
-                if self.use_llm is True:
-                    raise
-                self.llm = None
+        self.llm = LLMClient(config)
         self.executor = executor or CommandExecutor(
             default_timeout=120,
             require_confirmation=(config.agent_mode == "hitl" and not dry_run),
@@ -206,8 +198,6 @@ class FixOrchestrator:
         )
 
         try:
-            if self.llm is None:
-                self.llm = LLMClient(self.config)
             raw = self.llm.chat(
                 [{"role": "user", "content": prompt}],
                 max_tokens=2000,
@@ -380,8 +370,6 @@ class FixOrchestrator:
         )
 
         try:
-            if self.llm is None:
-                self.llm = LLMClient(self.config)
             raw = self.llm.chat(
                 [{"role": "user", "content": prompt}],
                 max_tokens=1000,
