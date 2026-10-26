@@ -1,7 +1,7 @@
 """Tests for fixos.cli._cleanup_space disk-reclaim handlers."""
 
-from pathlib import Path
 import subprocess
+from pathlib import Path
 
 import click
 from click.testing import CliRunner
