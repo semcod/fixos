@@ -148,7 +148,15 @@ class AutonomousSession:
         self.use_llm = use_llm
         self.dry_run = dry_run
         self._heuristic_queue: list[dict[str, Any]] | None = None
-        self.llm = LLMClient(config)
+        if self.use_llm is False:
+            self.llm = None
+        else:
+            try:
+                self.llm = LLMClient(config)
+            except LLMError:
+                if self.use_llm is True:
+                    raise
+                self.llm = None
         self.report = AgentReport()
         self.fix_count = 0
         self.search_count = 0
@@ -397,6 +405,8 @@ class AutonomousSession:
     def _query_llm(self) -> str | None:
         """Query LLM and return reply."""
         try:
+            if self.llm is None:
+                self.llm = LLMClient(self.config)
             return self.llm.chat(
                 self.messages, max_tokens=DEFAULT_TOKEN_LIMIT, temperature=0.1
             )
