@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# ruff: noqa: EXE001,I001,UP035,RUF013,UP006,BLE001,RUF010,S110,RUF012
+# ruff: noqa: EXE001, I001, UP017, UP035, RUF013, UP006, BLE001, RUF010, S110, RUF012
 """
 Disk Analyzer Module for fixOS
 Analyzes disk usage and groups cleanup causes
@@ -26,6 +26,8 @@ from ..constants import (
     CACHE_SIZE_HIGH_MB,
     CACHE_SIZE_MEDIUM_MB,
 )
+
+UTC = timezone.utc
 
 
 class DiskAnalyzer:
@@ -95,7 +97,7 @@ class DiskAnalyzer:
                     log_dirs=log_dirs,
                     temp_dirs=temp_dirs,
                 ),
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
             }
 
             return analysis
@@ -137,7 +139,7 @@ class DiskAnalyzer:
                                     "size_mb": round(size_mb, 2),
                                     "size_gb": round(size_mb / 1024, 3),
                                     "modified": datetime.fromtimestamp(
-                                        st.st_mtime, tz=timezone.utc
+                                        st.st_mtime, tz=UTC
                                     ).isoformat(),
                                     "category": self._categorize_file(file_path),
                                 }
@@ -566,32 +568,83 @@ class DiskAnalyzer:
         else:
             return "unknown"
 
-    def _get_oldest_file_date(self, dir_path: Path) -> str:
-        """Get oldest file date in directory"""
+    def _get_oldest_file_date(
+        self, dir_path: Path, max_depth: int = 4, max_files: int = 5000
+    ) -> str:
+        """Get oldest file date in directory with bounded depth and file limits."""
+        dir_path = Path(dir_path)
+        if not dir_path.is_dir():
+            return "unknown"
+
         oldest_time = None
+        count = 0
         try:
-            for file_path in dir_path.rglob("*"):
-                if file_path.is_file():
-                    mtime = file_path.stat().st_mtime
-                    if oldest_time is None or mtime < oldest_time:
-                        oldest_time = mtime
+            base_depth = len(dir_path.parts)
+            for dirpath, dirnames, filenames in os.walk(dir_path):
+                depth = len(Path(dirpath).parts) - base_depth
+                if depth >= max_depth:
+                    dirnames.clear()
+                for filename in filenames:
+                    count += 1
+                    if count > max_files:
+                        break
+                    file_path = Path(dirpath) / filename
+                    try:
+                        mtime = file_path.stat().st_mtime
+                        if oldest_time is None or mtime < oldest_time:
+                            oldest_time = mtime
+                    except (OSError, PermissionError):
+                        continue
+                if count > max_files:
+                    break
             if oldest_time:
-                return datetime.fromtimestamp(oldest_time, tz=timezone.utc).isoformat()
+                return datetime.fromtimestamp(oldest_time, tz=UTC).isoformat()
         except Exception:
             pass
         return "unknown"
 
-    def _get_newest_file_date(self, dir_path: Path) -> str:
-        """Get newest file date in directory"""
-        newest_time = None
+    def _get_newest_file_date(
+        self, dir_path: Path, max_depth: int = 4, max_files: int = 5000
+    ) -> str:
+        """Get newest file date in directory with native_scan and bounded fallback."""
+        dir_path = Path(dir_path)
+        if not dir_path.is_dir():
+            return "unknown"
+
         try:
-            for file_path in dir_path.rglob("*"):
-                if file_path.is_file():
-                    mtime = file_path.stat().st_mtime
-                    if newest_time is None or mtime > newest_time:
-                        newest_time = mtime
+            from fixos.diagnostics.native_scan import measure_tree
+
+            m = measure_tree(dir_path, native=True)
+            if isinstance(m, dict) and m.get("mtime_ns", 0) > 0:
+                return datetime.fromtimestamp(
+                    m["mtime_ns"] / 1e9, tz=UTC
+                ).isoformat()
+        except (OSError, ValueError, TypeError, subprocess.SubprocessError):
+            pass
+
+        newest_time = None
+        count = 0
+        try:
+            base_depth = len(dir_path.parts)
+            for dirpath, dirnames, filenames in os.walk(dir_path):
+                depth = len(Path(dirpath).parts) - base_depth
+                if depth >= max_depth:
+                    dirnames.clear()
+                for filename in filenames:
+                    count += 1
+                    if count > max_files:
+                        break
+                    file_path = Path(dirpath) / filename
+                    try:
+                        mtime = file_path.stat().st_mtime
+                        if newest_time is None or mtime > newest_time:
+                            newest_time = mtime
+                    except (OSError, PermissionError):
+                        continue
+                if count > max_files:
+                    break
             if newest_time:
-                return datetime.fromtimestamp(newest_time, tz=timezone.utc).isoformat()
+                return datetime.fromtimestamp(newest_time, tz=UTC).isoformat()
         except Exception:
             pass
         return "unknown"
