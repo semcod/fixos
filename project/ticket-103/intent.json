@@ -23,7 +23,7 @@
   "conflictsWith": [],
   "integrationTicket": null,
   "delivery": {
-    "acceptedBaseSha": "20b37e0d290e4adbefd3fa8369ca1c6051eb4f56",
+    "acceptedBaseSha": "95a84c6ac11ae725cf8918370b70117b64df75ca",
     "targetBranch": "main",
     "outcome": "Remove the truncated duplicate trailing block in planfile.yaml that caused yaml.scanner.ScannerError during Monag/Willman intake observation, and declare planfile.yaml under governance ownedPaths in .governance/manifest.json.",
     "nonGoals": [

@@ -21,6 +21,7 @@ def _no_llm_config() -> FixOsConfig:
         api_key="",
         model="gemini-2.5-flash",
         base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+        gemini_transport="native",
         agent_mode="autonomous",
         session_timeout=30,
         show_anonymized_data=False,
@@ -100,6 +101,22 @@ class TestAutonomousSessionNoLLM:
         mock_exec.assert_not_called()
         assert len(report.fixes_applied) == 1
         assert report.fixes_applied[0].result == "[DRY-RUN]"
+
+    def test_autonomous_session_native_gemini_without_key_falls_back_when_use_llm_none(self):
+        cfg = _no_llm_config()
+        session = AutonomousSession(
+            diagnostics={"_run_plugins": False},
+            config=cfg,
+            show_data=False,
+            max_fixes=1,
+            auto_confirm=True,
+            use_llm=None,
+            dry_run=True,
+        )
+        assert session.llm is None
+        assert session._is_llm_active() is False
+        report = session.run()
+        assert report.fixes_applied == []
 
 
 class TestFixosAutoCommand:
