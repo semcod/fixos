@@ -1,0 +1,81 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-108",
+  "summary": "Handle root-owned project artifacts in projects-old cleanup with bounded non-interactive sudo fallback",
+  "workstream": "application",
+  "classification": {
+    "kind": "FEATURE",
+    "priority": "P2",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-108/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/cli/_cleanup_space.py",
+    "tests/unit/test_cleanup_space.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [
+    "python"
+  ],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "0ca688a1977bc9f8948b75404f308299f70b82b1",
+    "targetBranch": "main",
+    "outcome": "Handle root-owned project artifacts in projects-old cleanup with bounded non-interactive sudo fallback",
+    "nonGoals": [
+      "Do not follow symlinks or escape project root",
+      "Do not remove non-project files"
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 30,
+    "budgets": {
+      "maxImplementationFiles": 5,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Validate root-owned project artifacts with _project_artifact_allowed and attempt bounded sudo -n removal or emit remediation command when PermissionError occurs in projects-old cleanup.",
+      "components": [
+        {
+          "name": "cleanup-space",
+          "paths": [
+            "fixos/cli/_cleanup_space.py"
+          ]
+        },
+        {
+          "name": "tests",
+          "paths": [
+            "tests/unit/test_cleanup_space.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert ticket-108 commit via protected publication."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "pytest tests/unit/test_cleanup_space.py -q"
+        ],
+        "evidence": "project/ticket-108/README.md"
+      }
+    ]
+  }
+}

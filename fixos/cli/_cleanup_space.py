@@ -10,6 +10,7 @@ Handler signature: ``fn(json_output, dry_run, list_only, yes)``.
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -151,6 +152,7 @@ def _confirm_remove() -> bool:
 
 
 def _remove_path(path: Path) -> tuple[bool, str]:
+    path = Path(path)
     try:
         if path.is_symlink() or path.is_file():
             path.unlink()
@@ -160,6 +162,8 @@ def _remove_path(path: Path) -> tuple[bool, str]:
     except PermissionError as exc:
         return False, f"PERMISSION_DENIED:{exc}"
     except OSError as exc:
+        if exc.errno in (1, 13) or "permission denied" in str(exc).lower():
+            return False, f"PERMISSION_DENIED:{exc}"
         if path.is_dir() and not path.is_symlink():
             shutil.rmtree(path, ignore_errors=True)
             if not path.exists():
@@ -224,6 +228,195 @@ def _batch_sudo_remove_tmp(items: list[dict], path_key: str = "path") -> tuple[i
     return removed, freed
 
 
+def _project_artifact_allowed(
+    path: Path | str | dict[str, Any],
+    project_root: Path | str | None = None,
+) -> bool:
+    """Strictly validate that path is a safe project artifact directory inside project_root.
+
+    The path must:
+    - be an existing directory,
+    - not be a symlink (neither the artifact itself nor any ancestor up to project root),
+    - resolve strictly inside resolved project root (not equal to project root, not escaping),
+    - not be a mount point and contain no nested mounts,
+    - have the same filesystem device as project root.
+    """
+    if isinstance(path, dict):
+        if project_root is None:
+            project_root = path.get("project")
+        path = path.get("path")
+
+    if path is None:
+        return False
+
+    try:
+        path = Path(path)
+        if project_root is None:
+            project_root = path.parent
+        else:
+            project_root = Path(project_root)
+    except (TypeError, ValueError, OSError):
+        return False
+
+    # Path and project_root must be existing directories and not symlinks
+    if path.is_symlink() or project_root.is_symlink():
+        return False
+    if not path.is_dir() or not project_root.is_dir():
+        return False
+
+    # Disallow forbidden critical names
+    if path.name in (".git", "", ".", ".."):
+        return False
+
+    # Check structural relationship before resolving
+    try:
+        rel = path.absolute().relative_to(project_root.absolute())
+    except ValueError:
+        return False
+
+    if rel == Path(".") or not rel.parts:
+        return False
+
+    # Ensure no symlinks in path segments from project_root down to path
+    curr = project_root.absolute()
+    for part in rel.parts:
+        curr = curr / part
+        if curr.is_symlink():
+            return False
+
+    # Check fully resolved paths to prevent symlink traversal or escaping
+    try:
+        resolved_proj = project_root.resolve()
+        resolved_path = path.resolve()
+    except (OSError, RuntimeError):
+        return False
+
+    if resolved_path.is_symlink() or resolved_proj.is_symlink():
+        return False
+
+    try:
+        rel_resolved = resolved_path.relative_to(resolved_proj)
+    except ValueError:
+        return False
+
+    if rel_resolved == Path(".") or not rel_resolved.parts:
+        return False
+
+    # Check plain path
+    from fixos.diagnostics.venv_cleanup import _plain_path
+    if not _plain_path(resolved_path):
+        return False
+
+    # Check mount points
+    if path.is_mount() or resolved_path.is_mount():
+        return False
+
+    # Check filesystem devices
+    try:
+        dev_art = path.stat().st_dev
+        dev_proj = project_root.stat().st_dev
+        if dev_art != dev_proj:
+            return False
+    except OSError:
+        pass
+
+    # Check nested mounts inside path
+    try:
+        device = path.stat().st_dev
+        for parent, dirs, _ in os.walk(path, followlinks=False):
+            for name in dirs:
+                child = Path(parent) / name
+                if child.is_symlink():
+                    continue
+                if child.is_mount():
+                    return False
+                try:
+                    if child.stat().st_dev != device:
+                        return False
+                except OSError:
+                    pass
+    except OSError:
+        pass
+
+    # Check system mount points via psutil if available
+    try:
+        import psutil
+        mounts = {Path(part.mountpoint).resolve() for part in psutil.disk_partitions(all=True)}
+        if any(m == resolved_path or resolved_path in m.parents for m in mounts):
+            return False
+    except (ImportError, OSError, RuntimeError, ValueError):
+        pass
+
+    return True
+
+
+def _batch_sudo_remove_project_artifacts(
+    items: list[dict], path_key: str = "path"
+) -> tuple[int, int, list[dict]]:
+    """Remove root-owned stale project artifacts in batches using non-interactive sudo if available.
+
+    Only items that pass strict `_project_artifact_allowed` validation are removed.
+    Returns (removed_count, freed_bytes, unhandled_items).
+    """
+    if not items:
+        return 0, 0, []
+
+    project_items: list[dict] = []
+    for item in items:
+        p = Path(item[path_key])
+        if p.parent == Path("/tmp"):
+            continue
+        if "project" in item or (p.parent != Path("/") and p.parent != Path(".")):
+            project_items.append(item)
+
+    if not project_items:
+        return 0, 0, []
+
+    validated_safe: list[dict] = []
+    unhandled: list[dict] = []
+
+    for item in project_items:
+        p = Path(item[path_key])
+        proj = item.get("project") or p.parent
+        if _project_artifact_allowed(p, proj):
+            validated_safe.append(item)
+        else:
+            unhandled.append(item)
+            click.echo(
+                click.style(
+                    f"  Pominięto usuwanie sudo dla {item.get('description', str(p))}: "
+                    f"ścieżka nie przeszła weryfikacji bezpieczeństwa (symlink lub punkt montowania)",
+                    fg="yellow",
+                )
+            )
+
+    if not validated_safe:
+        return 0, 0, unhandled
+
+    if shutil.which("sudo") is None:
+        unhandled.extend(validated_safe)
+        return 0, 0, unhandled
+
+    removed = 0
+    freed = 0
+    chunk_size = 50
+    for start in range(0, len(validated_safe), chunk_size):
+        chunk = validated_safe[start : start + chunk_size]
+        cmd = ["sudo", "-n", "rm", "-rf", "--", *[str(it[path_key]) for it in chunk]]
+        try:
+            res = _run_cmd(cmd, timeout=60)
+            if res.returncode == 0:
+                removed += len(chunk)
+                freed += sum(int(it.get("size_bytes", 0) or 0) for it in chunk)
+            else:
+                unhandled.extend(chunk)
+        except (OSError, subprocess.TimeoutExpired):
+            unhandled.extend(chunk)
+            break
+
+    return removed, freed, unhandled
+
+
 def _remove_selected(
     candidates: list[dict], selected: list[int], path_key: str = "path"
 ) -> None:
@@ -258,6 +451,55 @@ def _remove_selected(
                     click.style(
                         f"  Usunięto przez sudo (/tmp): {sudo_removed} pozycji ({_format_bytes(sudo_freed)})",
                         fg="green",
+                    )
+                )
+
+        proj_removed, proj_freed, unhandled_proj = _batch_sudo_remove_project_artifacts(
+            perm_denied_items, path_key=path_key
+        )
+        if proj_removed > 0:
+            removed_count += proj_removed
+            freed_bytes += proj_freed
+            failed_count = max(0, failed_count - proj_removed)
+            if verbose:
+                click.echo(
+                    click.style(
+                        f"  Usunięto przez sudo (projekty): {proj_removed} pozycji ({_format_bytes(proj_freed)})",
+                        fg="green",
+                    )
+                )
+        if unhandled_proj:
+            click.echo(
+                click.style(
+                    f"  Brak uprawnień (PermissionError) dla {len(unhandled_proj)} artefaktów projektów:",
+                    fg="yellow",
+                )
+            )
+            for it in unhandled_proj[:_MAX_DISPLAY_CANDIDATES]:
+                click.echo(
+                    click.style(
+                        f"    - {it.get('description', it.get(path_key))}: {it.get(path_key)}",
+                        fg="yellow",
+                    )
+                )
+            remediation_paths = [
+                str(it[path_key])
+                for it in unhandled_proj
+                if not Path(it[path_key]).is_symlink() and not Path(it[path_key]).is_mount()
+            ]
+            if remediation_paths:
+                click.echo(
+                    click.style(
+                        "  Polecenie naprawcze (uruchom ręcznie z sudo):",
+                        fg="cyan",
+                    )
+                )
+                paths_arg = " ".join(f"'{p}'" if " " in p else p for p in remediation_paths[:20])
+                click.echo(
+                    click.style(
+                        f"    sudo rm -rf -- {paths_arg}",
+                        fg="cyan",
+                        bold=True,
                     )
                 )
     if not verbose:
