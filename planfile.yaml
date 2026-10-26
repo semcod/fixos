@@ -2436,15 +2436,3 @@ sprints:
     model_hints:
       planning: balanced
       implementation: balanced
-me: Fix ai-boilerplate issues
-    description: Resolve 2 ai-boilerplate issues in scripts/pyqual-calibrate.py
-    task_type: prefactor
-    priority: medium
-    estimate: 1d
-    files:
-    - scripts/pyqual-calibrate.py
-    rule_id: ai-boilerplate
-    count: 2
-    model_hints:
-      planning: balanced
-      implementation: balanced
