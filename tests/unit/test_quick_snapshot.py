@@ -268,3 +268,123 @@ def test_timed_out_cache_shows_last_complete_size():
     assert items[0]["last_complete_at"] == "t1"
     assert items[0]["complete"] is False
     assert "last_complete_at" not in items[1]
+
+
+def test_disk_critical_alert_downgrades_to_warning_on_multi_tb_filesystem():
+    resources = _resources()
+    total_bytes = 2 * 1024**4  # 2 TiB
+    free_bytes = 100 * 1024**3  # 100 GiB (>= 50 GiB threshold)
+    resources["disk"] = {
+        "mount": "/",
+        "total_bytes": total_bytes,
+        "used_bytes": total_bytes - free_bytes,
+        "free_bytes": free_bytes,
+        "percent": 95.1,
+    }
+    thresholds = quick_snapshot._profile_thresholds("developer")
+
+    alerts = quick_snapshot._alerts(
+        resources,
+        {"escalating": []},
+        thresholds,
+    )
+
+    disk_alerts = [a for a in alerts if a["resource"] == "disk"]
+    assert len(disk_alerts) == 1
+    alert = disk_alerts[0]
+    assert alert["severity"] == "warning"
+    assert "100.0 GB" in alert["message"]
+    assert "Dysk systemowy przekroczył próg krytyczny" in alert["message"]
+
+
+def test_disk_critical_alert_remains_critical_on_small_filesystem():
+    resources = _resources()
+    total_bytes = 100 * 1024**3  # 100 GiB
+    free_bytes = 4 * 1024**3  # 4 GiB (< 50 GiB threshold)
+    resources["disk"] = {
+        "mount": "/",
+        "total_bytes": total_bytes,
+        "used_bytes": total_bytes - free_bytes,
+        "free_bytes": free_bytes,
+        "percent": 96.0,
+    }
+    thresholds = quick_snapshot._profile_thresholds("developer")
+
+    alerts = quick_snapshot._alerts(
+        resources,
+        {"escalating": []},
+        thresholds,
+    )
+
+    disk_alerts = [a for a in alerts if a["resource"] == "disk"]
+    assert len(disk_alerts) == 1
+    alert = disk_alerts[0]
+    assert alert["severity"] == "critical"
+    assert alert["message"] == "Dysk systemowy przekroczył próg krytyczny 95%."
+
+
+def test_disk_critical_alert_safe_free_space_boundary():
+    thresholds = {
+        "disk_usage_critical": 95,
+        "disk_usage_warning": 85,
+        "memory_usage_warning": 80,
+        "memory_usage_critical": 90,
+        "swap_usage_warning": 75,
+        "cpu_usage_warning": 90,
+    }
+
+    # Exactly 50 GiB free -> downgraded to warning
+    resources_at_boundary = _resources()
+    resources_at_boundary["disk"] = {
+        "mount": "/",
+        "total_bytes": 1000 * 1024**3,
+        "used_bytes": 950 * 1024**3,
+        "free_bytes": 50 * 1024**3,
+        "percent": 95.0,
+    }
+    alerts_at = quick_snapshot._alerts(
+        resources_at_boundary, {"escalating": []}, thresholds
+    )
+    disk_at = next(a for a in alerts_at if a["resource"] == "disk")
+    assert disk_at["severity"] == "warning"
+    assert "50.0 GB" in disk_at["message"]
+
+    # Just below 50 GiB free -> critical
+    resources_below = _resources()
+    resources_below["disk"] = {
+        "mount": "/",
+        "total_bytes": 1000 * 1024**3,
+        "used_bytes": 950 * 1024**3 + 1,
+        "free_bytes": 50 * 1024**3 - 1,
+        "percent": 95.0,
+    }
+    alerts_below = quick_snapshot._alerts(
+        resources_below, {"escalating": []}, thresholds
+    )
+    disk_below = next(a for a in alerts_below if a["resource"] == "disk")
+    assert disk_below["severity"] == "critical"
+
+
+def test_disk_critical_alert_on_multi_tb_filesystem_when_nearly_exhausted():
+    resources = _resources()
+    total_bytes = 4 * 1024**4  # 4 TiB
+    free_bytes = 20 * 1024**3  # 20 GiB (< 50 GiB threshold)
+    resources["disk"] = {
+        "mount": "/",
+        "total_bytes": total_bytes,
+        "used_bytes": total_bytes - free_bytes,
+        "free_bytes": free_bytes,
+        "percent": 99.5,
+    }
+    thresholds = quick_snapshot._profile_thresholds("developer")
+
+    alerts = quick_snapshot._alerts(
+        resources,
+        {"escalating": []},
+        thresholds,
+    )
+
+    disk_alerts = [a for a in alerts if a["resource"] == "disk"]
+    assert len(disk_alerts) == 1
+    assert disk_alerts[0]["severity"] == "critical"
+
