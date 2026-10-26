@@ -285,6 +285,9 @@ def fix(
             llm_fallback and use_llm,
         )
 
+    if not use_llm and hasattr(cfg, "gemini_transport"):
+        cfg.gemini_transport = "openai"
+
     _run_agent_session(
         cfg,
         data,
@@ -369,6 +372,20 @@ def fix(
     help="Czyść regenerowalne cache kompilacji/pakietów (Cargo target/debug, ~/.npm/_cacache, archiwa conda)",
 )
 @click.option(
+    "--state-old/--no-state-old",
+    "clean_state_old",
+    default=True,
+    show_default=True,
+    help="Przytnij dzienne partycje stanu aplikacji YYYY/MM/DD starsze niż 7 dni",
+)
+@click.option(
+    "--projects-old/--no-projects-old",
+    "clean_projects_old",
+    default=True,
+    show_default=True,
+    help="Usuń bezpieczne artefakty (venv/.venv, node_modules, target, cache) w projektach nieużywanych od 7 dni",
+)
+@click.option(
     "--snap-old/--no-snap-old",
     "clean_snap_old",
     default=False,
@@ -444,6 +461,8 @@ def auto_cmd(
     clean_thumbnails,
     clean_jetbrains,
     clean_build_cache,
+    clean_state_old,
+    clean_projects_old,
     clean_snap_old,
     clean_docker_build_cache,
     free_gb,
@@ -496,6 +515,7 @@ def auto_cmd(
         parse_retention_days,
     )
     from fixos.cli._cleanup_utils import _format_bytes
+    from fixos.constants import PROJECT_SCAN_STALE_DAYS
     from fixos.diagnostics.quick_snapshot import collect_quick_snapshot
 
     if not no_banner and not json_output:
@@ -593,11 +613,11 @@ def auto_cmd(
                 )
                 steps_executed.append("jetbrains")
 
-            if clean_build_cache:
+            if clean_build_cache or clean_state_old or clean_projects_old:
                 if not json_output:
                     click.echo(
                         click.style(
-                            "\n[4/7] Czyszczenie cache kompilacji i pakietów (target/debug, npm, conda)...",
+                            "\n[4/7] Czyszczenie cache kompilacji, danych stanu i nieużywanych projektów (> 7 dni)...",
                             fg="cyan",
                             bold=True,
                         )
@@ -607,8 +627,17 @@ def auto_cmd(
                     dry_run=dry_run,
                     list_only=False,
                     yes=yes,
+                    include_build_cache=clean_build_cache,
+                    clean_state_old=clean_state_old,
+                    clean_projects_old=clean_projects_old,
+                    stale_days=PROJECT_SCAN_STALE_DAYS,
                 )
-                steps_executed.append("build-cache")
+                if clean_build_cache:
+                    steps_executed.append("build-cache")
+                if clean_state_old:
+                    steps_executed.append("state-old")
+                if clean_projects_old:
+                    steps_executed.append("projects-old")
 
             if clean_docker_build_cache:
                 if not json_output:
@@ -709,6 +738,8 @@ def auto_cmd(
         show_anonymized_data=False,
     )
     use_llm = (not no_llm) and bool(cfg.api_key)
+    if not use_llm and hasattr(cfg, "gemini_transport"):
+        cfg.gemini_transport = "openai"
 
     diagnostics_data: dict[str, Any] = {"quick": quick_snapshot}
     if modules:
@@ -741,7 +772,8 @@ def auto_cmd(
     target_free_bytes = int(free_gb * 1024**3)
     goal_reached = after_free_bytes >= target_free_bytes
     disk_pressure_remaining = (
-        (after_usage.total - after_free_bytes) / after_usage.total >= 0.95
+        not goal_reached
+        and (after_usage.total - after_free_bytes) / after_usage.total >= 0.95
         if after_usage.total else False
     )
 

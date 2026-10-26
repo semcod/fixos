@@ -312,6 +312,8 @@ def test_free_target_ladder_preserves_releases_and_continues_cache_tiers(monkeyp
     monkeypatch.setattr(target, "free_bytes", lambda *_: 0)
     monkeypatch.setattr(cleanup_cmd, "print_privileged_hints", lambda *_: None)
     monkeypatch.setattr(cleanup_cmd, "_cleanup_tmp", lambda *_a, **_k: None)
+    monkeypatch.setattr(cleanup_cmd, "_cleanup_state_old", lambda *_a, **_k: None)
+    monkeypatch.setattr(cleanup_cmd, "_cleanup_projects_old", lambda *_a, **_k: None)
 
     class EmptyScanner:
         def __init__(self, **_kwargs):
@@ -346,6 +348,47 @@ def test_free_gb_rejects_other_actions():
     )
     assert result.exit_code != 0
     assert "osobną akcję" in result.output
+
+
+def test_free_target_ladder_runs_7d_state_and_unused_projects_tiers(monkeypatch, tmp_path):
+    import fixos.cli._cleanup_free_target as target
+
+    monkeypatch.setattr(cleanup_cmd, "find_stale_release_caches", lambda: ([], []))
+    monkeypatch.setattr(target, "free_bytes", lambda *_: 0)
+    monkeypatch.setattr(cleanup_cmd, "print_privileged_hints", lambda *_: None)
+    monkeypatch.setattr(cleanup_cmd, "_cleanup_tmp", lambda *_a, **_k: None)
+
+    class EmptyScanner:
+        def __init__(self, **_kwargs):
+            pass
+
+        def get_cleanup_plan(self, **_kwargs):
+            return {}
+
+    monkeypatch.setattr(cleanup_cmd, "ServiceDataScanner", EmptyScanner)
+    monkeypatch.setattr(cleanup_cmd, "_execute_yes_cleanup", lambda *_a, **_k: None)
+    monkeypatch.setattr(cleanup_cmd, "docker_prune_dangling", lambda: TierResult("dangling"))
+    monkeypatch.setattr(
+        cleanup_cmd, "docker_remove_unused_old_images", lambda **_: TierResult("images")
+    )
+
+    state_days = []
+    project_days = []
+    monkeypatch.setattr(
+        cleanup_cmd,
+        "_cleanup_state_old",
+        lambda *_a, **kw: state_days.append(kw.get("days")),
+    )
+    monkeypatch.setattr(
+        cleanup_cmd,
+        "_cleanup_projects_old",
+        lambda *_a, **kw: project_days.append(kw.get("days")),
+    )
+
+    cleanup_cmd._run_free_target_mode(10, 100, False, False, None)
+    assert state_days == [7]
+    assert project_days == [7]
+
 
 
 def test_threshold_gb_keeps_per_service_semantics(monkeypatch):

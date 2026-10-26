@@ -208,7 +208,7 @@ def discover_project_roots(
 def scan_project_artifacts(
     project_root: Path,
     threshold_mb: float = 50,
-    stale_days: int = 60,
+    stale_days: int = 7,
 ) -> list[ProjectArtifact]:
     """Find removable artifacts directly under a single project root."""
     artifacts: list[ProjectArtifact] = []
@@ -255,7 +255,7 @@ def scan_project_artifacts(
 def scan_all(
     base: Path,
     threshold_mb: float = 50,
-    stale_days: int = 60,
+    stale_days: int = 7,
     max_depth: int = 4,
 ) -> list[ProjectArtifact]:
     """Scan every project under `base` for removable artifacts, largest first."""

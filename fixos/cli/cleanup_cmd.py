@@ -33,6 +33,7 @@ from fixos.cli._cleanup_space import (
     _cleanup_jetbrains,
     _cleanup_journal,
     _cleanup_libvirt,
+    _cleanup_projects_old,
     _cleanup_snap_old,
     _cleanup_state_old,
     _cleanup_thumbnails,
@@ -51,6 +52,7 @@ from fixos.constants import (
     DEFAULT_THUMBNAILS_UNUSED_DAYS,
     DEFAULT_TMP_UNUSED_DAYS,
     DEFAULT_TRASH_UNUSED_DAYS,
+    PROJECT_SCAN_STALE_DAYS,
 )
 from fixos.diagnostics.docker_startup_optimizer import (
     DEFAULT_DOCKER_STALE_SERVICE_DAYS,
@@ -1633,6 +1635,27 @@ def _run_free_target_mode(
         )
 
     min_days = days if days is not None else DEFAULT_DOCKER_IMAGE_MIN_DAYS
+    stale_days = max(1, int(days)) if days is not None else DEFAULT_STATE_OLD_DAYS
+
+    def _stale_state_partitions() -> TierResult:
+        _cleanup_state_old(
+            json_output=False,
+            dry_run=dry_run,
+            list_only=False,
+            yes=True,
+            days=stale_days,
+        )
+        return TierResult(f"state-old-{stale_days}d")
+
+    def _unused_projects() -> TierResult:
+        _cleanup_projects_old(
+            json_output=False,
+            dry_run=dry_run,
+            list_only=False,
+            yes=True,
+            days=stale_days,
+        )
+        return TierResult(f"projects-unused-{stale_days}d")
 
     def _docker_tier(action, name: str):
         def _tier() -> TierResult:
@@ -1649,6 +1672,8 @@ def _run_free_target_mode(
     tiers = [
         _safe_service_caches,
         _stale_tmp,
+        _stale_state_partitions,
+        _unused_projects,
         _stale_release_caches,
         _docker_tier(docker_prune_dangling, "docker-dangling"),
         _docker_tier(
@@ -1983,6 +2008,16 @@ def _run_free_target_mode(
     ),
 )
 @click.option(
+    "--projects-old",
+    "projects_old",
+    is_flag=True,
+    default=False,
+    help=(
+        "Usuń bezpieczne artefakty (venv/.venv, node_modules, target, cache) "
+        f"w projektach nieużywanych od > --days dni (domyślnie {PROJECT_SCAN_STALE_DAYS})"
+    ),
+)
+@click.option(
     "--venvs-old",
     is_flag=True,
     help="Stare venv/.venv w nieaktywnych projektach; domyślnie 30 dni",
@@ -1990,7 +2025,7 @@ def _run_free_target_mode(
 @click.option(
     "--projects-path",
     type=click.Path(file_okay=False),
-    help="Katalog projektów dla --venvs-old (domyślnie ~/github)",
+    help="Katalog projektów dla --venvs-old lub --projects-old (domyślnie ~/github)",
 )
 @click.option(
     "--days",
@@ -2087,6 +2122,7 @@ def cleanup_services(
     trash_cleanup,
     thumbnails_cleanup,
     state_old,
+    projects_old,
     venvs_old,
     projects_path,
     days,
@@ -2204,6 +2240,7 @@ def cleanup_services(
                 trash_cleanup,
                 thumbnails_cleanup,
                 state_old,
+                projects_old,
             )
         ) or cleanup not in (None, "venvs-old"):
             raise click.UsageError("--venvs-old uruchom jako osobną akcję")
@@ -2217,8 +2254,8 @@ def cleanup_services(
             path=projects_path,
         )
         return
-    if projects_path is not None:
-        raise click.UsageError("--projects-path wymaga --venvs-old")
+    if projects_path is not None and not (projects_old or cleanup == "projects-old"):
+        raise click.UsageError("--projects-path wymaga --venvs-old lub --projects-old")
     if free_gb is not None:
         if any(
             (
@@ -2246,6 +2283,7 @@ def cleanup_services(
                 trash_cleanup,
                 thumbnails_cleanup,
                 state_old,
+                projects_old,
                 venvs_old,
                 policy_matrix,
             )
@@ -2295,6 +2333,7 @@ def cleanup_services(
                 trash_cleanup,
                 thumbnails_cleanup,
                 state_old,
+                projects_old,
                 days is not None,
                 retention is not None,
                 hours is not None,
@@ -2397,6 +2436,19 @@ def cleanup_services(
                 days=int(effective_days)
                 if effective_days is not None
                 else DEFAULT_STATE_OLD_DAYS,
+            ),
+        ),
+        "projects-old": (
+            projects_old,
+            lambda j, d, lst, y: _cleanup_projects_old(
+                j,
+                d,
+                lst,
+                y,
+                days=int(effective_days)
+                if effective_days is not None
+                else PROJECT_SCAN_STALE_DAYS,
+                base_dir=projects_path,
             ),
         ),
     }

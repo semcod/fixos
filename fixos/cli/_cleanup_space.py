@@ -24,6 +24,9 @@ from fixos.constants import (
     DEFAULT_THUMBNAILS_UNUSED_DAYS,
     DEFAULT_TMP_UNUSED_DAYS,
     DEFAULT_TRASH_UNUSED_DAYS,
+    PROJECT_SCAN_DEFAULT_PATH,
+    PROJECT_SCAN_MAX_DEPTH,
+    PROJECT_SCAN_STALE_DAYS,
 )
 
 _JOURNAL_DEFAULT_SIZE = "500M"
@@ -1754,11 +1757,24 @@ CLEANUP_POLICIES: list[dict[str, Any]] = [
         "direct": True,
         "default_retention": f"{DEFAULT_STATE_OLD_DAYS} dni",
         "default_days": float(DEFAULT_STATE_OLD_DAYS),
-        "risk_level": "review",
-        "default_safe": False,
+        "risk_level": "safe",
+        "default_safe": True,
         "description": "Katalogi YYYY/MM/DD w ~/.local/state i ~/.local/share starsze niż --days",
         "protected": "Bieżący dzień, pliki poza partycjami (np. checkpoint.sqlite3), dowiązania, inne systemy plików",
-        "example": "fixos cleanup --state-old --days 14 --dry-run",
+        "example": f"fixos cleanup --state-old --days {DEFAULT_STATE_OLD_DAYS} --dry-run",
+    },
+    {
+        "id": "projects-old",
+        "flag": "--projects-old",
+        "name": "Artefakty projektów nieużywanych od ostatniego tygodnia",
+        "direct": True,
+        "default_retention": f"{PROJECT_SCAN_STALE_DAYS} dni",
+        "default_days": float(PROJECT_SCAN_STALE_DAYS),
+        "risk_level": "safe",
+        "default_safe": True,
+        "description": "Bezpieczne artefakty (venv/.venv, node_modules, target, cache) w projektach bez zmian > --days dni",
+        "protected": "Aktywne procesy, projekty z nowszą aktywnością źródeł lub .worktrees, dowiązania, punkty montowania",
+        "example": f"fixos cleanup --projects-old --days {PROJECT_SCAN_STALE_DAYS} --dry-run",
     },
 ]
 
@@ -1825,6 +1841,11 @@ def _cleanup_build_caches(
     list_only: bool,
     yes: bool,
     home_dir: Path | None = None,
+    *,
+    include_build_cache: bool = True,
+    clean_state_old: bool = False,
+    clean_projects_old: bool = False,
+    stale_days: int = PROJECT_SCAN_STALE_DAYS,
 ) -> None:
     """Clean safe regenerable build/package caches (Cargo target/debug, ~/.npm/_cacache, conda tarballs)."""
     home = home_dir or Path.home()
@@ -1832,39 +1853,40 @@ def _cleanup_build_caches(
     seen_resolved: set[Path] = set()
     file_candidates: list[dict] = []
 
-    github_root = home / "github"
-    if github_root.is_dir():
-        for pat in ("*/*/target/debug", "*/*/packages/*/target/debug"):
-            for dbg in sorted(github_root.glob(pat)):
-                if dbg.is_dir() and not dbg.is_symlink():
+    if include_build_cache:
+        github_root = home / "github"
+        if github_root.is_dir():
+            for pat in ("*/*/target/debug", "*/*/packages/*/target/debug"):
+                for dbg in sorted(github_root.glob(pat)):
+                    if dbg.is_dir() and not dbg.is_symlink():
+                        try:
+                            real = dbg.resolve()
+                        except OSError:
+                            real = dbg
+                        if real not in seen_resolved:
+                            seen_resolved.add(real)
+                            dirs_to_size.append(dbg)
+
+        npm_cache = home / ".npm" / "_cacache"
+        if npm_cache.is_dir() and not npm_cache.is_symlink():
+            dirs_to_size.append(npm_cache)
+
+        conda_pkgs = home / "miniconda3" / "pkgs"
+        if conda_pkgs.is_dir():
+            for ext in ("*.tar.bz2", "*.conda"):
+                for archive in sorted(conda_pkgs.glob(ext)):
                     try:
-                        real = dbg.resolve()
+                        if archive.is_file() and not archive.is_symlink():
+                            file_candidates.append(
+                                {
+                                    "description": f"miniconda3/pkgs/{archive.name}",
+                                    "path": archive,
+                                    "size_bytes": archive.stat().st_size,
+                                    "note": "archiwum pakietu conda",
+                                }
+                            )
                     except OSError:
-                        real = dbg
-                    if real not in seen_resolved:
-                        seen_resolved.add(real)
-                        dirs_to_size.append(dbg)
-
-    npm_cache = home / ".npm" / "_cacache"
-    if npm_cache.is_dir() and not npm_cache.is_symlink():
-        dirs_to_size.append(npm_cache)
-
-    conda_pkgs = home / "miniconda3" / "pkgs"
-    if conda_pkgs.is_dir():
-        for ext in ("*.tar.bz2", "*.conda"):
-            for archive in sorted(conda_pkgs.glob(ext)):
-                try:
-                    if archive.is_file() and not archive.is_symlink():
-                        file_candidates.append(
-                            {
-                                "description": f"miniconda3/pkgs/{archive.name}",
-                                "path": archive,
-                                "size_bytes": archive.stat().st_size,
-                                "note": "archiwum pakietu conda",
-                            }
-                        )
-                except OSError:
-                    continue
+                        continue
 
     sizes = _dir_sizes(dirs_to_size) if dirs_to_size else {}
     candidates: list[dict] = []
@@ -1906,29 +1928,58 @@ def _cleanup_build_caches(
         )
         return
 
-    if not candidates:
-        click.echo(click.style("Brak cache kompilacji/pakietów do wyczyszczenia.", fg="green"))
-        return
+    if include_build_cache:
+        if not candidates:
+            click.echo(click.style("Brak cache kompilacji/pakietów do wyczyszczenia.", fg="green"))
+        else:
+            _display_candidates("CACHE KOMPILACJI I PAKIETÓW (target/debug, npm, conda):", candidates)
+            if not list_only:
+                selected = (
+                    list(range(len(candidates)))
+                    if yes
+                    else _choose(candidates, "Numery pozycji do usunięcia (np. 1,2, all)")
+                )
+                if not selected:
+                    click.echo("Pominięto.")
+                elif dry_run:
+                    _show_dry_run_commands([["rm", "-rf", str(candidates[i]["path"])] for i in selected])
+                elif not yes and not _confirm_remove():
+                    click.echo("Anulowano.")
+                else:
+                    _remove_selected(candidates, selected)
 
-    _display_candidates("CACHE KOMPILACJI I PAKIETÓW (target/debug, npm, conda):", candidates)
-    if list_only:
-        return
+    if clean_state_old:
+        click.echo(
+            click.style(
+                f"\n[+] Przycinanie dziennych partycji stanu aplikacji (> {stale_days} dni)...",
+                fg="cyan",
+                bold=True,
+            )
+        )
+        _cleanup_state_old(
+            json_output=False,
+            dry_run=dry_run,
+            list_only=list_only,
+            yes=yes,
+            days=stale_days,
+        )
 
-    selected = (
-        list(range(len(candidates)))
-        if yes
-        else _choose(candidates, "Numery pozycji do usunięcia (np. 1,2, all)")
-    )
-    if not selected:
-        click.echo("Pominięto.")
-        return
-    if dry_run:
-        _show_dry_run_commands([["rm", "-rf", str(candidates[i]["path"])] for i in selected])
-        return
-    if not yes and not _confirm_remove():
-        click.echo("Anulowano.")
-        return
-    _remove_selected(candidates, selected)
+    if clean_projects_old:
+        click.echo(
+            click.style(
+                f"\n[+] Czyszczenie nieużywanych artefaktów projektów (> {stale_days} dni)...",
+                fg="cyan",
+                bold=True,
+            )
+        )
+        _cleanup_projects_old(
+            json_output=False,
+            dry_run=dry_run,
+            list_only=list_only,
+            yes=yes,
+            days=stale_days,
+            base_dir=(home / "github") if home_dir is not None else None,
+        )
 
 
 # ── date-partitioned state stores ────────────────────────────────────────
@@ -2044,3 +2095,259 @@ def _cleanup_state_old(
         for error in errors[:5]:
             click.echo(click.style(f"    {error}", fg="red"))
     click.echo(click.style(f"  Zwolniono około {_format_bytes(freed)}", fg="green"))
+
+
+# ── unused developer project artifacts (> 7 days) ────────────────────────
+
+
+def _project_source_has_recent_activity(
+    project: Path,
+    exclude: set[str],
+    cutoff: float,
+) -> bool:
+    """Return True if any non-excluded file/dir in `project` has mtime >= cutoff."""
+    import os
+
+    for git_rel in (".git/index", ".git/HEAD", ".git/FETCH_HEAD"):
+        try:
+            if (project / git_rel).lstat().st_mtime >= cutoff:
+                return True
+        except OSError:
+            pass
+
+    stack = [project]
+    while stack:
+        current = stack.pop()
+        try:
+            with os.scandir(current) as entries:
+                for entry in entries:
+                    if entry.name in exclude or entry.name.endswith(".egg-info"):
+                        continue
+                    try:
+                        st = entry.stat(follow_symlinks=False)
+                    except OSError:
+                        return True
+                    if st.st_mtime >= cutoff:
+                        return True
+                    if entry.is_dir(follow_symlinks=False):
+                        stack.append(Path(entry.path))
+        except OSError:
+            return True
+    return False
+
+
+def _scan_unused_projects(
+    days: int = PROJECT_SCAN_STALE_DAYS,
+    base_dir: Path | str | None = None,
+    *,
+    now: float | None = None,
+) -> list[dict]:
+    """Scan developer projects under `base_dir` for safe regenerable artifacts unused for >= `days` days."""
+    import os
+    import time
+
+    import psutil
+
+    from fixos.diagnostics.project_scanner import (
+        REMOVABLE_ARTIFACTS,
+        _is_removable_artifact,
+        discover_project_roots,
+    )
+    from fixos.diagnostics.venv_cleanup import (
+        PROJECT_SOURCE_EXCLUDE,
+        _plain_path,
+        _within,
+        active_paths,
+    )
+
+    if days < 1:
+        raise ValueError("Okres nieaktywności projektów musi wynosić co najmniej 1 dzień")
+
+    base = (
+        Path(base_dir).expanduser().absolute()
+        if base_dir is not None
+        else Path(PROJECT_SCAN_DEFAULT_PATH).expanduser().absolute()
+    )
+    if not base.is_dir() or not _plain_path(base):
+        return []
+
+    now_ts = time.time() if now is None else float(now)
+    cutoff = now_ts - float(days) * 86400.0
+    paths, _ = active_paths()
+    try:
+        mounts = {Path(part.mountpoint) for part in psutil.disk_partitions(all=True)}
+    except OSError:
+        mounts = None
+    if mounts is None:
+        return []
+
+    exclude_set = set(PROJECT_SOURCE_EXCLUDE)
+    raw_items: list[dict] = []
+    for project in discover_project_roots(base, max_depth=PROJECT_SCAN_MAX_DEPTH):
+        if not _plain_path(project) or any(_within(p, project) for p in paths):
+            continue
+        try:
+            entries = sorted(os.listdir(project))
+        except OSError:
+            continue
+        project_artifacts: list[tuple[str, Path, str, str, float]] = []
+        for name in entries:
+            if not _is_removable_artifact(project, name):
+                continue
+            description, ecosystem, risk_level = REMOVABLE_ARTIFACTS[name]
+            if risk_level != "safe":
+                continue
+            art_path = project / name
+            if (
+                not art_path.is_dir()
+                or art_path.is_symlink()
+                or not _plain_path(art_path)
+                or any(_within(mount, art_path) for mount in mounts)
+            ):
+                continue
+            try:
+                st = art_path.lstat()
+            except OSError:
+                continue
+            if st.st_mtime >= cutoff:
+                continue
+            project_artifacts.append((name, art_path, description, ecosystem, st.st_mtime))
+
+        if not project_artifacts:
+            continue
+        if _project_source_has_recent_activity(project, exclude_set, cutoff):
+            continue
+
+        for name, art_path, description, ecosystem, art_mtime in project_artifacts:
+            age_days = max(0.0, (now_ts - art_mtime) / 86400.0)
+            try:
+                rel = str(art_path.relative_to(base))
+            except ValueError:
+                rel = str(art_path)
+            raw_items.append(
+                {
+                    "description": f"{rel} ({ecosystem})",
+                    "path": art_path,
+                    "project": project,
+                    "artifact_name": name,
+                    "ecosystem": ecosystem,
+                    "age_days": round(age_days, 1),
+                    "note": f"{description}, nieużywany {age_days:.0f} dni",
+                }
+            )
+
+    if not raw_items:
+        return []
+
+    sizes = _dir_sizes([item["path"] for item in raw_items])
+    candidates: list[dict] = []
+    for item in raw_items:
+        sz = sizes.get(str(item["path"]))
+        if sz is None:
+            sz = _dir_size(item["path"])
+        if sz <= 0:
+            continue
+        item["size_bytes"] = sz
+        candidates.append(item)
+
+    candidates.sort(key=lambda item: (-item["size_bytes"], item["description"]))
+    return candidates
+
+
+def _cleanup_projects_old(
+    json_output: bool,
+    dry_run: bool,
+    list_only: bool,
+    yes: bool,
+    days: int = PROJECT_SCAN_STALE_DAYS,
+    base_dir: Path | str | None = None,
+) -> None:
+    """Remove safe regenerable artifacts in developer projects unused for >= `days` days."""
+    from fixos.diagnostics.venv_cleanup import _plain_path, _within, active_paths
+
+    try:
+        candidates = _scan_unused_projects(days=int(days), base_dir=base_dir)
+    except ValueError as exc:
+        click.echo(click.style(f"Błąd: {exc}", fg="red"))
+        return
+
+    if json_output:
+        _echo_json(
+            {
+                "days": int(days),
+                "candidates": [
+                    {
+                        "description": c["description"],
+                        "path": str(c["path"]),
+                        "project": str(c["project"]),
+                        "artifact_name": c["artifact_name"],
+                        "ecosystem": c["ecosystem"],
+                        "age_days": c["age_days"],
+                        "size_bytes": c["size_bytes"],
+                        "note": c["note"],
+                    }
+                    for c in candidates
+                ],
+                "total_bytes": sum(c["size_bytes"] for c in candidates),
+            }
+        )
+        return
+
+    if not candidates:
+        click.echo(
+            click.style(
+                f"Brak nieużywanych artefaktów projektów starszych niż {int(days)} dni.",
+                fg="green",
+            )
+        )
+        return
+
+    _display_candidates(
+        f"Projekty nieużywane od > {int(days)} dni — bezpieczne artefakty do usunięcia:",
+        candidates,
+    )
+    if list_only:
+        return
+
+    selected = (
+        list(range(len(candidates)))
+        if yes
+        else _choose(candidates, "Numery artefaktów do usunięcia (np. 1,2, all)")
+    )
+    if not selected:
+        click.echo("Pominięto.")
+        return
+
+    if dry_run:
+        _show_dry_run_commands(
+            [["rm", "-rf", str(candidates[i]["path"])] for i in selected]
+        )
+        return
+
+    if not yes and not _confirm_remove():
+        click.echo("Anulowano.")
+        return
+
+    paths, _ = active_paths()
+    safe_selected: list[int] = []
+    for i in selected:
+        item = candidates[i]
+        art_path = item["path"]
+        proj_path = item["project"]
+        if (
+            not _plain_path(art_path)
+            or not art_path.is_dir()
+            or any(_within(p, proj_path) for p in paths)
+        ):
+            click.echo(
+                click.style(
+                    f"  {item['description']}: pominięto (projekt aktywny lub zmieniona ścieżka)",
+                    fg="yellow",
+                )
+            )
+            continue
+        safe_selected.append(i)
+
+    if safe_selected:
+        _remove_selected(candidates, safe_selected, path_key="path")
+
