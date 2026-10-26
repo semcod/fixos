@@ -461,7 +461,7 @@ class TestDiskAnalyzerBoundedExecution:
         test_dir.mkdir()
 
         ts_ns = int(
-            datetime(2026, 10, 20, 12, 0, tzinfo=timezone.utc).timestamp() * 1e9  # noqa: UP017
+            datetime(2026, 10, 20, 12, 0, tzinfo=timezone.utc).timestamp() * 1e9
         )
         mock_measure = MagicMock(return_value={"mtime_ns": ts_ns})
         monkeypatch.setattr("fixos.diagnostics.native_scan.measure_tree", mock_measure)
