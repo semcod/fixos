@@ -19,6 +19,11 @@ _CACHE_PATHS = (
     ".cache/pypoetry/cache",
     ".cache/pypoetry/artifacts",
     ".cache/Google/Chrome/Default/Cache",
+    ".cache/go-build",
+    ".cache/ruff",
+    ".cache/mypy",
+    ".cache/Flake8",
+    ".cache/black",
 )
 _BROWSERS = ("google-chrome", "chromium", "BraveSoftware/Brave-Browser")
 _BROWSER_LEAVES = ("Cache", "Code Cache", "GPUCache", "DawnCache", "ShaderCache")
