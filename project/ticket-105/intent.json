@@ -1,0 +1,86 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-105",
+  "summary": "Add MCP server interface for fixos diagnostics and cleanup",
+  "workstream": "application",
+  "classification": {
+    "kind": "FEATURE",
+    "priority": "P1",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-105/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/cli/main.py",
+    "fixos/cli/mcp_cmd.py",
+    "fixos/mcp_server.py",
+    "tests/unit/test_mcp_server.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [
+    "python"
+  ],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "429250586ec0c44df5bdf6bcf37b3ea15bea08a0",
+    "targetBranch": "main",
+    "outcome": "Provide a Model Context Protocol (MCP) server interface for fixos conforming to wellmanifest/mcp and wellmanifest/nl-dsl-llm, with read/mutate operation separation, URI catalog search, NL task planning, and replayable task receipts.",
+    "nonGoals": [
+      "Do not add mandatory third-party runtime dependencies; support stdlib JSON-RPC stdio and optional FastMCP."
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 30,
+    "budgets": {
+      "maxImplementationFiles": 4,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 1,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Implement fixos/mcp_server.py with a deterministic wellmanifest/mcp operation catalog (fixos:// URIs), advisory task_plan, receipt-backed task_execute/task_status, and stdio JSON-RPC 2.0 server, exposed via fixos mcp CLI command.",
+      "components": [
+        {
+          "name": "mcp-server-and-cli",
+          "paths": [
+            "fixos/mcp_server.py",
+            "fixos/cli/mcp_cmd.py",
+            "fixos/cli/main.py"
+          ]
+        },
+        {
+          "name": "tests",
+          "paths": [
+            "tests/unit/test_mcp_server.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [
+        "fixos mcp CLI subcommand and MCP stdio server tools"
+      ],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert ticket-105 commit via protected publication."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "pytest tests/unit/test_mcp_server.py -q"
+        ],
+        "evidence": "project/ticket-105/README.md"
+      }
+    ]
+  }
+}
