@@ -1,0 +1,76 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-114",
+  "summary": "Classify disk pressure using capacity available to services",
+  "workstream": "application",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P1",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-114/**",
+    "fixos/diagnostics/disk_analyzer.py",
+    "tests/unit/test_disk_analyzer_capacity.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [
+    "python"
+  ],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "1a03305fb891c0e643a57018676af1364c821ce9",
+    "targetBranch": "main",
+    "outcome": "Independently publish and deploy disk-pressure classification based on capacity available to ordinary processes, so reserved blocks cannot hide critical pressure.",
+    "nonGoals": [
+      "No filesystem reserve changes or host data deletion",
+      "No cleanup scope, threshold or service-policy changes",
+      "No scan traversal or MCP interface changes"
+    ],
+    "complexity": "XS",
+    "estimatedMinutes": 10,
+    "budgets": {
+      "maxImplementationFiles": 2,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Compute utilization from used bytes plus bytes available to ordinary users, retaining raw capacity fields and existing severity thresholds.",
+      "components": [
+        {
+          "name": "disk-analyzer",
+          "paths": [
+            "fixos/diagnostics/disk_analyzer.py",
+            "tests/unit/test_disk_analyzer_capacity.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert through protected delivery and reinstall the prior reviewed wheel."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python -m pytest tests/unit/test_disk_analyzer_capacity.py tests/unit/test_disk_analyzer.py -q",
+          "./project/governance-check.sh"
+        ],
+        "evidence": "project/ticket-114/README.md"
+      }
+    ]
+  }
+}
