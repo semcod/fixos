@@ -1,0 +1,76 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-111",
+  "summary": "Keep FixOS MCP stdout valid during cleanup",
+  "workstream": "application",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P1",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-111/**",
+    "fixos/mcp_server.py",
+    "tests/unit/test_mcp_server.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [
+    "python"
+  ],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "a2930fc33536f7c3339e07c00933a94b6fefc129",
+    "targetBranch": "main",
+    "outcome": "Publish a FixOS MCP correction so cleanup progress and errors cannot corrupt JSON-RPC stdout; verify diagnostics and preserve active user applications and data.",
+    "nonGoals": [
+      "No volume or IDE cache deletion",
+      "No edits to unrelated ticket-110 or quarantined work",
+      "No new MCP operations or runtime dependencies"
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 30,
+    "budgets": {
+      "maxImplementationFiles": 2,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Route Python tool output to stderr at the JSON-RPC dispatch boundary, reserving stdout for protocol responses.",
+      "components": [
+        {
+          "name": "mcp-stdio",
+          "paths": [
+            "fixos/mcp_server.py",
+            "tests/unit/test_mcp_server.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert material correction through protected publication."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python -m pytest tests/unit/test_mcp_server.py -q",
+          "./project/governance-check.sh"
+        ],
+        "evidence": "project/ticket-111/README.md"
+      }
+    ]
+  }
+}
