@@ -1,0 +1,73 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-110",
+  "summary": "Sync standard-requirements.json with baseline and transitive dependencies",
+  "workstream": "governance",
+  "classification": {
+    "kind": "SERVICE",
+    "priority": "P2",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-110/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    ".governance/local-ci-publication.json",
+    ".governance/standard-requirements.json"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "b8ff316350822300190821f90776be53ae4e5729",
+    "targetBranch": "main",
+    "outcome": "Synchronize .governance/standard-requirements.json with the baseline and transitive standard dependencies, without changing any runtime code.",
+    "nonGoals": [
+      "No runtime or test code changes",
+      "No other governance file changes"
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 15,
+    "budgets": {
+      "maxImplementationFiles": 1,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Add the missing baseline and transitive requirement entries to standard-requirements.json.",
+      "components": [
+        {
+          "name": "standard-requirements",
+          "paths": [
+            ".governance/standard-requirements.json"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the requirements file change through protected publication."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "./project/governance-check.sh"
+        ],
+        "evidence": "project/ticket-110/README.md"
+      }
+    ]
+  }
+}
