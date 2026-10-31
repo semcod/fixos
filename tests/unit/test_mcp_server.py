@@ -6,8 +6,8 @@ import io
 import json
 from pathlib import Path
 
-import pytest
 import click
+import pytest
 from click.testing import CliRunner
 
 from fixos.cli.main import cli

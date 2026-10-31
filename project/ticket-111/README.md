@@ -30,6 +30,8 @@ MCP repair and its publication. Preserve active IDEs, volumes and unknown work.
 - Regression reproduced: both success and failure cases rejected non-JSON CLI
   output before the correction (2 failures, 6 passes).
 - After correction: `python -m pytest tests/unit/test_mcp_server.py -q` — 8 passed.
+- Governed full suite: 1005 passed, 5 skipped, 16 deselected.
 - `python -m ruff check --no-cache fixos/mcp_server.py tests/unit/test_mcp_server.py` — passed.
+- CI additionally enforces import ordering; imports were sorted after its finding.
 - `./project/governance-check.sh` — passed, no warnings.
 - Protected publication remains pending independent exact-head approval.
