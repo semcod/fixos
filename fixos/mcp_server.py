@@ -13,6 +13,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import sys
 import uuid
 from collections.abc import Mapping
@@ -26,6 +27,7 @@ from fixos import __version__
 CATALOG_SCHEMA = "wellmanifest.mcp/operation-catalog/v1"
 RECEIPT_SCHEMA = "wellmanifest.mcp/task-receipt/v1"
 PLAN_SCHEMA = "wellmanifest.nl-dsl-llm/task-plan/v1"
+_REQUEST_ID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 
 OPERATIONS_CATALOG: tuple[dict[str, Any], ...] = (
     {
@@ -100,7 +102,12 @@ OPERATIONS_CATALOG: tuple[dict[str, Any], ...] = (
                 "dry_run": {"type": "boolean", "default": True},
                 "min_age_days": {"type": "number", "default": 7.0},
                 "include_projects": {"type": "boolean", "default": True},
-                "request_id": {"type": "string", "default": ""},
+                "request_id": {
+                    "type": "string",
+                    "default": "",
+                    "maxLength": 128,
+                    "description": "Opaque ID starting with a letter/digit, using letters, digits, dots, underscores or hyphens; no '..'. Empty generates an ID.",
+                },
             },
             "additionalProperties": False,
         },
@@ -390,10 +397,20 @@ def run_fixos_scan_projects(min_age_days: float = 7.0) -> dict[str, Any]:
     }
 
 
+def _validated_request_id(request_id: str) -> str:
+    """Return a bounded portable receipt name, never a filesystem path."""
+    clean_id = (request_id or "").strip()
+    if not _REQUEST_ID_RE.fullmatch(clean_id) or ".." in clean_id:
+        raise ValueError("invalid_request_id")
+    return clean_id
+
+
 def task_status(request_id: str, *, receipts_dir: str | Path | None = None) -> dict[str, Any]:
     """Read back a durable execution receipt without re-running any effect (wellmanifest/mcp)."""
     clean_id = (request_id or "").strip()
-    if not clean_id or "/" in clean_id or ".." in clean_id:
+    try:
+        clean_id = _validated_request_id(clean_id)
+    except ValueError:
         return {
             "schema": RECEIPT_SCHEMA,
             "found": False,
@@ -430,7 +447,9 @@ def run_fixos_auto_cleanup(
         _cleanup_user_cache,
     )
 
-    req_id = (request_id or "").strip() or f"fixos-mcp-{uuid.uuid4().hex[:12]}"
+    req_id = _validated_request_id(
+        (request_id or "").strip() or f"fixos-mcp-{uuid.uuid4().hex[:12]}"
+    )
     existing = task_status(req_id, receipts_dir=receipts_dir)
     if existing.get("found"):
         return existing

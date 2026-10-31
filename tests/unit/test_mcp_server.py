@@ -110,6 +110,80 @@ def test_task_execute_rejects_mismatched_digest():
         task_execute("fixos://diagnostics/quick", {}, registry_digest="0" * 64)
 
 
+@pytest.mark.parametrize("dry_run", [True, False])
+@pytest.mark.parametrize(
+    "request_id",
+    ["../escaped", "/absolute", r"..\escaped", "nested/id", "C:escaped", "bad\x00id", "..", ".hidden", "bad id", "x" * 129],
+)
+def test_cleanup_rejects_unsafe_request_ids_before_any_effect(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, request_id: str, dry_run: bool
+):
+    def unexpected_access(*args, **kwargs):
+        pytest.fail("Invalid request ID reached receipt access or cleanup scanning")
+
+    for name in ("_receipts_dir", "scan_user_cache_dirs", "scan_additional_safe_caches", "scan_build_and_package_caches"):
+        monkeypatch.setattr(f"fixos.mcp_server.{name}", unexpected_access)
+
+    with pytest.raises(ValueError, match="invalid_request_id"):
+        task_execute(
+            "fixos://cleanup/auto",
+            {"dry_run": dry_run, "include_projects": False},
+            request_id=request_id,
+            receipts_dir=tmp_path / "receipts",
+        )
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_jsonrpc_reports_unsafe_receipt_id_without_creating_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setattr("fixos.mcp_server.scan_user_cache_dirs", list)
+    monkeypatch.setattr("fixos.mcp_server.scan_additional_safe_caches", list)
+    monkeypatch.setattr("fixos.mcp_server.scan_build_and_package_caches", list)
+    response = handle_jsonrpc_message(
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {
+                "name": "fixos_auto_cleanup",
+                "arguments": {"request_id": "../escaped", "include_projects": False},
+            },
+        },
+        receipts_dir=tmp_path / "receipts",
+    )
+    assert response["result"]["isError"] is True
+    assert response["result"]["structuredContent"]["error"] == "invalid_request_id"
+    assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize("request_id", ["", "../escaped", r"nested\id", "C:escaped", "bad\x00id", "x" * 129])
+def test_status_rejects_unsafe_ids_without_accessing_receipts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, request_id: str
+):
+    def unexpected_access(*args, **kwargs):
+        pytest.fail("Invalid status request reached receipt directory access")
+
+    monkeypatch.setattr("fixos.mcp_server._receipts_dir", unexpected_access)
+    result = task_status(request_id, receipts_dir=tmp_path / "receipts")
+    assert result["found"] is False
+    assert result["error"] == "invalid_request_id"
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_generated_receipt_id_remains_replayable(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr("fixos.mcp_server.scan_user_cache_dirs", list)
+    monkeypatch.setattr("fixos.mcp_server.scan_additional_safe_caches", list)
+    monkeypatch.setattr("fixos.mcp_server.scan_build_and_package_caches", list)
+    result = task_execute(
+        "fixos://cleanup/auto",
+        {"dry_run": True, "include_projects": False},
+        receipts_dir=tmp_path,
+    )
+    assert result["request_id"].startswith("fixos-mcp-")
+    assert task_status(result["request_id"], receipts_dir=tmp_path)["receipt_hash"] == result["receipt_hash"]
+
+
 def test_jsonrpc_protocol_roundtrip(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(
         "fixos.diagnostics.quick_snapshot.collect_quick_snapshot",
