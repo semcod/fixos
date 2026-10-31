@@ -1162,7 +1162,7 @@ def _docker_buildx_builders() -> list[dict] | None:
     return builders
 
 
-def _builder_cache_bytes(name: str) -> tuple[int, int] | None:
+def _builder_cache_bytes(name: str) -> tuple[int, int | None] | None:
     """Return (total, reclaimable) bytes of a builder's cache or None."""
     try:
         result = _run_cmd(
@@ -1183,23 +1183,62 @@ def _builder_cache_bytes(name: str) -> tuple[int, int] | None:
             reclaimable = _size_to_bytes(match.group(2))
     if total is None:
         return None
-    return total, reclaimable if reclaimable is not None else total
+    return total, reclaimable
+
+
+def _container_image_ids() -> set[str] | None:
+    """Read image references for running and stopped containers, or unknown."""
+    try:
+        result = _run_cmd(
+            ["docker", "container", "ls", "--all", "--quiet", "--no-trunc"]
+        )
+        if result.returncode != 0:
+            return None
+        containers = result.stdout.split()
+        if not containers:
+            return set()
+        if any(not re.fullmatch(r"[0-9a-f]{64}", item) for item in containers):
+            return None
+        result = _run_cmd(
+            ["docker", "container", "inspect", "--format", "{{.Image}}", *containers]
+        )
+        if result.returncode != 0:
+            return None
+        images = result.stdout.split()
+        if len(images) != len(containers) or any(
+            not re.fullmatch(r"sha256:[0-9a-f]{64}", item) for item in images
+        ):
+            return None
+        return set(images)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
 
 
 def _dangling_images() -> dict | None:
-    """Return count and approx bytes of dangling (<none>) images."""
+    """Count unreferenced dangling images; their logical sizes can share layers."""
     try:
         result = _run_cmd(
-            ["docker", "images", "-f", "dangling=true", "--format", "{{.Size}}"]
+            [
+                "docker", "images", "--no-trunc", "-f", "dangling=true",
+                "--format", "{{.ID}}\t{{.Size}}",
+            ]
         )
     except (OSError, subprocess.TimeoutExpired):
         return None
     if result.returncode != 0:
         return None
+    rows = [line.split("\t") for line in result.stdout.splitlines() if line.strip()]
+    if any(
+        len(row) != 2 or not re.fullmatch(r"sha256:[0-9a-f]{64}", row[0])
+        for row in rows
+    ):
+        return None
+    used = _container_image_ids() if rows else set()
     sizes = [
-        _size_to_bytes(line) for line in result.stdout.splitlines() if line.strip()
+        _size_to_bytes(size) for image, size in rows
+        if used is None or image not in used
     ]
-    return {"count": len(sizes), "bytes": sum(sizes)}
+    return {"count": len(sizes), "bytes": sum(sizes), "usage_known": used is not None}
 
 
 def _docker_buildcache_scan() -> dict:
@@ -1238,7 +1277,10 @@ def _docker_buildcache_scan() -> dict:
                 "driver": "docker",
                 "current": False,
                 "total_bytes": dangling["bytes"],
-                "reclaimable_bytes": dangling["bytes"],
+                # Shared layers and concurrent container creation prevent a
+                # logical image-size sum from predicting actual prune results.
+                "reclaimable_bytes": None,
+                "usage_known": dangling["usage_known"],
                 "count": dangling["count"],
                 "command": ["docker", "image", "prune", "--force"],
             }
@@ -1284,6 +1326,12 @@ def _cleanup_docker_buildcache(
                 if note
                 else f"reclaimable ~{_format_bytes(reclaimable)}"
             )
+        else:
+            note = f"{note}, odzyskiwalny rozmiar nieznany".lstrip(", ")
+        if target["kind"] == "dangling-images":
+            note += "; suma rozmiarów obrazów obejmuje współdzielone warstwy"
+            if not target["usage_known"]:
+                note += "; użycie przez kontenery nieznane"
         candidates.append(
             {
                 "description": label,

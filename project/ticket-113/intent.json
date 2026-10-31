@@ -1,0 +1,79 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-113",
+  "summary": "Report Docker dangling-image reclaimability honestly",
+  "workstream": "application",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P2",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-113/**",
+    "fixos/cli/_cleanup_space.py",
+    "tests/unit/test_cleanup_docker_buildcache.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [
+    "python"
+  ],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "0afa281482622cf1816293e5a5e9e61b5d043e46",
+    "targetBranch": "main",
+    "outcome": "Publish honest Docker buildcache estimates: exclude images referenced by containers and preserve unknown reclaimability for shared image layers or missing BuildKit measurements.",
+    "nonGoals": [
+      "No new cleanup effects or Docker volume removal",
+      "No cleanup retention policy changes",
+      "No runtime dependency changes"
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 30,
+    "budgets": {
+      "maxImplementationFiles": 2,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 1,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Read full dangling image IDs and container image references; separate aggregate image size from unknown uniquely reclaimable storage.",
+      "components": [
+        {
+          "name": "docker-cleanup-inventory",
+          "paths": [
+            "fixos/cli/_cleanup_space.py",
+            "tests/unit/test_cleanup_docker_buildcache.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [
+        "Return null for unknown reclaimable bytes instead of logical image totals."
+      ],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert through protected publication; existing Docker prune commands are retained."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python -m pytest tests/unit/test_cleanup_docker_buildcache.py -q",
+          "python -m ruff check --select I fixos/cli/_cleanup_space.py tests/unit/test_cleanup_docker_buildcache.py",
+          "./project/governance-check.sh"
+        ],
+        "evidence": "project/ticket-113/README.md"
+      }
+    ]
+  }
+}
