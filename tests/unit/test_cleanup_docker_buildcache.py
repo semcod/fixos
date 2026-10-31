@@ -63,7 +63,7 @@ def test_no_containers_needs_no_inspection(monkeypatch):
 
 def test_image_totals_do_not_claim_shared_layers_as_reclaimable(monkeypatch):
     stub_docker(monkeypatch)
-    monkeypatch.setattr(cleanup, "_docker_buildx_builders", lambda: [])
+    monkeypatch.setattr(cleanup, "_docker_buildx_builders", list)
     target = cleanup._docker_buildcache_scan()["targets"][0]
     assert target["total_bytes"] == 14_000_000_000
     assert target["reclaimable_bytes"] is None
@@ -72,7 +72,7 @@ def test_image_totals_do_not_claim_shared_layers_as_reclaimable(monkeypatch):
 
 def test_all_referenced_images_produce_no_prune_target(monkeypatch):
     stub_docker(monkeypatch, containers=f"{CONTAINER}\n{'d' * 64}\n", inspected=f"{IMAGE_A}\n{IMAGE_B}\n")
-    monkeypatch.setattr(cleanup, "_docker_buildx_builders", lambda: [])
+    monkeypatch.setattr(cleanup, "_docker_buildx_builders", list)
     assert cleanup._docker_buildcache_scan()["targets"] == []
 
 
@@ -90,7 +90,7 @@ def test_cli_labels_unknown_reclaimability(monkeypatch):
     import click
 
     stub_docker(monkeypatch)
-    monkeypatch.setattr(cleanup, "_docker_buildx_builders", lambda: [])
+    monkeypatch.setattr(cleanup, "_docker_buildx_builders", list)
 
     @click.command()
     def command():
