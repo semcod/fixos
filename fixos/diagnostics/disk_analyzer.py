@@ -72,7 +72,12 @@ class DiskAnalyzer:
             total_gb = stat.total / (1024**3)
             used_gb = stat.used / (1024**3)
             free_gb = stat.free / (1024**3)
-            usage_percent = (used_gb / total_gb) * 100
+            if stat.total <= 0:
+                raise ValueError("Filesystem reports no capacity")
+            # Reserved blocks are unavailable to ordinary processes and must
+            # not make their remaining capacity appear healthier.
+            user_capacity = stat.used + stat.free
+            usage_percent = 100.0 * stat.used / user_capacity if user_capacity else 100.0
 
             large_files = self.get_large_files(path)
             cache_dirs = self.get_cache_dirs(path)
