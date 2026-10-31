@@ -22,12 +22,20 @@
       "minimumLevel": "S4"
     },
     {
+      "id": "wellmanifest/lifecycle",
+      "minimumLevel": "S4"
+    },
+    {
       "id": "wellmanifest/logs",
       "minimumLevel": "S5"
     },
     {
       "id": "wellmanifest/merge",
       "minimumLevel": "S5"
+    },
+    {
+      "id": "wellmanifest/modularity",
+      "minimumLevel": "S3"
     },
     {
       "id": "wellmanifest/new-project",
@@ -40,6 +48,10 @@
     {
       "id": "wellmanifest/poa",
       "minimumLevel": "S5"
+    },
+    {
+      "id": "wellmanifest/priority",
+      "minimumLevel": "S3"
     },
     {
       "id": "wellmanifest/reuse",
