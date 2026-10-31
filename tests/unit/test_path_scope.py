@@ -32,8 +32,8 @@ def test_native_case_rules_are_preserved():
     assert _within(Path("REPO/child"), Path("repo")) is (os.name == "nt")
 
 
-@pytest.mark.skipif(os.name == "nt", reason="POSIX double-root semantics")
-def test_distinct_posix_anchors_remain_distinct():
+def test_distinct_absolute_anchors_remain_distinct():
+    assert Path("//host/share/file").anchor != Path("/host/share").anchor
     assert not _within(Path("//host/share/file"), Path("/host/share"))
 
 
