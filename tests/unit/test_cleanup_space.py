@@ -1,5 +1,6 @@
 """Tests for fixos.cli._cleanup_space disk-reclaim handlers."""
 
+import json
 import os
 import shutil
 import subprocess
@@ -7,6 +8,7 @@ import time
 from pathlib import Path
 
 import click
+import pytest
 from click.testing import CliRunner
 
 from fixos.cli import _cleanup_space as space
@@ -186,7 +188,51 @@ def test_jetbrains_keeps_newest_toolbox_channel(monkeypatch, tmp_path):
     assert "PyCharm ch-0" in result.output
     assert "PyCharm ch-1" in result.output
     assert "ch-2" not in result.output
-    assert "PyCharm2025.1" in result.output
+    assert "LocalHistory" in result.output
+
+
+@pytest.mark.parametrize("cache_name", ["PyCharm2026.3", "unknown-system-data"])
+def test_jetbrains_yes_preserves_system_cache_and_local_history(
+    monkeypatch, tmp_path, cache_name
+):
+    home = tmp_path / "home"
+    apps = home / ".local/share/JetBrains/Toolbox/apps/PyCharm"
+    for channel in ("ch-0", "ch-1", "ch-2"):
+        (apps / channel).mkdir(parents=True)
+    history = home / ".cache/JetBrains" / cache_name / "LocalHistory/revisions.bin"
+    history.parent.mkdir(parents=True)
+    history.write_bytes(b"only local revision")
+    download = home / ".cache/JetBrains/Toolbox/download/installer.tar.gz"
+    download.parent.mkdir(parents=True)
+    download.write_bytes(b"toolbox state")
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
+    monkeypatch.setattr(space, "_dir_size", lambda _path: 10)
+
+    result = _invoke(space._cleanup_jetbrains, False, False, False, True)
+
+    assert result.exit_code == 0, result.output
+    assert history.read_bytes() == b"only local revision"
+    assert download.read_bytes() == b"toolbox state"
+    assert not (apps / "ch-0").exists()
+    assert not (apps / "ch-1").exists()
+    assert (apps / "ch-2").is_dir()
+
+
+def test_jetbrains_json_does_not_offer_bulk_system_cache(monkeypatch, tmp_path):
+    cache_root = tmp_path / ".cache/JetBrains"
+    (cache_root / "PyCharm2026.3/LocalHistory").mkdir(parents=True)
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    monkeypatch.setattr(space, "_dir_size", lambda _path: 10)
+
+    result = _invoke(space._cleanup_jetbrains, True, False, False, True)
+
+    assert result.exit_code == 0, result.output
+    plan = json.loads(result.output)
+    assert not any(
+        Path(item["path"]).is_relative_to(cache_root)
+        for item in plan["candidates"]
+    )
+    assert "LocalHistory" in " ".join(plan["advisories"])
 
 
 # ── libvirt ───────────────────────────────────────────────────────────────
