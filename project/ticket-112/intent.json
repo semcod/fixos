@@ -1,0 +1,79 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-112",
+  "summary": "Reject unsafe MCP receipt request identifiers before cleanup",
+  "workstream": "application",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P1",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-112/**",
+    "fixos/mcp_server.py",
+    "tests/unit/test_mcp_server.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [
+    "python"
+  ],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "da980fac5189756b29d6c987c293c8e793014ad9",
+    "targetBranch": "main",
+    "outcome": "Publish strict receipt request-id validation before MCP cleanup scans or effects, preventing filesystem traversal and unsafe receipt filenames.",
+    "nonGoals": [
+      "No cleanup policy changes",
+      "No changes to existing receipt contents or publication authority",
+      "No runtime dependencies or new MCP operations"
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 30,
+    "budgets": {
+      "maxImplementationFiles": 2,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 1,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Share one portable request-id validator between receipt readback and cleanup execution, validating before directory access or scans.",
+      "components": [
+        {
+          "name": "mcp-receipts",
+          "paths": [
+            "fixos/mcp_server.py",
+            "tests/unit/test_mcp_server.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [
+        "Reject malformed request identifiers before any cleanup operation; keep normal and automatically generated identifiers valid."
+      ],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert through protected publication; preserve receipt history."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python -m pytest tests/unit/test_mcp_server.py -q",
+          "python -m ruff check --select I fixos/mcp_server.py tests/unit/test_mcp_server.py",
+          "./project/governance-check.sh"
+        ],
+        "evidence": "project/ticket-112/README.md"
+      }
+    ]
+  }
+}
