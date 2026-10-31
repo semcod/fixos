@@ -1,0 +1,76 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-116",
+  "summary": "Avoid repeated ancestor walks in project containment checks",
+  "workstream": "application",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P1",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-116/**",
+    "fixos/diagnostics/venv_cleanup.py",
+    "tests/unit/test_path_scope.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [
+    "python"
+  ],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "1badd07decd568bc1012c823354c03ee62a0981b",
+    "targetBranch": "main",
+    "outcome": "Independently publish and deploy equivalent lexical containment checks that allow project inventory to complete on the live host without repeated ancestor traversal.",
+    "nonGoals": [
+      "No cleanup eligibility, process protection, retention or storage-floor changes",
+      "No filesystem resolution or removal of unknown work",
+      "No MCP schema or new runtime dependency"
+    ],
+    "complexity": "XS",
+    "estimatedMinutes": 10,
+    "budgets": {
+      "maxImplementationFiles": 2,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Compare native-case normalized anchors and path component prefixes, preserving lexical containment while avoiding Path.parents enumeration per process/project pair.",
+      "components": [
+        {
+          "name": "project-path-scope",
+          "paths": [
+            "fixos/diagnostics/venv_cleanup.py",
+            "tests/unit/test_path_scope.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert through independent protected publication and reinstall the previous reviewed artifact."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python -m pytest tests/unit/test_path_scope.py tests/unit/test_venv_cleanup.py -q",
+          "./project/governance-check.sh"
+        ],
+        "evidence": "project/ticket-116/README.md"
+      }
+    ]
+  }
+}

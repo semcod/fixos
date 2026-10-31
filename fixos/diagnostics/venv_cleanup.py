@@ -119,7 +119,13 @@ def active_paths() -> tuple[set[Path], list[str]]:
 
 
 def _within(path: Path, parent: Path) -> bool:
-    return path == parent or parent in path.parents
+    # Every process path is compared with many projects and mounts. Walking
+    # all its ancestors repeatedly makes inventory needlessly expensive.
+    if os.path.normcase(path.anchor) != os.path.normcase(parent.anchor):
+        return False
+    return tuple(map(os.path.normcase, path.parts[: len(parent.parts)])) == tuple(
+        map(os.path.normcase, parent.parts)
+    )
 
 
 def _measure_project_source(project: Path, exclude: tuple[str, ...]) -> dict:
