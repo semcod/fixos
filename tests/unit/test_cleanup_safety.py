@@ -253,6 +253,9 @@ class TestDockerDefaultProposal:
     @staticmethod
     def _cleaner(scanner, monkeypatch):
         cleaner = ServiceCleaner(scanner)
+        monkeypatch.setattr(
+            cleaner, "scan_docker_buildcache", lambda: {"error": None, "targets": []}
+        )
         monkeypatch.setattr(cleaner, "list_ollama_models", list)
         monkeypatch.setattr(cleaner, "list_running_ollama_models", lambda: set())
         monkeypatch.setattr(
@@ -266,6 +269,20 @@ class TestDockerDefaultProposal:
             },
         )
         return cleaner
+
+    def test_fake_proposal_never_probes_live_buildkit(self, monkeypatch):
+        live_probes = []
+        monkeypatch.setattr(
+            "fixos.cli._cleanup_space._docker_buildcache_scan",
+            lambda: live_probes.append(True) or {"error": None, "targets": []},
+        )
+        usage = {"Containers": {"size_gb": 3.0, "reclaimable_gb": 2.5}}
+        cleaner = self._cleaner(self._scanner(usage), monkeypatch)
+
+        actions = cleaner.build_safe_age_actions()
+
+        assert live_probes == []
+        assert any(action["cleanup_kind"] == "docker-containers" for action in actions)
 
     def test_default_plan_proposes_stopped_containers_and_images(self, monkeypatch):
         usage = {
