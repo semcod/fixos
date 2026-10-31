@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import io
 import json
 from pathlib import Path
 
 import pytest
+import click
 from click.testing import CliRunner
 
 from fixos.cli.main import cli
@@ -17,6 +19,7 @@ from fixos.mcp_server import (
     handle_jsonrpc_message,
     mcp_tools_list,
     registry_search,
+    serve_stdio,
     task_execute,
     task_plan,
     task_status,
@@ -161,3 +164,66 @@ def test_cli_mcp_subcommand():
     assert plan_res.exit_code == 0
     plan_data = json.loads(plan_res.output)
     assert plan_data["operation_id"] == "fixos://cleanup/auto"
+
+
+@pytest.mark.parametrize("cleanup_fails", [False, True])
+def test_cleanup_keeps_stdio_jsonrpc_parseable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys, cleanup_fails: bool
+):
+    monkeypatch.setattr(
+        "fixos.mcp_server.scan_user_cache_dirs",
+        lambda: [{"safe": True, "size_bytes": 4096}],
+    )
+    monkeypatch.setattr("fixos.mcp_server.scan_additional_safe_caches", list)
+    monkeypatch.setattr("fixos.mcp_server.scan_build_and_package_caches", list)
+    cleanup_calls = []
+
+    def cleanup(**kwargs):
+        cleanup_calls.append(kwargs)
+        print("Measuring cache")
+        click.echo("Cleaning cache")
+        if cleanup_fails:
+            raise RuntimeError("cleanup failed")
+
+    monkeypatch.setattr("fixos.cli._cleanup_space._cleanup_user_cache", cleanup)
+    requests = [
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {
+                "name": "fixos_auto_cleanup",
+                "arguments": {
+                    "dry_run": False,
+                    "include_projects": False,
+                    "request_id": "stdio-cleanup",
+                },
+            },
+        },
+        {"jsonrpc": "2.0", "id": 2, "method": "ping"},
+    ]
+    if not cleanup_fails:
+        # A client retry after cleanup must replay its receipt without effects.
+        requests.append({**requests[0], "id": 3})
+    monkeypatch.setattr(
+        "sys.stdin", io.StringIO("".join(json.dumps(req) + "\n" for req in requests))
+    )
+
+    assert serve_stdio(receipts_dir=tmp_path) == 0
+
+    output = capsys.readouterr()
+    responses = [json.loads(line) for line in output.out.splitlines()]
+    assert [resp["id"] for resp in responses] == ([1, 2] if cleanup_fails else [1, 2, 3])
+    assert responses[0]["result"]["isError"] is cleanup_fails
+    assert responses[1] == {"jsonrpc": "2.0", "id": 2, "result": {}}
+    assert "Measuring cache" in output.err
+    assert "Cleaning cache" in output.err
+    assert len(cleanup_calls) == 1
+    if cleanup_fails:
+        assert responses[0]["result"]["structuredContent"]["error"] == "cleanup failed"
+    else:
+        assert responses[0]["result"]["structuredContent"]["state"] == "succeeded"
+        replay = responses[2]["result"]["structuredContent"]
+        assert replay["replayed"] is True
+        assert replay["receipt_hash"] == responses[0]["result"]["structuredContent"]["receipt_hash"]
+        assert task_status("stdio-cleanup", receipts_dir=tmp_path)["found"] is True

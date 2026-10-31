@@ -16,6 +16,7 @@ import os
 import sys
 import uuid
 from collections.abc import Mapping
+from contextlib import redirect_stdout
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -677,7 +678,9 @@ def handle_jsonrpc_message(
         tool_name = str(params.get("name", ""))
         tool_args = params.get("arguments") if isinstance(params.get("arguments"), Mapping) else {}
         try:
-            payload = handle_mcp_tool_call(tool_name, tool_args, receipts_dir=receipts_dir)
+            # CLI helpers print progress; stdout is reserved for JSON-RPC frames.
+            with redirect_stdout(sys.stderr):
+                payload = handle_mcp_tool_call(tool_name, tool_args, receipts_dir=receipts_dir)
             return {
                 "jsonrpc": "2.0",
                 "id": msg_id,
