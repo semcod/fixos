@@ -839,7 +839,7 @@ def _toolbox_duplicate_installs(installs: list[dict] | None) -> list[str]:
 
 
 def _jetbrains_candidates() -> list[dict]:
-    """Stale Toolbox channels (all but newest per app), unused version data and IDE caches."""
+    """Stale Toolbox channels and unused version data; preserve system caches."""
     home = Path.home()
     candidates = _jetbrains_stale_data_dirs(home, _toolbox_installs(home))
     apps_dir = home / ".local/share/JetBrains/Toolbox/apps"
@@ -864,19 +864,8 @@ def _jetbrains_candidates() -> list[dict]:
                         "note": "stary kanał Toolbox",
                     }
                 )
-    cache_dir = home / ".cache/JetBrains"
-    if cache_dir.is_dir():
-        for entry in sorted(cache_dir.iterdir()):
-            if entry.is_symlink():
-                continue
-            candidates.append(
-                {
-                    "description": entry.name,
-                    "path": entry,
-                    "size_bytes": _dir_size(entry),
-                    "note": "cache IDE",
-                }
-            )
+    # IDE system roots mix rebuildable indexes with irreplaceable LocalHistory
+    # and recovery/Toolbox state. Never offer a whole root for bulk deletion.
     candidates.sort(key=lambda item: -item["size_bytes"])
     return candidates
 
@@ -884,9 +873,14 @@ def _jetbrains_candidates() -> list[dict]:
 def _cleanup_jetbrains(
     json_output: bool, dry_run: bool, list_only: bool, yes: bool
 ) -> None:
-    """Remove stale JetBrains Toolbox channels, unused version data and IDE caches."""
+    """Remove stale Toolbox channels and unused version data; retain system caches."""
     candidates = _jetbrains_candidates()
     advisories = _toolbox_duplicate_installs(_toolbox_installs(Path.home()))
+    if (Path.home() / ".cache/JetBrains").is_dir():
+        advisories.append(
+            "Cache systemowy JetBrains jest chroniony: może zawierać "
+            "LocalHistory (lokalne wersje plików), dane odzyskiwania i stan Toolbox."
+        )
     if json_output:
         _echo_json(
             {
@@ -906,10 +900,10 @@ def _cleanup_jetbrains(
         click.echo(click.style(f"  Uwaga: {advisory}", fg="yellow"))
     if not candidates:
         click.echo(
-            click.style("Brak starych kanałów Toolbox ani cache IDE.", fg="green")
+            click.style("Brak starych kanałów Toolbox ani nieużywanych danych wersji.", fg="green")
         )
         return
-    _display_candidates("JETBRAINS — stare kanały, dane starych wersji i cache:", candidates)
+    _display_candidates("JETBRAINS — stare kanały i dane starych wersji:", candidates)
     if list_only:
         return
     selected = (
@@ -2004,14 +1998,14 @@ CLEANUP_POLICIES: list[dict[str, Any]] = [
     {
         "id": "jetbrains",
         "flag": "--jetbrains",
-        "name": "Stare IDE JetBrains i cache Toolbox",
+        "name": "Stare wersje IDE JetBrains",
         "direct": True,
         "default_retention": "stare wersje",
         "default_days": 0.0,
         "risk_level": "safe",
         "default_safe": True,
-        "description": "Stare wersje IDE z Toolbox, nieużywane dane starszych wersji oraz ~/.cache/JetBrains",
-        "protected": "Dane wersji używanych przez instalacje z Toolbox state.json (także snap), ~/.config/JetBrains",
+        "description": "Stare wersje IDE z Toolbox i nieużywane dane starszych wersji",
+        "protected": "Dane wersji używanych przez instalacje z Toolbox state.json (także snap), ~/.config/JetBrains, ~/.cache/JetBrains (w tym LocalHistory)",
         "example": "fixos cleanup --jetbrains",
     },
     {

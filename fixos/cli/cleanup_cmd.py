@@ -1951,8 +1951,8 @@ def _run_free_target_mode(
     is_flag=True,
     default=False,
     help=(
-        "Usuń stare wersje IDE z Toolbox (ch-*) i cache ~/.cache/JetBrains; "
-        "ustawienia IDE w ~/.local/share/JetBrains są chronione"
+        "Usuń stare wersje IDE z Toolbox (ch-*) i nieużywane dane wersji; "
+        "cache systemowy i LocalHistory w ~/.cache/JetBrains są chronione"
     ),
 )
 @click.option(
@@ -2182,7 +2182,7 @@ def cleanup_services(
       fixos cleanup --snap-old          # wyłączone rewizje snapów
       fixos cleanup --journal           # przycięcie dziennika systemd
       fixos cleanup --user-cache --list # duże katalogi ~/.cache
-      fixos cleanup --jetbrains         # stare IDE Toolbox + cache JetBrains
+      fixos cleanup --jetbrains         # stare IDE Toolbox; cache i historia chronione
       fixos cleanup --libvirt           # obrazy VM niepodpięte pod domeny
       fixos cleanup --gitive            # stare izolowane workspace'y gitive
       fixos cleanup --policy            # przejrzysta tabela retencji i bezpośrednich opcji
