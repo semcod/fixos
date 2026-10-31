@@ -1,0 +1,73 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-115",
+  "summary": "Keep default cleanup proposal tests independent of live Docker",
+  "workstream": "application",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P1",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-115/**",
+    "tests/unit/test_cleanup_safety.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [
+    "python"
+  ],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "f8db03d927d9f86a577d6e2e882376208a6d127b",
+    "targetBranch": "main",
+    "outcome": "Independently publish deterministic default-proposal unit tests that cannot probe live Docker, unblocking protected verification of the pending disk-capacity correction.",
+    "nonGoals": [
+      "No production cleanup or capacity behavior changes",
+      "No test exclusions, relaxed timeouts or protection changes"
+    ],
+    "complexity": "XS",
+    "estimatedMinutes": 5,
+    "budgets": {
+      "maxImplementationFiles": 1,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Inject an empty BuildKit inventory into the existing fake Docker proposal fixture and assert that the live inventory function is never called.",
+      "components": [
+        {
+          "name": "cleanup-proposal-tests",
+          "paths": [
+            "tests/unit/test_cleanup_safety.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert through protected delivery."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python -m pytest tests/unit/test_cleanup_safety.py -q",
+          "./project/governance-check.sh"
+        ],
+        "evidence": "project/ticket-115/README.md"
+      }
+    ]
+  }
+}
