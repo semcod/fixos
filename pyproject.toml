@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+requires = ["setuptools>=77.0.3", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "fixos"
-version = "2.2.57"
+version = "2.2.58"
 description = "AI-powered Linux/Windows diagnostics and repair – audio, hardware, system issues"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -43,7 +43,7 @@ dev = [
     "pytest-xdist>=3.5.0",
     "pytest-timeout>=2.2.0",
     "pytest-sugar>=0.9.7",
-    "goal>=2.1.0; python_version >= '3.12'",
+    "goal[publish]>=2.2.7; python_version >= '3.12'",
     "costs>=0.1.20",
 ]
 

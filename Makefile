@@ -7,7 +7,9 @@
         test-unit-fast test-unit-par test-quick lint format clean build docker-build \
         docker-test docker-test-fedora docker-test-ubuntu docker-test-debian \
         docker-test-arch docker-test-alpine docker-test-all \
-        config-init run-scan run-fix
+        config-init run-scan run-fix publish
+
+GOAL ?= goal
 
 # ── Domyślna komenda ──────────────────────────────────────
 help:
@@ -164,11 +166,8 @@ build: clean
 	.venv/bin/python -m build
 	@echo "✅ Paczka gotowa w dist/"
 
-publish: build
-	@echo "📦 Publikowanie na PyPI..."
-	.venv/bin/pip install --quiet --upgrade twine
-	.venv/bin/twine upload dist/*
-	@echo "✅ Opublikowano na PyPI"
+publish:
+	$(GOAL) -a
 
 clean:
 	@echo "🧹 Czyszczenie cache i artefaktów..."

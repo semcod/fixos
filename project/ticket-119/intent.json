@@ -1,0 +1,99 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-119",
+  "summary": "Reuse Goal for publication and repair supported build tooling",
+  "workstream": "integration",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P2",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-119/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "Makefile",
+    "VERSION",
+    "pyproject.toml",
+    "uv.lock"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "41c96780a18f182da0a2422843a8e91303167e33",
+    "targetBranch": "main",
+    "outcome": "Delegate publication to Goal with failure propagation, fix unsupported SPDX build floor and stale locked Goal/root versions, and publish the resulting material fix.",
+    "nonGoals": [
+      "No direct Twine publication",
+      "No runtime dependency additions",
+      "No standard managed file or policy changes",
+      "No review or required-check waivers"
+    ],
+    "complexity": "M",
+    "estimatedMinutes": 30,
+    "budgets": {
+      "maxImplementationFiles": 4,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Reuse the existing required Goal workflow for make publish before any build or clean. Preserve standalone build and runtime dependencies. Require the first setuptools release supporting the existing SPDX license and the verified reusable Goal publish extra. Align root projections in the same material implementation.",
+      "components": [
+        {
+          "name": "publication-integration",
+          "paths": [
+            "Makefile",
+            "pyproject.toml",
+            "uv.lock",
+            "VERSION"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Independent protected revert; never overwrite an existing immutable registry release."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "Fake Goal success and failure preserve cwd/argv and avoid pre-admission build or clean"
+        ],
+        "evidence": "receipt:fixos119/entrypoint"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "SPDX backend red/green probe",
+          "Targeted lock drift check",
+          "Affected version parity tests",
+          "Goal -a source delivery"
+        ],
+        "evidence": "receipt:fixos119/local-validation"
+      },
+      {
+        "criterion": "AC-03",
+        "commands": [
+          "Required platform and OneDev checks",
+          "Independent exact-head/current-base Validator merge",
+          "Goal -a publication and registry artifact verification"
+        ],
+        "evidence": "receipt:fixos119/protected-publication"
+      }
+    ]
+  }
+}
