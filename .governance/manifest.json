@@ -84,7 +84,8 @@
           "docs/**",
           "MANIFEST.in",
           "uv.lock",
-          "setup.py"
+          "setup.py",
+          "Makefile"
         ]
       },
       "interfaces": {
