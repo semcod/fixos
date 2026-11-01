@@ -436,3 +436,8 @@ code_parsers:
     - <!--
     - -->
     entity_pattern: ^#+\s+(.+)$
+
+publishing:
+  enabled: true
+  registries:
+  - pypi
