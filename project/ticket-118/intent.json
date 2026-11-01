@@ -1,0 +1,94 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-118",
+  "summary": "Declare the Makefile publication entrypoint owner before Goal migration",
+  "workstream": "governance",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P1",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-118/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    ".governance/manifest.json",
+    ".governance/standard-adoption.json"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "1ca92a592b1f19896e4c69026e276b6b83205d0b",
+    "targetBranch": "main",
+    "outcome": "Declare an exact owner for the existing unowned publication Makefile so its Goal migration can be admitted and independently verified.",
+    "nonGoals": [
+      "No Makefile command changes in this prerequisite",
+      "No managed standard file or hash changes",
+      "No path transfer from an existing owner or broader wildcard addition",
+      "No release, test or actor-boundary waiver"
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 15,
+    "budgets": {
+      "maxImplementationFiles": 2,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "The adopted package marks the target manifest extendable and does not place it in managedFiles. Append only the existing unowned Makefile to integration ownership. Preserve the entire managed base and every pre-existing owner; independently merge this configuration before editing the publication recipe. Rebind only project artifact references to the exact edited extendable manifest, following the published project procedure from ticket-092. Preserve all adoption levels, source revisions, evidence and all 98 standard-managed digests; these target artifact references are not standard source/lock hashes.",
+      "components": [
+        {
+          "name": "publication-path-ownership",
+          "paths": [
+            ".governance/manifest.json",
+            ".governance/standard-adoption.json"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Independent protected revert of the exact local owner declaration; preserve published standards and artifacts."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "Extendable-manifest contract and exact semantic delta",
+          "Managed package digests unchanged",
+          "project/governance-check.sh"
+        ],
+        "evidence": "receipt:fixos118/ownership-contract"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "Affected standard-adoption projection regression",
+          "Actual Goal -a source delivery"
+        ],
+        "evidence": "receipt:fixos118/protected-publication"
+      },
+      {
+        "criterion": "AC-03",
+        "commands": [
+          "Required Python 3.10/3.11/3.12 and protected OneDev checks",
+          "Independent exact-head/current-base Validator merge"
+        ],
+        "evidence": "receipt:fixos118/protected-publication"
+      }
+    ]
+  }
+}
