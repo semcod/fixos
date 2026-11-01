@@ -927,7 +927,7 @@ wheels = [
 
 [[package]]
 name = "fixos"
-version = "2.2.58"
+version = "2.2.59"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
@@ -956,7 +956,7 @@ dev = [
 requires-dist = [
     { name = "click", specifier = ">=8.1.0" },
     { name = "costs", marker = "extra == 'dev'", specifier = ">=0.1.20" },
-    { name = "goal", extras = ["publish"], marker = "python_full_version >= '3.12' and extra == 'dev'", specifier = ">=2.2.7" },
+    { name = "goal", extras = ["publish"], marker = "python_full_version >= '3.12' and extra == 'dev'", specifier = ">=2.2.8" },
     { name = "openai", specifier = ">=1.35.0" },
     { name = "prompt-toolkit", specifier = ">=3.0.43" },
     { name = "psutil", specifier = ">=5.9.0" },
@@ -1128,7 +1128,7 @@ wheels = [
 
 [[package]]
 name = "goal"
-version = "2.2.7"
+version = "2.2.8"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
@@ -1138,9 +1138,9 @@ dependencies = [
     { name = "tomlkit" },
     { name = "typer" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b6/17/96ba90d0bb05d5b86ad4b6d2795d24b28c1194a9755cd1e96d0c942ea017/goal-2.2.7.tar.gz", hash = "sha256:52e90ba9fe46d5ceb421ed922a4404dfc7957532f66bb1a74134f7c0c207f935", size = 495759, upload-time = "2026-10-31T23:28:59.836Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/04/92/9e826b55e3e9df2df3d46a77ba8a290f87ef09b5af314e66c804446059dc/goal-2.2.8.tar.gz", hash = "sha256:d5a8c8327c636fcd78fa1f622f065b07b129e4d8d5adb3713d74cde2348587a0", size = 495912, upload-time = "2026-11-01T01:59:01.255Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/64/59/9674c028216e6103e2d7d705de6e9d0927c626e02fe759f73a35227fcb07/goal-2.2.7-py3-none-any.whl", hash = "sha256:cd23886de99f2cea51aef4ba036049f2ed301ada853db26a5b97e9c422b446c2", size = 398047, upload-time = "2026-10-31T23:28:57.349Z" },
+    { url = "https://files.pythonhosted.org/packages/59/3a/422bfdaf98966586d08bc592d2678be5cce9a02a59e170c223f36a099281/goal-2.2.8-py3-none-any.whl", hash = "sha256:669d0daae21b076a6072e4cdbecf49ac74516fc9df5df6d6547fa302df34be4d", size = 398009, upload-time = "2026-11-01T01:58:58.734Z" },
 ]
 
 [package.optional-dependencies]
