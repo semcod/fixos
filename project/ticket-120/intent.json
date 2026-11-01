@@ -1,0 +1,91 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-120",
+  "summary": "Declare the existing Goal publisher for periodic release observation",
+  "workstream": "governance",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P2",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-120/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "goal.yaml"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "6927102b5a46787bf3cf50d08f284bacef380730",
+    "targetBranch": "main",
+    "outcome": "Explicitly opt the existing Goal PyPI publisher into periodic read-only release observation.",
+    "nonGoals": [
+      "No registry adapter or publisher transport change",
+      "No runtime package version or dependencies change",
+      "No ticket, source admission or CI bypass"
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 15,
+    "budgets": {
+      "maxImplementationFiles": 1,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "The observer requires explicit publishing.enabled while the historical Goal publisher defaults to enabled. Add the exact declaration enabled=true and registries=[pypi] in the already-governed configuration; preserve every existing semantic setting. Existing service watch already includes this primary. This is configuration-only observation adoption, not a package release.",
+      "components": [
+        {
+          "name": "publication-observer-opt-in",
+          "paths": [
+            "goal.yaml"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Independent protected revert of the explicit observation declaration."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "Exact semantic configuration delta",
+          "Published observer recognizes the exact existing registry release while retaining typed unknown for unsupported source layout"
+        ],
+        "evidence": "receipt:fixos120/observer"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "Existing adoption regression and governed Goal source delivery",
+          "Native governance"
+        ],
+        "evidence": "receipt:fixos120/local"
+      },
+      {
+        "criterion": "AC-03",
+        "commands": [
+          "Required platform and OneDev checks",
+          "Independent exact-head/current-base Validator merge",
+          "Live primary readback recognizes the existing release; unsupported source-layout verification remains explicit unknown"
+        ],
+        "evidence": "receipt:fixos120/protected-publication"
+      }
+    ]
+  }
+}
