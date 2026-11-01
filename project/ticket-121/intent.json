@@ -1,0 +1,100 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-121",
+  "summary": "Constrain published package contents and verify Goal source observation",
+  "workstream": "integration",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P1",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-121/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "VERSION",
+    "pyproject.toml",
+    "uv.lock"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [
+    "ticket-120"
+  ],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "1eb76c6fa66949e8ead941db9581e235449ca769",
+    "targetBranch": "main",
+    "outcome": "Restrict distributed library contents to the declared Fixos package, make its public source manifest verifiable, and consume the independently published Goal delegated-failure fix.",
+    "nonGoals": [
+      "No Fixos runtime source, API or dependency changes",
+      "No broad lock upgrade or managed adoption changes",
+      "No inferred source verification or registry overwrite",
+      "No publication before Goal 2.2.8 and independent acceptance"
+    ],
+    "complexity": "M",
+    "estimatedMinutes": 30,
+    "budgets": {
+      "maxImplementationFiles": 3,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "The public 2.2.58 wheel accidentally includes two docs/examples Python modules and scripts/pyqual-calibrate.py through implicit namespace discovery. Constrain discovery to fixos and fixos.* while retaining all package assets and existing exclusions. The observer supports this explicit manifest and can compare the complete Python package against Git. Join 2.2.59 projections to this material packaging fix and require Goal[publish]>=2.2.8 after its verified public release; preserve interpreter markers and unrelated lock records.",
+      "components": [
+        {
+          "name": "verified-publication-package",
+          "paths": [
+            "pyproject.toml",
+            "VERSION",
+            "uv.lock"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Independent protected revert; do not overwrite immutable registry releases."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "Build wheel and compare package assets against 2.2.58",
+          "Only three unintended non-package Python entries are removed",
+          "All 132 Fixos Python files match Git"
+        ],
+        "evidence": "receipt:fixos121/package-contract"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "Preserved lock records and Python support",
+          "Affected version/adoption regressions",
+          "Native governance and actual Goal -a delivery"
+        ],
+        "evidence": "receipt:fixos121/local-validation"
+      },
+      {
+        "criterion": "AC-03",
+        "commands": [
+          "Required platform/OneDev and independent exact-head/current-base merge",
+          "Goal publication and public artifact hash/source verification",
+          "Canonical observer reports matched published Python content"
+        ],
+        "evidence": "receipt:fixos121/protected-publication"
+      }
+    ]
+  }
+}
