@@ -2,7 +2,7 @@
 
 import errno
 import os
-import sys
+import stat
 import time
 from contextlib import contextmanager
 from pathlib import Path
@@ -262,28 +262,43 @@ def test_invalid_limits_rejected(tmp_path, kwargs):
         analyze_large_files([tmp_path], **kwargs)
 
 
-@pytest.mark.skipif(sys.platform != "linux", reason="Linux proc evidence")
-def test_real_proc_probe_finds_open_file_and_open_deleted_blocks(tmp_path, monkeypatch):
-    path = make_file(tmp_path / "open.bin", 1000)
-    info = path.stat()
-    identity = (info.st_dev, info.st_ino)
-    real_scandir = os.scandir
+def test_proc_probe_reads_descriptors_maps_and_deleted_blocks_on_every_platform(
+    tmp_path, monkeypatch
+):
+    process = tmp_path / "proc" / "123"
+    process.mkdir(parents=True)
+    (process / "maps").write_text("000-fff r--p 0 08:01 99 /data/mapped-model\n")
+    info = SimpleNamespace(
+        st_dev=17, st_ino=42, st_mode=stat.S_IFREG, st_nlink=0, st_blocks=8
+    )
+    descriptor = SimpleNamespace(stat=lambda **kwargs: info)
 
     @contextmanager
-    def only_self(path):
+    def fixture_scandir(path):
         if str(path) == "/proc":
-            yield iter(
-                [SimpleNamespace(name=str(os.getpid()), path=f"/proc/{os.getpid()}")]
-            )
+            yield iter([SimpleNamespace(name="123", path=str(process))])
+        elif Path(path) == process / "fd":
+            yield iter([descriptor])
         else:
-            with real_scandir(path) as entries:
-                yield entries
+            raise AssertionError(f"Unexpected process path {path}")
 
-    monkeypatch.setattr(large_files.os, "scandir", only_self)
-    with path.open("rb"):
-        result = OPEN_PROBE({identity}, time.monotonic() + 2)
-        assert os.getpid() in result["opened"][identity]
-        path.unlink()
-        result = OPEN_PROBE({identity}, time.monotonic() + 2)
-        assert result["open_deleted_files"] >= 1
-        assert result["open_deleted_allocated_bytes"] >= info.st_blocks * 512
+    monkeypatch.setattr(large_files.os, "scandir", fixture_scandir)
+    monkeypatch.setattr(
+        large_files.os, "makedev", lambda major, minor: 17, raising=False
+    )
+    result = OPEN_PROBE({(17, 42), (17, 99)}, time.monotonic() + 2)
+    assert result["status"] == "complete"
+    assert result["opened"][(17, 42)] == {123}
+    assert result["opened"][(17, 99)] == {123}
+    assert result["open_deleted_files"] == 1
+    assert result["open_deleted_allocated_bytes"] == 4096
+
+
+def test_proc_unavailable_is_explicit_on_every_platform(monkeypatch):
+    def unavailable(path):
+        raise FileNotFoundError(errno.ENOENT, "no proc filesystem")
+
+    monkeypatch.setattr(large_files.os, "scandir", unavailable)
+    result = OPEN_PROBE({(17, 42)}, time.monotonic() + 2)
+    assert result["status"] == "unavailable"
+    assert not result["opened"]
