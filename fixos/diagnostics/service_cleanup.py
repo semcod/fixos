@@ -1184,6 +1184,14 @@ class ServiceCleaner:
             )
             if targets and total_reclaimable > 0:
                 size_gb = round(total_reclaimable / (1024**3), 3)
+                for act in actions:
+                    if act.get("cleanup_kind") == "docker-unused":
+                        orig_gb = act.get("size_gb", 0.0)
+                        deduped_gb = max(0.0, round(orig_gb - size_gb, 3))
+                        act["size_gb"] = deduped_gb
+                        act["size_mb"] = round(deduped_gb * 1024, 1)
+                        act.setdefault("details", {})["buildcache_deduplicated_gb"] = size_gb
+                        break
                 commands = [" ".join(t["command"]) for t in targets]
                 actions.append(
                     {
@@ -1361,6 +1369,21 @@ class ServiceCleaner:
             ),
         }
 
+    @staticmethod
+    def _is_overlapping_action(action: dict[str, Any], services: list[Any]) -> bool:
+        """Return True if an age-bounded action targets storage already counted in services."""
+        action_path = action.get("path")
+        action_type = str(action.get("service_type", ""))
+        for s in services:
+            s_path = getattr(s, "path", None)
+            if action_path and s_path and action_path == s_path:
+                return True
+            s_type = getattr(s, "service_type", None)
+            st_val = s_type.value if hasattr(s_type, "value") else str(s_type or "")
+            if action_type and st_val and (action_type == st_val or action_type.startswith(f"{st_val}-")):
+                return True
+        return False
+
     def get_cleanup_plan(
         self, selected_services: list[str] | None = None
     ) -> dict[str, Any]:
@@ -1386,12 +1409,29 @@ class ServiceCleaner:
         safe_to_cleanup = age_actions + safe_dicts
         service_dicts = age_actions + [self._service_to_dict(s) for s in services]
 
+        non_overlapping_age_size = sum(
+            item["size_gb"]
+            for item in age_actions
+            if not self._is_overlapping_action(item, services)
+        )
+        plan_total_size = round(total_size_gb + non_overlapping_age_size, 2)
+
+        unique_services = {
+            s.service_type.value if hasattr(s.service_type, "value") else str(s.service_type)
+            for s in services
+        }
+        for item in age_actions:
+            st = str(item.get("service_type", ""))
+            root_st = st.split("-")[0] if "-" in st else st
+            if root_st:
+                unique_services.add(root_st)
+            elif item.get("name"):
+                unique_services.add(item["name"])
+
         plan = {
             "threshold_mb": self.scanner.threshold_mb,
             "services_found": len(service_dicts),
-            "total_size_gb": round(
-                total_size_gb + sum(item["size_gb"] for item in age_actions), 2
-            ),
+            "total_size_gb": plan_total_size,
             # Tool-managed prunes remove only unreferenced packages, so their
             # scanned size is not a promise of reclaimable space.
             **self._safe_reclaim_totals(safe_to_cleanup),
