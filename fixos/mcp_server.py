@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import re
 import sys
@@ -61,7 +62,7 @@ OPERATIONS_CATALOG: tuple[dict[str, Any], ...] = (
         "input_schema": {
             "type": "object",
             "properties": {
-                "path": {"type": "string", "default": "/"},
+                "path": {"type": "string", "minLength": 1, "default": "/"},
             },
             "additionalProperties": False,
         },
@@ -80,7 +81,7 @@ OPERATIONS_CATALOG: tuple[dict[str, Any], ...] = (
         "input_schema": {
             "type": "object",
             "properties": {
-                "min_age_days": {"type": "number", "default": 7.0},
+                "min_age_days": {"type": "number", "minimum": 1, "default": 7.0},
             },
             "additionalProperties": False,
         },
@@ -100,7 +101,7 @@ OPERATIONS_CATALOG: tuple[dict[str, Any], ...] = (
             "type": "object",
             "properties": {
                 "dry_run": {"type": "boolean", "default": True},
-                "min_age_days": {"type": "number", "default": 7.0},
+                "min_age_days": {"type": "number", "minimum": 1, "default": 7.0},
                 "include_projects": {"type": "boolean", "default": True},
                 "request_id": {
                     "type": "string",
@@ -118,6 +119,50 @@ OPERATIONS_CATALOG: tuple[dict[str, Any], ...] = (
 def _canonical_digest(payload: Any) -> str:
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
+
+
+def _validate_arguments(schema: Mapping[str, Any], value: Any, path: str = "arguments") -> None:
+    """Validate the object/primitive JSON Schema subset used by this catalog.
+
+    This is a bounded catalog validator, not a general JSON Schema engine.
+    Unsupported constraints fail closed rather than silently weakening a tool.
+    Errors contain only schema-owned paths, never rejected values or keys.
+    """
+    supported = {
+        "type", "properties", "required", "additionalProperties", "default",
+        "description", "minLength", "maxLength", "minimum", "maximum",
+    }
+    if set(schema) - supported:
+        raise ValueError("UNSUPPORTED_INPUT_SCHEMA")
+    kind = schema.get("type")
+    valid_type = {
+        "object": isinstance(value, Mapping),
+        "string": isinstance(value, str),
+        "boolean": type(value) is bool,
+        "number": type(value) in (int, float),
+        "integer": type(value) is int,
+    }
+    if kind not in valid_type:
+        raise ValueError("UNSUPPORTED_INPUT_SCHEMA")
+    if not valid_type[kind]:
+        raise ValueError(f"INVALID_ARGUMENTS: {path}: expected {kind}")
+    if kind == "object":
+        properties = schema.get("properties", {})
+        if any(key not in value for key in schema.get("required", [])):
+            raise ValueError(f"INVALID_ARGUMENTS: {path}: missing required field")
+        if schema.get("additionalProperties") is False and set(value) - set(properties):
+            raise ValueError(f"INVALID_ARGUMENTS: {path}: unknown field")
+        for key, child in properties.items():
+            if key in value:
+                _validate_arguments(child, value[key], f"{path}.{key}")
+    elif kind in ("number", "integer"):
+        if isinstance(value, float) and not math.isfinite(value):
+            raise ValueError(f"INVALID_ARGUMENTS: {path}: expected finite number")
+        if value < schema.get("minimum", value) or value > schema.get("maximum", value):
+            raise ValueError(f"INVALID_ARGUMENTS: {path}: out of range")
+    elif kind == "string":
+        if len(value) < schema.get("minLength", 0) or len(value) > schema.get("maxLength", len(value)):
+            raise ValueError(f"INVALID_ARGUMENTS: {path}: invalid length")
 
 
 def catalog_digest() -> str:
@@ -552,23 +597,32 @@ def task_execute(
     receipts_dir: str | Path | None = None,
 ) -> dict[str, Any]:
     """Execute a registered FixOS URI operation with optional digest verification."""
-    params = dict(payload or {})
+    operation = next(
+        (op for op in OPERATIONS_CATALOG if operation_id in (op["operation_id"], op["tool_name"])),
+        None,
+    )
+    if operation is None:
+        raise ValueError("UNKNOWN_OPERATION")
+    _validate_arguments({"type": "string"}, registry_digest, "registry_digest")
+    _validate_arguments({"type": "string"}, request_id, "request_id")
+    _validate_arguments(operation["input_schema"], {} if payload is None else payload)
+    params = dict(payload) if payload is not None else {}
     current_digest = catalog_digest()
     if registry_digest and registry_digest != current_digest:
-        raise ValueError(f"CATALOG_DIGEST_MISMATCH: expected {registry_digest}, actual {current_digest}")
+        raise ValueError("CATALOG_DIGEST_MISMATCH")
 
     if operation_id in ("fixos://diagnostics/quick", "fixos_quick"):
         return run_fixos_quick()
     if operation_id in ("fixos://diagnostics/disk", "fixos_scan_disk"):
-        return run_fixos_scan_disk(path=str(params.get("path", "/")))
+        return run_fixos_scan_disk(path=params.get("path", "/"))
     if operation_id in ("fixos://diagnostics/projects", "fixos_scan_projects"):
         return run_fixos_scan_projects(min_age_days=float(params.get("min_age_days", 7.0)))
     if operation_id in ("fixos://cleanup/auto", "fixos_auto_cleanup"):
         return run_fixos_auto_cleanup(
-            dry_run=bool(params.get("dry_run", True)),
+            dry_run=params.get("dry_run", True),
             min_age_days=float(params.get("min_age_days", 7.0)),
-            include_projects=bool(params.get("include_projects", True)),
-            request_id=str(request_id or params.get("request_id", "")),
+            include_projects=params.get("include_projects", True),
+            request_id=request_id or params.get("request_id", ""),
             receipts_dir=receipts_dir,
         )
     raise ValueError(f"UNKNOWN_OPERATION: {operation_id}")
@@ -584,7 +638,7 @@ def mcp_tools_list() -> list[dict[str, Any]]:
                 "type": "object",
                 "properties": {
                     "query": {"type": "string", "default": ""},
-                    "limit": {"type": "integer", "default": 12},
+                    "limit": {"type": "integer", "minimum": 1, "maximum": 50, "default": 12},
                 },
                 "additionalProperties": False,
             },
@@ -607,7 +661,7 @@ def mcp_tools_list() -> list[dict[str, Any]]:
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "operation_id": {"type": "string"},
+                    "operation_id": {"type": "string", "minLength": 1},
                     "payload": {"type": "object"},
                     "registry_digest": {"type": "string", "default": ""},
                     "request_id": {"type": "string", "default": ""},
@@ -648,21 +702,25 @@ def handle_mcp_tool_call(
     receipts_dir: str | Path | None = None,
 ) -> dict[str, Any]:
     """Dispatch an MCP tools/call invocation and return structured result."""
-    args = dict(arguments or {})
+    descriptor = next((tool for tool in mcp_tools_list() if tool["name"] == name), None)
+    if descriptor is None:
+        raise ValueError("UNKNOWN_TOOL")
+    _validate_arguments(descriptor["inputSchema"], {} if arguments is None else arguments)
+    args = dict(arguments) if arguments is not None else {}
     if name == "registry_search":
-        return registry_search(query=str(args.get("query", "")), limit=int(args.get("limit", 12)))
+        return registry_search(query=args.get("query", ""), limit=args.get("limit", 12))
     if name == "task_plan":
-        return task_plan(task=str(args.get("task", "")))
+        return task_plan(task=args["task"])
     if name == "task_execute":
         return task_execute(
-            operation_id=str(args.get("operation_id", "")),
-            payload=args.get("payload") if isinstance(args.get("payload"), Mapping) else {},
-            registry_digest=str(args.get("registry_digest", "")),
-            request_id=str(args.get("request_id", "")),
+            operation_id=args["operation_id"],
+            payload=args.get("payload", {}),
+            registry_digest=args.get("registry_digest", ""),
+            request_id=args.get("request_id", ""),
             receipts_dir=receipts_dir,
         )
     if name == "fixos_task_status":
-        return task_status(str(args.get("request_id", "")), receipts_dir=receipts_dir)
+        return task_status(args["request_id"], receipts_dir=receipts_dir)
     return task_execute(name, args, receipts_dir=receipts_dir)
 
 
@@ -694,11 +752,12 @@ def handle_jsonrpc_message(
     if method == "tools/list":
         return {"jsonrpc": "2.0", "id": msg_id, "result": {"tools": mcp_tools_list()}}
     if method == "tools/call":
-        tool_name = str(params.get("name", ""))
-        tool_args = params.get("arguments") if isinstance(params.get("arguments"), Mapping) else {}
+        tool_name = params.get("name", "")
+        tool_args = params.get("arguments", {})
         try:
             # CLI helpers print progress; stdout is reserved for JSON-RPC frames.
             with redirect_stdout(sys.stderr):
+                _validate_arguments({"type": "object"}, tool_args)
                 payload = handle_mcp_tool_call(tool_name, tool_args, receipts_dir=receipts_dir)
             return {
                 "jsonrpc": "2.0",
@@ -710,7 +769,8 @@ def handle_jsonrpc_message(
                 },
             }
         except Exception as exc:  # noqa: BLE001
-            err_payload = {"error": str(exc), "tool": tool_name}
+            known_name = any(tool["name"] == tool_name for tool in mcp_tools_list())
+            err_payload = {"error": str(exc), "tool": tool_name if known_name else ""}
             return {
                 "jsonrpc": "2.0",
                 "id": msg_id,

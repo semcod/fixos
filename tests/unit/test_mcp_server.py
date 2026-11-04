@@ -17,6 +17,7 @@ from fixos.mcp_server import (
     RECEIPT_SCHEMA,
     catalog_digest,
     handle_jsonrpc_message,
+    handle_mcp_tool_call,
     mcp_tools_list,
     registry_search,
     serve_stdio,
@@ -108,6 +109,133 @@ def test_task_execute_and_receipt_replay(tmp_path: Path, monkeypatch: pytest.Mon
 def test_task_execute_rejects_mismatched_digest():
     with pytest.raises(ValueError, match="CATALOG_DIGEST_MISMATCH"):
         task_execute("fixos://diagnostics/quick", {}, registry_digest="0" * 64)
+
+
+@pytest.mark.parametrize("route", ["uri", "alias", "gateway", "jsonrpc"])
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"dry_run": "false"},
+        {"dry_run": 0},
+        {"dry_run": None},
+        {"include_projects": "false"},
+        {"include_projects": 1},
+        {"min_age_days": float("nan")},
+        {"min_age_days": float("inf")},
+        {"min_age_days": float("-inf")},
+        {"min_age_days": 0},
+        {"min_age_days": -1},
+        {"min_age_days": True},
+        {"min_age_days": "7"},
+        {"private-field": "submitted-secret"},
+        {"request_id": []},
+        {"request_id": "x" * 129},
+    ],
+)
+def test_invalid_cleanup_arguments_never_reach_adapter(monkeypatch, route, payload):
+    def forbidden_adapter(**kwargs):
+        pytest.fail("Invalid arguments reached cleanup adapter")
+
+    monkeypatch.setattr("fixos.mcp_server.run_fixos_auto_cleanup", forbidden_adapter)
+    uri = "fixos://cleanup/auto"
+    if route == "jsonrpc":
+        response = handle_jsonrpc_message({
+            "jsonrpc": "2.0", "id": 1, "method": "tools/call",
+            "params": {"name": "fixos_auto_cleanup", "arguments": payload},
+        })
+        assert response["result"]["isError"] is True
+        error = response["result"]["structuredContent"]["error"]
+    else:
+        with pytest.raises(ValueError, match="INVALID_ARGUMENTS") as caught:
+            if route == "uri":
+                task_execute(uri, payload)
+            elif route == "alias":
+                handle_mcp_tool_call("fixos_auto_cleanup", payload)
+            else:
+                handle_mcp_tool_call("task_execute", {"operation_id": uri, "payload": payload})
+        error = str(caught.value)
+    assert "private-field" not in error
+    assert "submitted-secret" not in error
+
+
+@pytest.mark.parametrize(
+    "name,arguments",
+    [
+        ("registry_search", {"query": 123}),
+        ("registry_search", {"limit": True}),
+        ("registry_search", {"limit": 0}),
+        ("registry_search", {"limit": 51}),
+        ("task_plan", {}),
+        ("task_plan", {"task": ["cleanup"]}),
+        ("task_execute", {}),
+        ("task_execute", {"operation_id": ""}),
+        ("task_execute", {"operation_id": "fixos://cleanup/auto", "payload": None}),
+        ("task_execute", {"operation_id": "fixos://cleanup/auto", "payload": "{}"}),
+        ("task_execute", {"operation_id": "fixos://cleanup/auto", "registry_digest": []}),
+        ("fixos_task_status", {}),
+        ("fixos_task_status", {"request_id": 123}),
+        ("fixos_quick", {"unexpected": "submitted-secret"}),
+        ("fixos_scan_disk", {"path": ""}),
+        ("fixos_scan_disk", {"path": False}),
+    ],
+)
+def test_invalid_tool_envelopes_do_not_dispatch(monkeypatch, name, arguments):
+    def forbidden_dispatch(*args, **kwargs):
+        pytest.fail("Invalid tool envelope reached dispatch")
+
+    for handler in ("registry_search", "task_plan", "task_execute", "task_status"):
+        monkeypatch.setattr(f"fixos.mcp_server.{handler}", forbidden_dispatch)
+    response = handle_jsonrpc_message({
+        "jsonrpc": "2.0", "id": 1, "method": "tools/call",
+        "params": {"name": name, "arguments": arguments},
+    })
+    assert response["result"]["isError"] is True
+    assert "INVALID_ARGUMENTS" in response["result"]["structuredContent"]["error"]
+    assert "submitted-secret" not in json.dumps(response)
+
+
+@pytest.mark.parametrize("arguments", [None, [], "{}", False])
+def test_jsonrpc_rejects_nonobject_arguments(monkeypatch, arguments):
+    def forbidden_dispatch(*args, **kwargs):
+        pytest.fail("Non-object arguments reached dispatch")
+
+    monkeypatch.setattr("fixos.mcp_server.handle_mcp_tool_call", forbidden_dispatch)
+    response = handle_jsonrpc_message({
+        "jsonrpc": "2.0", "id": 1, "method": "tools/call",
+        "params": {"name": "fixos_quick", "arguments": arguments},
+    })
+    assert response["result"]["isError"] is True
+
+
+def test_valid_boolean_arguments_and_defaults_are_preserved(monkeypatch):
+    monkeypatch.setattr("fixos.mcp_server.run_fixos_auto_cleanup", lambda **kwargs: kwargs)
+    result = handle_mcp_tool_call("task_execute", {
+        "operation_id": "fixos://cleanup/auto",
+        "payload": {"dry_run": False, "include_projects": False, "min_age_days": 1},
+    })
+    assert result["dry_run"] is False
+    assert result["include_projects"] is False
+    assert result["min_age_days"] == 1
+    assert task_execute("fixos://cleanup/auto")["dry_run"] is True
+
+
+def test_unknown_operations_and_unsupported_constraints_fail_closed(monkeypatch):
+    import fixos.mcp_server as server
+
+    op = dict(server.OPERATIONS_CATALOG[0])
+    op["input_schema"] = {**op["input_schema"], "minProperties": 1}
+    monkeypatch.setattr(server, "OPERATIONS_CATALOG", (op,))
+    monkeypatch.setattr(server, "run_fixos_quick", lambda: pytest.fail("Unexpected diagnostic"))
+    with pytest.raises(ValueError, match="UNSUPPORTED_INPUT_SCHEMA"):
+        task_execute(op["operation_id"])
+    with pytest.raises(ValueError, match="^UNKNOWN_OPERATION$"):
+        task_execute("submitted-secret")
+    response = handle_jsonrpc_message({
+        "jsonrpc": "2.0", "id": 1, "method": "tools/call",
+        "params": {"name": "submitted-secret", "arguments": {}},
+    })
+    assert response["result"]["isError"] is True
+    assert "submitted-secret" not in json.dumps(response)
 
 
 @pytest.mark.parametrize("dry_run", [True, False])
