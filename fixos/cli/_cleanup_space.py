@@ -58,6 +58,11 @@ _USER_CACHE_SAFE = {
     "cursor-compile-cache",
     "gstreamer-1.0",
     "mesa_shader_cache_sf",
+    "subactor-search",
+    "tree-sitter-language-pack",
+    "virt-builder",
+    "virtualenv",
+    "google-chrome-headless",
 }
 
 
@@ -2154,6 +2159,14 @@ def _cleanup_build_caches(
         npm_cache = home / ".npm" / "_cacache"
         if npm_cache.is_dir() and not npm_cache.is_symlink():
             dirs_to_size.append(npm_cache)
+
+        cargo_cache = home / ".cargo" / "registry" / "cache"
+        if cargo_cache.is_dir() and not cargo_cache.is_symlink():
+            dirs_to_size.append(cargo_cache)
+
+        android_cache = home / ".android" / "build-cache"
+        if android_cache.is_dir() and not android_cache.is_symlink():
+            dirs_to_size.append(android_cache)
 
         conda_pkgs = home / "miniconda3" / "pkgs"
         if conda_pkgs.is_dir():

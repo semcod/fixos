@@ -1,0 +1,80 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-122",
+  "summary": "Enhance autonomous disk remediation for subactor caches and stale IDE version data",
+  "workstream": "application",
+  "classification": {
+    "kind": "SERVICE",
+    "priority": "P2",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-122/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/cli/_auto_cleanup.py",
+    "fixos/cli/_cleanup_space.py",
+    "tests/unit/test_cleanup_space.py",
+    "fixos/cli/fix_cmd.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "6cf7994a24c081d9e300d32c2049d2d528ae3314",
+    "targetBranch": "main",
+    "outcome": "Enhance autonomous disk space remediation by recognizing subactor-search, virt-builder, tree-sitter, cargo, and android caches as safe to prune, and enable snap-old during service cleanup.",
+    "nonGoals": [
+      "No personal directory scans or user-authored file deletions",
+      "No removal of JetBrains LocalHistory or active version caches",
+      "No breaking changes to CLI interface or retention policies"
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 20,
+    "budgets": {
+      "maxImplementationFiles": 4,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Extend _USER_CACHE_SAFE and _CACHE_PATHS with regenerable developer tool caches (subactor-search, virt-builder, tree-sitter-language-pack), add cargo/android caches to _cleanup_build_caches, and trigger snap-old when clean_services is active and snap is present.",
+      "components": [
+        {
+          "name": "disk-cleanup-safety",
+          "paths": [
+            "fixos/cli/_auto_cleanup.py",
+            "fixos/cli/_cleanup_space.py",
+            "fixos/cli/fix_cmd.py",
+            "tests/unit/test_cleanup_space.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert via git commit/PR and reinstall stable package."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "pytest -v tests/unit/test_cleanup_space.py",
+          "./project/governance-check.sh"
+        ],
+        "evidence": "project/ticket-122/README.md"
+      }
+    ]
+  }
+}
