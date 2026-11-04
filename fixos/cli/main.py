@@ -30,6 +30,7 @@ LAZY_COMMANDS: dict[str, tuple[str, str]] = {
     "rollback": ("fixos.cli.rollback_cmd", "rollback"),
     "scan": ("fixos.cli.scan_cmd", "scan"),
     "shell": ("fixos.cli.shell_cmd", "shell_cmd"),
+    "storage": ("fixos.cli.storage_cmd", "storage"),
     "test-llm": ("fixos.cli.provider_cmd", "test_llm"),
     "token": ("fixos.cli.token_cmd", "token"),
     "watch": ("fixos.cli.watch_cmd", "watch"),
