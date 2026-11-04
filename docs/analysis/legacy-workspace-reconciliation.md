@@ -3,7 +3,7 @@
   "schema": "wellmanifest.docs/document/v1",
   "id": "legacy-workspace-reconciliation",
   "kind": "analysis",
-  "version": 1,
+  "version": 2,
   "title": "Uzgodnienie starej kwarantanny i gałęzi backupowej Fixos",
   "status": "proposed",
   "owner": "semcod/fixos",
@@ -16,6 +16,8 @@
     "https://github.com/semcod/fixos/pull/141",
     "https://github.com/semcod/fixos/pull/144",
     "https://github.com/semcod/fixos/issues/133",
+    "https://github.com/subactor/autonom/pull/203",
+    "https://github.com/subactor/autonom/blob/f1f9018f38ecb5ddf65e3502772efdef2a53d883/autonom/worktree_observer.py",
     "https://github.com/semcod/fixos/blob/ff91710a60a19ba3aab96f87c506aa5a806e4aeb/project/ticket-109/intent.json",
     "https://github.com/semcod/fixos/blob/ff91710a60a19ba3aab96f87c506aa5a806e4aeb/project/ticket-110/intent.json"
   ]
@@ -109,7 +111,7 @@ możliwych wejść. Oryginalne kryteria nie określają kontraktu `None`;
 ewentualne utwardzenie wymaga osobnego rozstrzygnięcia tego wejścia.
 
 <!-- docs:section limitations -->
-## Stan własności i blokada kontrolera
+## Pierwotna blokada kontrolera
 
 Stary plik `ticket-109--coding-agent-plf-20296.json` ma schemat
 `wellmanifest.worktree-lease/v1`, właściciela `antigravity` i stan `active`.
@@ -131,21 +133,63 @@ Lokalna kolejka Planfile również nie odnalazła starego identyfikatora.
 Nie wykonano mutacji lifecycle.
 
 <!-- docs:section recommendations -->
-## Konkretny następny krok
+## Kontynuacja po uzyskaniu nowych danych
 
-1. Właściciel techniczny kontrolera Subactor wiąże stare PLF-20296 / issue133
-   z repozytorium, bazowym SHA i zachowanym lease. Kontroler potwierdza koniec
-   pracy starego autora zmian albo przyjmuje jawne przekazanie, z własnym dowodem.
-2. Kontroler niezależnie pozyskuje obserwację dla backupu ticket-110:
-   źródło/ref, aktualny cel, pełne AC, receipt odtworzenia oraz dowód treści.
-   Kandydat raportu i skróty lokalne są materiałem wejściowym.
-3. Dopiero na tej podstawie uruchamia przyjęty
-   `branch_intent_reconciliation.py` i rozstrzyga dokładną dyspozycję.
-   Ten checker zawsze zwraca `authority=none`; nawet poprawny wynik nie
-   stanowi uprawnienia do usunięcia refa.
-4. Przed skutkiem ponownie sprawdza HEAD, status, procesy, lease/fencing,
-   odtwarzalność i autoryzację dokładnej operacji. Zmieniony SHA unieważnia
-   wcześniejsze wiązanie. Kwarantanna wymaga osobnej oceny nieznanego intentu.
+Użytkownik odpowiedział: **„Tak, praca została zakończona”** na pytanie o
+pracę `antigravity` nad PLF-20296 / ticket-109. Jest to rzeczywiste wejście od
+właściciela, przechowywane z odniesieniem do pytania. Nie zawiera zgody na
+usunięcie danych i nie uzupełnia nieznanych parametrów starego lease.
+
+W `subactor/autonom` powstał osobny protokół obserwacji historycznych katalogów.
+Źródło `f1f9018f38ecb5ddf65e3502772efdef2a53d883` uzyskało niezależne review i
+zostało scalone w PR203, merge `1c6ea02713596e9146da30fde655ff6884cb55d6`.
+67 testów i 112 podprzypadków PASS, governance i Ruff PASS.
+
+Na hoście wdrożono dokładny moduł o SHA-256
+`e3ff084eb8e11f08ef3b4b05b4ff73a361a2a1d13d00dcab14ccb154955ea761`
+oraz pojedynczą politykę UID0, wiążącą dokładną ścieżkę, device/inode i skrót
+pliku `.git`. Rzeczywisty klient sprawdził root peer, nonce i czas ważności.
+Odczyt 2026-11-04 17:44:54 UTC był pełny i wskazał pustą listę procesów.
+Kanoniczny klient zobaczył własny nieuprzywilejowany PID, a żądanie z błędną
+tożsamością zostało odrzucone. To obserwacja historyczna o TTL 10 s; przed nową
+decyzją konieczny jest świeży odczyt.
+
+Odpowiedź usługi nadal jawnie zawiera `owner_liveness="unknown"` i
+`cleanup_authorized=false`. Potwierdzenie właściciela i obserwacja użycia
+pozostają osobnymi dowodami. Przygotowywana instrukcja produktu ma kanoniczny adres
+`subactor/autonom/docs/information/legacy-worktree-observation.md`.
+
+### Zachowanie historii backupu
+
+Ticket-131 uzgadnia status backupu
+`1e4d4d364c613aeabc8b3c7ab0c229e5cc008d60`. Całe znane AC-01 ma już
+pełną realizację w identycznym pliku wymagań w `main` (wprowadzonym w
+commit `5a59ecc` / PR #144). Intent ticket-110 w `main` jest pełną
+wersją zawierającą wszystkie wymagane sekcje. Pozostałe pliki konfiguracji,
+produktu i ticket-110 są w `main` aktualne i identyczne z intencją backupu.
+
+Materialna aktualizacja tej analizy oraz uzgodnienie są publikowane
+atomowo, przez niezależne testy i review. Unikalna historia backupu
+pozostaje zachowana w repozytorium i odtworzonym bundle.
+
+<!-- docs:section next_actions -->
+## Następne kroki operatora
+
+Uzgodnienie artefaktów zakończonej pracy opiera się na historii Git, kopiach
+odzyskiwania, potwierdzeniu właściciela i świeżej obserwacji usługi.
+Nie wznawia starego zadania i nie tworzy fikcyjnego lease v5.
+
+1. Opublikować i zweryfikować pełną integrację historii backupu, następnie
+   sprawdzić źródłowy SHA i osiągalność przed porządkowaniem scalonego refa.
+2. Dla kwarantanny sprawdzić także wszystkie ignorowane pliki i metadane Git.
+   Początkowy snapshot czterech zmian nie zastępuje kompletnego archiwum
+   katalogu. Odtworzyć pełną kopię przed przedstawieniem dokładnej dyspozycji.
+3. Uzyskać decyzję dla archiwalnego katalogu o niepełnym historycznym intencie.
+   Przed operacją ponownie sprawdzić tożsamość, HEAD, status, procesy i skróty
+   odzyskiwania. Zachować oryginalne metadane lease oraz osobny receipt operacji.
+4. Jeżeli rozważane byłoby odrzucenie nadal niescalonego refa, wymaga ono
+   przyjętej niezależnej obserwacji i `branch_intent_reconciliation.py`.
+   Ten checker zwraca `authority=none`; wynik nie stanowi zgody na usuwanie.
 
 Przygotowany lokalnie `branch110-report-proposal.json` oraz dwa węzły dowodów
 przeszły walidację schematu przyjętego w repozytorium. Skrót propozycji:
@@ -153,11 +197,18 @@ przeszły walidację schematu przyjętego w repozytorium. Skrót propozycji:
 Nie dołączono autorskiej listy jako rzekomo niezależnej obserwacji kontrolera.
 `controller-request.json` wiąże dokładne SHA, snapshot, lease i błąd endpointu;
 wnioskuje o ustalenie tożsamości i ocenę dyspozycji. Nie zawiera zgody na usuwanie.
-Zależność zarejestrowano lokalnie w kolejce właściciela jako
-`subactor/autonom:STARTER-029` (backlog). Ten intake nie uruchamia implementacji
-w istniejącym brudnym checkout i nie jest receipt-em przekazania własności.
+Zależność zarejestrowano w kolejce właściciela jako
+`subactor/autonom:STARTER-029`; kontynuacja dostarczyła kwalifikowany obserwator.
+Osobny writer pracował w kanonicznym ticket-113. Istniejąca obca zmiana
+`autonom/coding_agent.py` w głównym checkout pozostała zachowana.
 
-Funkcjonalny zakres dwóch starych zmian znajduje się w main. Całościowe
-uzgodnienie workspace pozostaje otwarte do potwierdzenia własności i
-dyspozycji przez kontroler. PLF-21812 zachowuje ten następny krok; ticket-129
-dostarcza analizę i dowody. Wersja produktu pozostaje 2.3.0.
+Funkcjonalny zakres dwóch starych zmian znajduje się w main. Ticket-129
+dostarczył pierwszą analizę i dowody; ticket-131 zachowuje historię i aktualizuje
+ustalenia. PLF-21812 przechowuje dalszy stan dyspozycji archiwalnej kopii.
+
+<!-- docs:section history -->
+## Historia
+
+- Wersja1: analiza przy bazie9510293, ticket-129, pełne AC i odtworzone kopie.
+- Wersja2: potwierdzenie zakończenia pracy przez użytkownika, wdrożony obserwator
+  z PR203 oraz normalna integracja zweryfikowanej historii w ticket-131.
