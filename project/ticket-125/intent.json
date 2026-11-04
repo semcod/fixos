@@ -1,0 +1,51 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-125",
+  "summary": "Document deterministic storage triage and diagnostic improvement findings",
+  "workstream": "integration",
+  "classification": {
+    "kind": "FEATURE",
+    "priority": "P2",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-125/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "docs/README.md",
+    "docs/analysis/storage-diagnostics.md",
+    "docs/information/storage-triage.md"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "947a1492906605dd79a33132af871d1a6774cc82",
+    "targetBranch": "main",
+    "outcome": "Provide canonical source-bound storage-triage usage and diagnostic improvement analysis with indexed links, exact evidence and explicit limitations.",
+    "nonGoals": ["No product source or package changes", "No cleanup, runtime deployment or independent approval claim"],
+    "complexity": "S",
+    "estimatedMinutes": 30,
+    "budgets": {"maxImplementationFiles": 3, "maxAffectedComponents": 1, "maxPublicInterfaceChanges": 0, "maxRuntimeDependencies": 0},
+    "architecture": {
+      "status": "accepted",
+      "decision": "Keep a canonical usage document and a separate analysis, indexed by docs/README.md; bind the committed application source and observed evidence. Raw host reports stay in ignored recovery.",
+      "components": [{"name": "storage-documentation", "paths": ["docs/information/storage-triage.md", "docs/analysis/storage-diagnostics.md", "docs/README.md"]}],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {"impact": "none", "states": [], "evidence": []},
+      "rollback": "Revert documentation through normal delivery; no runtime or data migration."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {"criterion": "AC-01", "commands": ["./project/governance-check.sh"], "evidence": "docs/information/storage-triage.md"},
+      {"criterion": "AC-02", "commands": ["./project/governance-check.sh"], "evidence": "docs/analysis/storage-diagnostics.md"},
+      {"criterion": "AC-03", "commands": ["./project/governance-check.sh"], "evidence": "docs/README.md"}
+    ]
+  }
+}
