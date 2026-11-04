@@ -3,18 +3,19 @@
   "schema": "wellmanifest.docs/document/v1",
   "id": "storage-triage",
   "kind": "information",
-  "version": 1,
+  "version": 2,
   "title": "Diagnostyka dużych plików i decyzje bez LLM",
   "status": "proposed",
   "owner": "semcod/fixos",
   "created": "2026-11-04",
   "updated": "2026-11-04",
   "review_after": "2026-12-04",
-  "source_revision": "cfeea5b8060082350c185b00e300641a46cc64b3",
+  "source_revision": "d039c49b4f290657bb7ddcab92bd7c9b30f28e85",
   "affected_repositories": ["semcod/fixos"],
   "evidence": [
     "https://github.com/semcod/fixos/blob/cfeea5b8060082350c185b00e300641a46cc64b3/fixos/diagnostics/large_files.py",
-    "https://github.com/semcod/fixos/blob/cfeea5b8060082350c185b00e300641a46cc64b3/tests/unit/test_large_file_triage.py"
+    "https://github.com/semcod/fixos/blob/d039c49b4f290657bb7ddcab92bd7c9b30f28e85/tests/unit/test_large_file_triage.py",
+    "https://github.com/semcod/fixos/blob/d039c49b4f290657bb7ddcab92bd7c9b30f28e85/fixos/diagnostics/large_files.py"
   ]
 }
 ---
@@ -41,9 +42,11 @@ osobno odczytywany dla dowodów aktywnego użycia.
 <!-- docs:section evidence -->
 ## Dowody
 
-Źródło: aplikacyjny ticket-124, commit wskazany w metadanych. Nowe testy
-zachowania i istniejące testy DiskAnalyzer: **52 PASS**; natywna bramka
-governance i Ruff PASS. Dokumentacja należy do integracyjnego ticket-125.
+Źródło początkowe: ticket-124, cfeea5b; dokumentacja ticket-125.
+Weryfikacja i poprawka aliasów: ticket-127, commit wskazany w metadanych.
+**55 testów obszaru PASS**, pełny zestaw **1119 PASS, 5 istniejących pominięć,
+16 domyślnych wyłączeń**; natywna bramka governance i Ruff PASS.
+Aktualizacja dokumentacji i buildu z wersją 2.3.0: ticket-128 / PLF-21811.
 Stan commitu, PR, merge i instalacji należy sprawdzać oddzielnie; dokument
 nie jest dowodem wdrożenia tej wersji na komputerze lub urządzeniu IMG.
 
@@ -86,7 +89,10 @@ JSON `fixos.storage-triage/v1` zawiera m.in.:
   albo brak rozpoznania; właściciela, mtime i liczbę dni od modyfikacji.
 - Bajty logiczne i przydzielone bloki, rozpoznanie plików rzadkich oraz
   hardlinki według pary device/inode. Znane ścieżki hardlinków są podane
-  z informacją o możliwej niepełności.
+  z informacją o możliwej niepełności. Każdy wykryty alias jest oceniany;
+  obowiązuje najsilniejsza decyzja: `protected`, potem `manager-review`,
+  następnie `review`. `decision_path` wskazuje ścieżkę uzasadniającą wybór.
+  Tabela, HTML i CSV pokazują aliasy, ścieżkę decyzji oraz czas obserwacji UTC.
 - Dowód aktywnego swapu i PID-y procesów trzymających deskryptor lub mapowanie.
   Niepełny dostęp, limity i znikające procesy są raportowane.
 - Grupowanie według decyzji, typu, lokalizacji/repozytorium i właściciela.
@@ -126,3 +132,9 @@ Otwórz HTML albo porównaj grupy w terminalu, wybierz zakres do dalszego
 sprawdzenia i wykonaj wskazane kontrole właściciela danych. Przed ewentualnym
 usuwaniem trzeba ponownie odczytać stan dokładnego celu.
 [Analiza dalszych usprawnień](../analysis/storage-diagnostics.md).
+
+<!-- docs:section history -->
+## Historia
+
+- Wersja 1: pierwotny zakres cfeea5b, ticket-125.
+- Wersja 2: ochrona kontekstu aliasów d039c49, aktualizacja dowodów i wydanie 2.3.0 w ticket-128. Liczby testów opisują sprawdzony commit aplikacyjny, nie dowodzą publikacji pakietu na PyPI.

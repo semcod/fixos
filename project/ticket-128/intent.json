@@ -1,0 +1,104 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-128",
+  "summary": "Build packages without recursive cleanup and release storage diagnostics",
+  "workstream": "integration",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P2",
+    "origin": "regression"
+  },
+  "allowedPaths": [
+    "project/ticket-128/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "Makefile",
+    "VERSION",
+    "docs/analysis/storage-diagnostics.md",
+    "docs/information/storage-triage.md",
+    "pyproject.toml"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [
+    "ticket-127"
+  ],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "678eeb8cfa2ec5a4888b2baab2c0f143348b5f7b",
+    "targetBranch": "main",
+    "outcome": "Make package builds work with the Wellman-selected environment without pip upgrade or recursive cleanup; release the additive storage CLI as 2.3.0 with synchronized metadata and updated canonical documentation.",
+    "nonGoals": [
+      "No PyPI upload or unqualified tag",
+      "No runtime dependencies, user data cleanup, policy changes or application source edits"
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 30,
+    "budgets": {
+      "maxImplementationFiles": 5,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 1,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Replace build dependency on clean and direct pip with Wellman python -m build, add the build frontend to development extras and an overridable BUILD_OUT. Keep VERSION canonical and its static pyproject mirror synchronized. Update existing canonical information and analysis documents.",
+      "components": [
+        {
+          "name": "package-build",
+          "paths": [
+            "Makefile",
+            "VERSION",
+            "pyproject.toml"
+          ]
+        },
+        {
+          "name": "storage-documentation",
+          "paths": [
+            "docs/analysis/storage-diagnostics.md",
+            "docs/information/storage-triage.md"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [
+        "Makefile BUILD_OUT override"
+      ],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Protected revert of the scoped build/version change; installed package backups remain private operational recovery."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "make build BUILD_OUT=<fresh-private-output>"
+        ],
+        "evidence": "Makefile"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "python -m pytest -q tests/unit/test_version_parity.py",
+          "Inspect wheel and source distribution metadata and package source digests"
+        ],
+        "evidence": "VERSION"
+      },
+      {
+        "criterion": "AC-03",
+        "commands": [
+          "./project/governance-check.sh"
+        ],
+        "evidence": "docs/analysis/storage-diagnostics.md"
+      }
+    ]
+  }
+}
