@@ -35,6 +35,7 @@ class DiskAnalyzer:
 
     def __init__(self, base_path: str = "/"):
         self.base_path = Path(base_path)
+        self.large_file_scan = {"status": "not-requested"}
         self.cache_patterns = [
             ".cache",
             "__pycache__",
@@ -92,6 +93,7 @@ class DiskAnalyzer:
                 "usage_percent": round(usage_percent, 2),
                 "status": self._get_disk_status(usage_percent),
                 "large_files": large_files,
+                "large_file_scan": self.large_file_scan,
                 "cache_dirs": cache_dirs,
                 "log_dirs": log_dirs,
                 "temp_dirs": temp_dirs,
@@ -127,41 +129,23 @@ class DiskAnalyzer:
         min_size_mb: int = MIN_FILE_SIZE_MB,
         max_files: int = MAX_LARGE_FILES_DEFAULT,
     ) -> List[Dict]:
-        """Find large files using os.walk to avoid rglob memory explosion."""
-        large_files = []
+        """Compatibility view of bounded, largest-first deterministic triage.
 
-        try:
-            for dirpath, _dirnames, filenames in os.walk(path):
-                for filename in filenames:
-                    file_path = Path(dirpath) / filename
-                    try:
-                        st = file_path.stat()
-                        size_mb = st.st_size / (1024**2)
-                        if size_mb >= min_size_mb:
-                            large_files.append(
-                                {
-                                    "path": str(file_path),
-                                    "size_mb": round(size_mb, 2),
-                                    "size_gb": round(size_mb / 1024, 3),
-                                    "modified": datetime.fromtimestamp(
-                                        st.st_mtime, tz=UTC
-                                    ).isoformat(),
-                                    "category": self._categorize_file(file_path),
-                                }
-                            )
-                            if len(large_files) >= max_files:
-                                break
-                    except (OSError, PermissionError):
-                        continue
-                if len(large_files) >= max_files:
-                    break
+        Legacy thresholds remain binary MiB and inclusive. Detailed coverage
+        is retained on the analyzer and in analyze_disk_usage.
+        """
+        from fixos.diagnostics.large_files import analyze_large_files
 
-        except Exception:
-            pass
-
-        # Sort by size (largest first)
-        large_files.sort(key=lambda x: x["size_mb"], reverse=True)
-        return large_files[:max_files]
+        if max_files <= 0:
+            self.large_file_scan = {"status": "not-requested"}
+            return []
+        report = analyze_large_files([path], min_bytes=max(0, int(min_size_mb * 1024**2)-1), limit=max_files)
+        self.large_file_scan = {**report["scan"], "results_truncated": report["results_truncated"],
+                                "process_probe": report["process_probe"]}
+        return [{**row, "size_mb": round(row["logical_bytes"] / 1024**2, 2),
+                 "size_gb": round(row["logical_bytes"] / 1024**3, 3),
+                 "modified": row["modified_at"], "category": self._categorize_file(Path(row["path"]))}
+                for row in report["files"]]
 
     def get_cache_dirs(
         self, path: Path, max_dirs: int = MAX_CACHE_DIRS_DEFAULT
