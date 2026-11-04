@@ -330,7 +330,24 @@ def analyze_large_files(
             "open_pids": sorted(processes["opened"].get(identity, set())),
             "process_visibility": processes["status"],
         }
-        row.update(decide_file(row))
+        # One inode may have paths with very different retention obligations.
+        # Never let the first encountered cache path mask a protected alias.
+        decisions = []
+        for alias in sorted(row["observed_paths"]):
+            alias_path = Path(alias)
+            context = {
+                **row,
+                "path": alias,
+                "kind": file_kind(alias_path, header),
+                "repository": _repository(alias_path, repository_cache),
+            }
+            decisions.append({**decide_file(context), "decision_path": alias})
+        strength = {"protected": 2, "manager-review": 1, "review": 0}
+        row.update(max(decisions, key=lambda item: strength[item["decision"]]))
+        if row["observed_paths_may_be_incomplete"]:
+            row["reasons"].append(
+                "Nie wszystkie ścieżki hardlinków są znane; ich przeznaczenie pozostaje niezweryfikowane."
+            )
         if signature_status == "changed-during-scan":
             row.update(
                 decision="protected",

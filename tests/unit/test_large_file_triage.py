@@ -36,6 +36,65 @@ def empty_processes(*args, **kwargs):
     }
 
 
+@pytest.mark.parametrize("reverse", [False, True])
+@pytest.mark.parametrize(
+    "alias_name,decision,rule",
+    [
+        ("backups/copy.bin", "protected", "BACKUP"),
+        (".git/objects/copy.bin", "protected", "RECOVERY_OR_SOURCE"),
+        ("data/copy.sqlite", "protected", "DATABASE"),
+        ("docker/copy.bin", "manager-review", "CONTAINER_STORE"),
+    ],
+)
+def test_alias_context_cannot_be_masked_by_cache_path(
+    tmp_path, monkeypatch, reverse, alias_name, decision, rule
+):
+    # Wellman may put pytest's temp tree beneath .subactor/.worktrees.
+    # Isolate the fixture's own path context from its host ancestors.
+    monkeypatch.setattr(
+        large_files,
+        "decide_file",
+        lambda row: decide_file(
+            {
+                **row,
+                "path": str(Path("/fixture") / Path(row["path"]).relative_to(tmp_path)),
+            }
+        ),
+    )
+    cache = make_file(tmp_path / ".cache/candidate.bin", 1024)
+    alias = tmp_path / alias_name
+    alias.parent.mkdir(parents=True, exist_ok=True)
+    os.link(cache, alias)
+    roots = [cache.parent, alias.parent]
+    if reverse:
+        roots.reverse()
+    report = analyze_large_files(roots, min_bytes=0)
+    assert len(report["files"]) == 1
+    row = report["files"][0]
+    assert row["decision"] == decision
+    assert row["rule_id"] == rule
+    assert row["decision_path"] == str(alias)
+    assert set(row["observed_paths"]) == {str(cache), str(alias)}
+    assert row["observed_paths_may_be_incomplete"] is False
+    assert row["reclaim_upper_bound_bytes"] == 0
+    assert (
+        sum(group["allocated_bytes"] for group in report["groups"])
+        == row["allocated_bytes"]
+    )
+    assert cache.exists() and alias.exists()
+
+
+def test_unobserved_alias_context_is_explicit_and_never_promises_reclaim(tmp_path):
+    cache = make_file(tmp_path / ".cache/candidate.bin", 1024)
+    alias = tmp_path / "outside.bin"
+    os.link(cache, alias)
+    row = analyze_large_files([cache.parent], min_bytes=0)["files"][0]
+    assert row["observed_paths_may_be_incomplete"] is True
+    assert row["observed_paths"] == [str(cache)]
+    assert row["reclaim_upper_bound_bytes"] == 0
+    assert row["reclaimable_bytes"] is None
+
+
 @pytest.fixture(autouse=True)
 def bounded_probes(monkeypatch):
     monkeypatch.setattr(large_files, "_open_evidence", empty_processes)

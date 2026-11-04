@@ -1,0 +1,103 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-127",
+  "summary": "Protect hardlink aliases in storage diagnostics",
+  "workstream": "application",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P2",
+    "origin": "regression"
+  },
+  "allowedPaths": [
+    "project/ticket-127/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/cli/storage_cmd.py",
+    "fixos/diagnostics/large_files.py",
+    "tests/unit/test_large_file_triage.py",
+    "tests/unit/test_storage_cmd.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "678eeb8cfa2ec5a4888b2baab2c0f143348b5f7b",
+    "targetBranch": "main",
+    "outcome": "Honor protection and manager context of every observed hardlink alias, with visible decision provenance in storage reports.",
+    "nonGoals": [
+      "No deletion or cleanup",
+      "No dependencies, policy, unrelated tickets or unseen hardlink discovery"
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 25,
+    "budgets": {
+      "maxImplementationFiles": 4,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 1,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Evaluate the existing local rules for each observed alias and choose the strongest decision deterministically; preserve inode deduplication and expose decision_path, aliases and observation time in reports.",
+      "components": [
+        {
+          "name": "storage-diagnostics",
+          "paths": [
+            "fixos/diagnostics/large_files.py",
+            "tests/unit/test_large_file_triage.py"
+          ]
+        },
+        {
+          "name": "storage-report",
+          "paths": [
+            "fixos/cli/storage_cmd.py",
+            "tests/unit/test_storage_cmd.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [
+        "Add decision_path and alias provenance to read-only reports"
+      ],
+      "dataChanges": [],
+      "ui": {
+        "impact": "single-state",
+        "states": [
+          "success"
+        ],
+        "evidence": [
+          "tests/unit/test_storage_cmd.py"
+        ]
+      },
+      "rollback": "Revert the scoped product change through protected delivery."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python -m pytest -q tests/unit/test_large_file_triage.py"
+        ],
+        "evidence": "tests/unit/test_large_file_triage.py"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "python -m pytest -q tests/unit/test_storage_cmd.py"
+        ],
+        "evidence": "tests/unit/test_storage_cmd.py"
+      },
+      {
+        "criterion": "AC-03",
+        "commands": [
+          "./project/governance-check.sh"
+        ],
+        "evidence": "project/ticket-127/README.md"
+      }
+    ]
+  }
+}

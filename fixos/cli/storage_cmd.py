@@ -36,6 +36,7 @@ def render_table(report: dict) -> str:
     scan = report["scan"]
     lines = [
         f"Fixos storage — reguły lokalne, bez LLM; próg >{report['min_bytes_exclusive'] / 10**6:g} MB",
+        f"Obserwacja UTC: {report['observed_at']}",
         f"Skan: {scan['status']}; wpisy: {scan['entries_scanned']}; duże pliki: {scan['unique_large_files']}; pokazano: {len(report['files'])}",
         f"Budżet wyczerpany: {scan['budget_exhausted']}; błędy: {scan['errors']}; ucięta lista wyników: {report['results_truncated']}",
         f"Widoczność procesów: {report['process_probe']['status']}; swap: {report['swap_probe']['status']}",
@@ -65,7 +66,15 @@ def render_table(report: dict) -> str:
             lines.append(
                 f"  {_size(row['logical_bytes'])} / {_size(row['allocated_bytes'])} | właściciel: {_display(row['owner'])} | mtime: {row['age_days']:g} dni | {_display(row['path'])}"
             )
-            lines.append(f"    {row['rule_id']}: " + " ".join(row["reasons"]))
+            lines.append(f"    {row['rule_id']}: " + _display(" ".join(row["reasons"])))
+            lines.append("    Ścieżka decyzji: " + _display(row["decision_path"]))
+            if row["link_count"] > 1:
+                lines.append(
+                    f"    Hardlinki — znane ścieżki: {len(row['observed_paths'])}/{row['link_count']}; możliwy niepełny zakres: {row['observed_paths_may_be_incomplete']}"
+                )
+                lines.extend(
+                    "      " + _display(alias) for alias in row["observed_paths"]
+                )
             lines.append("    Dalej: " + row["next_step"])
     if report["process_probe"]["open_deleted_files"]:
         lines.append(
@@ -100,13 +109,19 @@ def render_html(report: dict) -> str:
             if row["path"] not in group["paths"]:
                 continue
             reasons = "".join(f"<li>{escape(reason)}</li>" for reason in row["reasons"])
+            aliases = "".join(
+                f"<li><code>{escape(alias)}</code></li>"
+                for alias in row["observed_paths"]
+            )
             rows.append(
                 '<article><label><input type="checkbox" class="pick" '
                 f'data-path="{escape(row["path"], quote=True)}"> Do dalszego przeglądu</label>'
                 f"<p><code>{escape(row['path'])}</code></p>"
                 f"<p>{_size(row['logical_bytes'])} logicznie / {_size(row['allocated_bytes'])} bloków · "
                 f"{escape(row['owner'])} · mtime {row['age_days']:g} dni · {row['link_count']} linków</p>"
-                f"<ul>{reasons}</ul><p>Dalej: {escape(row['next_step'])}</p></article>"
+                f"<ul>{reasons}</ul><p>Ścieżka decyzji: <code>{escape(row['decision_path'])}</code></p>"
+                f"<p>Znane ścieżki: {len(row['observed_paths'])}/{row['link_count']}; możliwy niepełny zakres: {row['observed_paths_may_be_incomplete']}</p><ul>{aliases}</ul>"
+                f"<p>Dalej: {escape(row['next_step'])}</p></article>"
             )
         opened = " open" if group["decision"] == "review" else ""
         sections.append(
@@ -161,6 +176,10 @@ def render_report(report: dict, output_format: str) -> str:
                 "next_step",
                 "scan_status",
                 "process_visibility",
+                "observed_at",
+                "decision_path",
+                "observed_paths",
+                "observed_paths_may_be_incomplete",
             ]
         )
         for row in report["files"]:
@@ -182,6 +201,10 @@ def render_report(report: dict, output_format: str) -> str:
                     _cell(row["next_step"]),
                     report["scan"]["status"],
                     report["process_probe"]["status"],
+                    report["observed_at"],
+                    _cell(row["decision_path"]),
+                    _cell(json.dumps(row["observed_paths"], ensure_ascii=False)),
+                    row["observed_paths_may_be_incomplete"],
                 ]
             )
         return stream.getvalue()
