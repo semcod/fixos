@@ -1,0 +1,47 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-126",
+  "summary": "Run storage proc regressions on every platform",
+  "workstream": "application",
+  "classification": {
+    "kind": "SERVICE",
+    "priority": "P2",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-126/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "tests/unit/test_large_file_triage.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "b0fe714db2bab2d43dcedd81c8c335a0e4170cff",
+    "targetBranch": "main",
+    "outcome": "Run storage proc regressions on every platform with deterministic fd/mmap/deleted-block and unavailable-proc fixtures, without conditional omission of assertions.",
+    "nonGoals": ["No runtime or cleanup changes", "No policy relaxation, dependency change or modification of other tickets", "No claim of new approval for the externally merged original PR"],
+    "complexity": "XS",
+    "estimatedMinutes": 10,
+    "budgets": {"maxImplementationFiles": 1, "maxAffectedComponents": 1, "maxPublicInterfaceChanges": 0, "maxRuntimeDependencies": 0},
+    "architecture": {
+      "status": "accepted",
+      "decision": "Replace the Linux-only pytest case with portable proc fixtures and an explicit unavailable-proc case. Preserve separate real Linux acceptance evidence. Every pytest case executes assertions.",
+      "components": [{"name": "storage-proc-regressions", "paths": ["tests/unit/test_large_file_triage.py"]}],
+      "responsibilityChanges": false, "interfaceChanges": [], "dataChanges": [],
+      "ui": {"impact": "none", "states": [], "evidence": []},
+      "rollback": "Revert only the regression change through normal protected delivery."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {"criterion": "AC-01", "commands": ["python -m pytest -q tests/unit/test_large_file_triage.py"], "evidence": "tests/unit/test_large_file_triage.py"},
+      {"criterion": "AC-02", "commands": ["python -m pytest -q tests/unit/test_large_file_triage.py"], "evidence": "tests/unit/test_large_file_triage.py"},
+      {"criterion": "AC-03", "commands": ["./project/governance-check.sh"], "evidence": "project/ticket-126/README.md"}
+    ]
+  }
+}
