@@ -4,6 +4,8 @@ Ta dokumentacja dotyczy narzędzia do diagnostyki i naprawy systemu fixOS.
 
 ## Dla użytkownika
 
+- [Duże pliki i decyzje bez LLM](information/storage-triage.md) — `fixos storage`,
+  grupy, uzasadnienia i raporty JSON/CSV/HTML.
 - [Pierwsze kroki](getting-started.md) — instalacja, szybka analiza i bezpieczne
   czyszczenie.
 - [Konfiguracja](configuration.md) — providery LLM, tryby pracy i zmienne
@@ -21,6 +23,8 @@ Ta dokumentacja dotyczy narzędzia do diagnostyki i naprawy systemu fixOS.
 
 ## Standardy i diagnostyka
 
+- [Analiza diagnostyki miejsca](analysis/storage-diagnostics.md) — dostarczone
+  reguły, dowody, ograniczenia i priorytety dalszego rozwoju.
 - [Standardy Wellmanifest w fixos](INFORMATION/WELLMANIFEST_STANDARDS.md)
   — wellman, ssot, nohardcode, reuse, semver, uriprocess.
 - [Decyzje SSOT](ssot/) — wersja pakietu i adres Ollamy.
