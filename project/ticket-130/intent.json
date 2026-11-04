@@ -1,0 +1,90 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-130",
+  "summary": "Validate MCP inputs before adapter execution",
+  "workstream": "application",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P1",
+    "origin": "regression"
+  },
+  "allowedPaths": [
+    "project/ticket-130/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/mcp_server.py",
+    "tests/unit/test_mcp_server.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "9510293be82355c12beec241ff0cba709f0dfc46",
+    "targetBranch": "main",
+    "outcome": "Reject malformed MCP arguments before any diagnostic, receipt or cleanup access and publish the repair through independent protected review.",
+    "nonGoals": [
+      "No cleanup policy changes, grants, registry redesign, dependencies or foreign workspace mutations"
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 30,
+    "budgets": {
+      "maxImplementationFiles": 2,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 1,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Validate the closed object/primitive JSON Schema subset used by the existing tool catalog with strict types, finite numbers and explicit bounds; share validation between MCP envelopes and URI/alias dispatch without new dependencies. Reject unsupported schema keywords fail-closed.",
+      "components": [
+        {
+          "name": "mcp-input-boundary",
+          "paths": [
+            "fixos/mcp_server.py",
+            "tests/unit/test_mcp_server.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [
+        "Invalid input returns stable validation errors instead of coercion or ignored fields"
+      ],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert only the scoped source/test change through protected delivery."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python -m pytest tests/unit/test_mcp_server.py -q"
+        ],
+        "evidence": "tests/unit/test_mcp_server.py"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "python -m pytest tests/ -q",
+          "ruff check fixos/mcp_server.py tests/unit/test_mcp_server.py"
+        ],
+        "evidence": "tests/unit/test_mcp_server.py"
+      },
+      {
+        "criterion": "AC-03",
+        "commands": [
+          "./project/governance-check.sh"
+        ],
+        "evidence": "project/ticket-130/README.md"
+      }
+    ]
+  }
+}
