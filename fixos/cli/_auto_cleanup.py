@@ -24,6 +24,9 @@ _CACHE_PATHS = (
     ".cache/mypy",
     ".cache/Flake8",
     ".cache/black",
+    ".cache/subactor-search",
+    ".cache/virt-builder",
+    ".cache/tree-sitter-language-pack",
 )
 _BROWSERS = ("google-chrome", "chromium", "BraveSoftware/Brave-Browser")
 _BROWSER_LEAVES = ("Cache", "Code Cache", "GPUCache", "DawnCache", "ShaderCache")

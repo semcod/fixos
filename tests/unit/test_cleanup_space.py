@@ -620,3 +620,44 @@ def test_projects_old_permission_error_never_sudo_removes_unallowed_artifacts(mo
     assert not any(c[:2] == ["sudo", "-n"] for c in calls)
 
 
+def test_subactor_and_dev_caches_recognized_as_safe(monkeypatch, tmp_path):
+    home = tmp_path / "home"
+    cache = home / ".cache"
+    for name in ("subactor-search", "virt-builder", "tree-sitter-language-pack", "unknown-custom-dir"):
+        (cache / name).mkdir(parents=True)
+        (cache / name / "data.bin").write_text("12345")
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
+    monkeypatch.setattr(
+        space,
+        "_dir_size",
+        lambda p: 100,
+    )
+    result = _invoke(space._cleanup_user_cache, False, False, False, True)
+    assert result.exit_code == 0
+    assert not (cache / "subactor-search").exists()
+    assert not (cache / "virt-builder").exists()
+    assert not (cache / "tree-sitter-language-pack").exists()
+    assert (cache / "unknown-custom-dir").exists()
+
+
+def test_cleanup_build_caches_includes_cargo_and_android(monkeypatch, tmp_path):
+    home = tmp_path / "home"
+    cargo = home / ".cargo/registry/cache"
+    android = home / ".android/build-cache"
+    cargo.mkdir(parents=True)
+    android.mkdir(parents=True)
+    (cargo / "crate.tar").write_text("cargo data")
+    (android / "classes.jar").write_text("android data")
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
+    monkeypatch.setattr(space, "_dir_sizes", lambda dirs: {str(d): 500 for d in dirs})
+
+    candidates = []
+    monkeypatch.setattr(space, "_echo_json", lambda data: candidates.extend(data.get("candidates", [])))
+    _invoke(space._cleanup_build_caches, True, False, False, True, home)
+
+    descriptions = [c["description"] for c in candidates]
+    assert any(".cargo/registry/cache" in d for d in descriptions)
+    assert any(".android/build-cache" in d for d in descriptions)
+
+
+

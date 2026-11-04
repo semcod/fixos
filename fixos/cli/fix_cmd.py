@@ -645,7 +645,7 @@ def auto_cmd(
                 cleanup_docker_builder(dry_run=dry_run, yes=yes)
                 steps_executed.append("docker-build-cache")
 
-            if clean_snap_old:
+            if clean_snap_old or (clean_services and shutil.which("snap")):
                 if not json_output:
                     click.echo(
                         click.style(
