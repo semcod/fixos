@@ -1,0 +1,81 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-131",
+  "summary": "Integrate verified backup history and current observer evidence",
+  "workstream": "integration",
+  "classification": {
+    "kind": "SERVICE",
+    "priority": "P2",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-131/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "docs/analysis/legacy-workspace-reconciliation.md"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "1d8c805393fdeddce3dc9d9a2eed72c522d059fe",
+    "targetBranch": "main",
+    "outcome": "Reconcile verified equivalent backup commit ancestry through protected publication while preserving all target configuration/runtime/old intent bytes; update the canonical analysis with qualified protected observer and actual owner input.",
+    "nonGoals": [
+      "No quarantine removal, lease change or ownership fabrication",
+      "No discarded source requirements or ours-strategy merge",
+      "No runtime/dependency/version changes or modifications to unrelated MCP ticket130"
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 25,
+    "budgets": {
+      "maxImplementationFiles": 1,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Reconcile backup head 1e4d4d3 after verifying full requirements equality against target main. Commit the material updated analysis and reconciliation atomically; require independent CI/review before ordinary merged-branch cleanup.",
+      "components": [
+        {
+          "name": "legacy-history-and-analysis",
+          "paths": [
+            "docs/analysis/legacy-workspace-reconciliation.md"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Preserve both histories and external bundle; protected revert of the analysis if needed. Never reset main or delete unknown work."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "Compare complete configuration and ticket110 tree with accepted target; verify source parent and all original AC"
+        ],
+        "evidence": "docs/analysis/legacy-workspace-reconciliation.md"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "./project/governance-check.sh",
+          "Independent exact-head OneDev and Validator publication"
+        ],
+        "evidence": "project/ticket-131/README.md"
+      }
+    ]
+  }
+}
