@@ -1,7 +1,9 @@
 import csv
 import io
 import json
+import os
 import subprocess
+from pathlib import Path
 
 from click.testing import CliRunner
 
@@ -81,3 +83,48 @@ def test_incomplete_scan_is_explicit_in_human_output(tmp_path):
     assert result.exit_code == 0, result.output
     assert "Skan: partial" in result.output
     assert "Budżet wyczerpany: True" in result.output
+
+
+def test_hardlink_provenance_is_visible_and_escaped_in_all_reports(
+    tmp_path, monkeypatch
+):
+    from fixos.diagnostics import large_files
+    from fixos.diagnostics.storage_rules import decide_file
+
+    # Avoid making the Wellman temp directory's protected ancestors test inputs.
+    monkeypatch.setattr(
+        large_files,
+        "decide_file",
+        lambda row: decide_file(
+            {
+                **row,
+                "path": str(Path("/fixture") / Path(row["path"]).relative_to(tmp_path)),
+            }
+        ),
+    )
+    cache = tmp_path / ".cache/item.bin"
+    cache.parent.mkdir()
+    cache.write_bytes(b"x" * 20)
+    alias = tmp_path / "backups/<svg onload=alert(1)>.bin"
+    alias.parent.mkdir()
+    os.link(cache, alias)
+    args = [str(cache.parent), str(alias.parent), "--min-mb", "0", "--max-seconds", "1"]
+    runner = CliRunner()
+    table = runner.invoke(storage, args)
+    assert table.exit_code == 0, table.output
+    assert str(cache) in table.output and str(alias) in table.output
+    assert "Ścieżka decyzji: " + str(alias) in table.output
+    assert "Obserwacja UTC:" in table.output
+    assert "znane ścieżki: 2/2" in table.output
+    page = runner.invoke(storage, args + ["--format", "html"])
+    assert page.exit_code == 0, page.output
+    assert "<svg onload=alert(1)>" not in page.output
+    assert "&lt;svg onload=alert(1)&gt;" in page.output
+    csv_result = runner.invoke(storage, args + ["--format", "csv"])
+    assert csv_result.exit_code == 0, csv_result.output
+    rows = list(csv.DictReader(io.StringIO(csv_result.output)))
+    assert len(rows) == 1
+    assert rows[0]["decision_path"] == str(alias)
+    assert set(json.loads(rows[0]["observed_paths"])) == {str(cache), str(alias)}
+    assert rows[0]["observed_at"]
+    assert rows[0]["observed_paths_may_be_incomplete"] == "False"
