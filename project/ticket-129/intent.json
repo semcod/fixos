@@ -1,0 +1,90 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-129",
+  "summary": "Reconcile legacy Fixos workspace evidence and ownership",
+  "workstream": "integration",
+  "classification": {
+    "kind": "SERVICE",
+    "priority": "P2",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-129/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "docs/README.md",
+    "docs/analysis/legacy-workspace-reconciliation.md"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "ff91710a60a19ba3aab96f87c506aa5a806e4aeb",
+    "targetBranch": "main",
+    "outcome": "Publish source-bound reconciliation of legacy ticket109 quarantine and ticket110 backup, with actual preservation/restoration, behavioral evidence and precise protected-controller handoff.",
+    "nonGoals": [
+      "No foreign checkout, source, lease or backup-ref mutation",
+      "No claim that local evidence grants takeover or deletion",
+      "No runtime, dependency or version changes"
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 25,
+    "budgets": {
+      "maxImplementationFiles": 2,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Own the canonical analysis and its index only. Observe Git/GitHub and controller state, privately archive and verify recoverability, classify every known criterion and expose unknown ownership. Preserve a digest-bound controller proposal without authoring trusted observations.",
+      "components": [
+        {
+          "name": "legacy-reconciliation-analysis",
+          "paths": [
+            "docs/analysis/legacy-workspace-reconciliation.md",
+            "docs/README.md"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert only the analysis/index through protected delivery; retain private preservation artifacts."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "Compare exact Git source/target bytes and criterion inventory; verify preservation restoration"
+        ],
+        "evidence": "docs/analysis/legacy-workspace-reconciliation.md"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "python -m pytest -q tests/unit/test_quick_snapshot.py",
+          "Execute preserved tests against the current target without writing in quarantine"
+        ],
+        "evidence": "docs/analysis/legacy-workspace-reconciliation.md"
+      },
+      {
+        "criterion": "AC-03",
+        "commands": [
+          "./project/governance-check.sh"
+        ],
+        "evidence": "docs/README.md"
+      }
+    ]
+  }
+}
