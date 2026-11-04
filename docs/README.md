@@ -23,6 +23,8 @@ Ta dokumentacja dotyczy narzędzia do diagnostyki i naprawy systemu fixOS.
 
 ## Standardy i diagnostyka
 
+- [Uzgodnienie starego workspace](analysis/legacy-workspace-reconciliation.md)
+  — backup ticket-110, kwarantanna ticket-109, dowody i blokada własności.
 - [Analiza diagnostyki miejsca](analysis/storage-diagnostics.md) — dostarczone
   reguły, dowody, ograniczenia i priorytety dalszego rozwoju.
 - [Standardy Wellmanifest w fixos](INFORMATION/WELLMANIFEST_STANDARDS.md)
