@@ -3,14 +3,14 @@
   "schema": "wellmanifest.docs/document/v1",
   "id": "legacy-workspace-reconciliation",
   "kind": "analysis",
-  "version": 2,
+  "version": 3,
   "title": "Uzgodnienie starej kwarantanny i gałęzi backupowej Fixos",
   "status": "proposed",
   "owner": "semcod/fixos",
   "created": "2026-11-04",
   "updated": "2026-11-04",
   "review_after": "2026-12-04",
-  "source_revision": "ff91710a60a19ba3aab96f87c506aa5a806e4aeb",
+  "source_revision": "5ccc2a927f94054abce1563930dd24b151ca4bdb",
   "affected_repositories": ["semcod/fixos"],
   "evidence": [
     "https://github.com/semcod/fixos/pull/141",
@@ -38,6 +38,9 @@ bez utraty niescalonych danych lub przejęcia cudzego lease?
 
 Kontynuacja PLF-21812, dokumentacyjny ticket-129. Punkt odniesienia:
 `main` w `ff91710a60a19ba3aab96f87c506aa5a806e4aeb`, Fixos 2.3.0.
+Dalszy ticket-132 publikuje nowe ustalenia na bazie
+`5ccc2a927f94054abce1563930dd24b151ca4bdb`; historyczne wyniki testów
+poniżej pozostają przypisane do pierwotnej badanej rewizji.
 Źródło gałęzi backupowej: `1e4d4d364c613aeabc8b3c7ab0c229e5cc008d60`.
 Kwarantanna pozostaje odłączonym worktree na
 `f787fa4192b39fffd79aa781469dff405f640406`, z czterema zmienionymi lub
@@ -159,18 +162,48 @@ Odpowiedź usługi nadal jawnie zawiera `owner_liveness="unknown"` i
 pozostają osobnymi dowodami. Przygotowywana instrukcja produktu ma kanoniczny adres
 `subactor/autonom/docs/information/legacy-worktree-observation.md`.
 
-### Zachowanie historii backupu
+### Uzgodnienie backupu i zachowanie jego historii
 
 Ticket-131 uzgadnia status backupu
 `1e4d4d364c613aeabc8b3c7ab0c229e5cc008d60`. Całe znane AC-01 ma już
 pełną realizację w identycznym pliku wymagań w `main` (wprowadzonym w
 commit `5a59ecc` / PR #144). Intent ticket-110 w `main` jest pełną
-wersją zawierającą wszystkie wymagane sekcje. Pozostałe pliki konfiguracji,
-produktu i ticket-110 są w `main` aktualne i identyczne z intencją backupu.
+wersją zawierającą wszystkie wymagane sekcje. Bieżąca publikacja nie zmienia
+żadnych plików konfiguracji, produktu, testów ani ticket-110.
 
-Materialna aktualizacja tej analizy oraz uzgodnienie są publikowane
-atomowo, przez niezależne testy i review. Unikalna historia backupu
-pozostaje zachowana w repozytorium i odtworzonym bundle.
+Ticket-132 publikuje uzupełnienie tej analizy przez niezależne testy
+i review. Unikalna historia backupu
+pozostaje zachowana w repozytorium i odtworzonym bundle. Publikacja analizy
+nie czyni commitu backupu przodkiem `main` i nie uprawnia do porządkowania
+go jako scalonej gałęzi.
+
+Pierwszy kandydat ticket-131 dołączał dokładny commit backupu przez zwykły
+merge. Kontrola `GOV-INTENT-003` odrzuciła tę historię: stary commit uznała
+za pierwszą implementację nowego ticketu, wymagając w nim późniejszego
+intentu. Ustalenie jest odtworzone w lokalnym OneDev i macierzy Python
+3.10–3.12. Zależność standardu zapisano jako `wellmanifest/new-project:NP-024`.
+Obecny kandydat publikuje zweryfikowaną analizę na aktualnej bazie, zachowując
+backup i wcześniejszy kandydat w kopiach odzyskiwania. Kontrole pozostają aktywne.
+
+### Pełne archiwum kwarantanny
+
+Kopia obejmuje 952 wpisy, w tym pliki ignorowane, metadane tego worktree Git
+oraz niezmienione bajty oryginalnego lease. Archiwum ma 4 118 959 B i SHA-256
+`c3a9c10a79470494fc98ce1883de51bc1760f22dae9e00a398e2234dc56c6ba1`.
+Manifest ma SHA-256
+`d2c8ce725c027c13f71d0b5b69ac7e141d0c7aabbdbfefba75e68add3a4c5ea7`.
+Odtworzono wszystkie dane, porównano treść, typy, uprawnienia, znaczniki czasu
+i atrybuty rozszerzone; sprawdzono 760 potrzebnych obiektów w odtworzonym
+magazynie historii. W czasie tworzenia i odtwarzania kopii źródłowy katalog,
+status, indeks i lease pozostały bez zmian. Późniejsza kontrola wykazała
+wyłącznie zmianę czasu modyfikacji katalogu metadanych Git; treść plików,
+indeks i lease nadal odpowiadały kopii. Przed dyspozycją wymagana jest
+ponowna kontrola dokładnego stanu.
+
+Prywatny receipt `quarantine-full-archive-receipt.json` oraz odtworzone dane są
+w `.subactor/recovery/legacy-retirement-20261104/`. Przywrócona kopia jest
+archiwum danych; jej historyczny plik `.git` nie stanowi nowego checkoutu.
+Pełna kopia nie zastępuje decyzji operatora o usunięciu oryginalnego katalogu.
 
 <!-- docs:section next_actions -->
 ## Następne kroki operatora
@@ -179,11 +212,12 @@ Uzgodnienie artefaktów zakończonej pracy opiera się na historii Git, kopiach
 odzyskiwania, potwierdzeniu właściciela i świeżej obserwacji usługi.
 Nie wznawia starego zadania i nie tworzy fikcyjnego lease v5.
 
-1. Opublikować i zweryfikować pełną integrację historii backupu, następnie
-   sprawdzić źródłowy SHA i osiągalność przed porządkowaniem scalonego refa.
-2. Dla kwarantanny sprawdzić także wszystkie ignorowane pliki i metadane Git.
-   Początkowy snapshot czterech zmian nie zastępuje kompletnego archiwum
-   katalogu. Odtworzyć pełną kopię przed przedstawieniem dokładnej dyspozycji.
+1. Opublikować analizę i zachować backupowy ref. Dalsze włączenie jego
+   historii zależy od przyjętej procedury standardu lub osobno zatwierdzonej
+   dyspozycji dla niescalonej gałęzi. Ta publikacja nie kończy tej czynności.
+2. Przed dyspozycją kwarantanny ponownie sprawdzić pełne archiwum i zgodność
+   odtworzonej kopii ze źródłem. Pełna kopia już istnieje; początkowy snapshot
+   czterech zmian pozostaje osobnym dowodem.
 3. Uzyskać decyzję dla archiwalnego katalogu o niepełnym historycznym intencie.
    Przed operacją ponownie sprawdzić tożsamość, HEAD, status, procesy i skróty
    odzyskiwania. Zachować oryginalne metadane lease oraz osobny receipt operacji.
@@ -203,12 +237,20 @@ Osobny writer pracował w kanonicznym ticket-113. Istniejąca obca zmiana
 `autonom/coding_agent.py` w głównym checkout pozostała zachowana.
 
 Funkcjonalny zakres dwóch starych zmian znajduje się w main. Ticket-129
-dostarczył pierwszą analizę i dowody; ticket-131 zachowuje historię i aktualizuje
-ustalenia. PLF-21812 przechowuje dalszy stan dyspozycji archiwalnej kopii.
+dostarczył pierwszą analizę i dowody; ticket-131 aktualizuje ustalenia,
+zachowując istniejące kopie. PLF-21812 przechowuje dalszy stan dyspozycji
+backupowego refa i archiwalnej kopii.
 
 <!-- docs:section history -->
 ## Historia
 
-- Wersja1: analiza przy bazie9510293, ticket-129, pełne AC i odtworzone kopie.
-- Wersja2: potwierdzenie zakończenia pracy przez użytkownika, wdrożony obserwator
-  z PR203 oraz normalna integracja zweryfikowanej historii w ticket-131.
+- Wersja 1: analiza na `ff91710`, ticket-129, pełne AC i odtworzone kopie;
+  opublikowana jako merge `9510293`.
+- Wersja 2: potwierdzenie zakończenia pracy przez użytkownika, wdrożony
+  obserwator z PR203 oraz uzgodnienie zawartości backupu w ticket-131.
+
+- Wersja 3: odzyskane doprecyzowanie ticket-132 po zewnętrznym scaleniu PR173
+  jako `5ccc2a927f94054abce1563930dd24b151ca4bdb`. GitHub wskazał konto
+  `tom-sapletta-com` jako scalające i pustą listę review; samego scalenia
+  nie opisuje się jako dowodu niezależnego zatwierdzenia. Pełne archiwum
+  i rozróżnienie analizy od oczekującej dyspozycji historii są zachowane.

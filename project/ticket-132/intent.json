@@ -1,0 +1,81 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-132",
+  "summary": "Correct backup disposition and full archive evidence",
+  "workstream": "integration",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P2",
+    "origin": "regression"
+  },
+  "allowedPaths": [
+    "project/ticket-132/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "docs/analysis/legacy-workspace-reconciliation.md"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "5ccc2a927f94054abce1563930dd24b151ca4bdb",
+    "targetBranch": "main",
+    "outcome": "Correct the published ancestry/disposition implications and publish restored full-archive evidence with qualified point-in-time observer results, preserving all source data and unique history.",
+    "nonGoals": [
+      "No branch or quarantine deletion or lease changes",
+      "No assertion that backup is merged or that PR173 had an independent review",
+      "No runtime, dependency or package-version changes"
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 20,
+    "budgets": {
+      "maxImplementationFiles": 1,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Recover only the secret-scanned material document snapshot lost when source131 was externally merged and removed. Reconcile its version and base to actual main, preserve original source in a restored private bundle, and independently publish the factual correction.",
+      "components": [
+        {
+          "name": "legacy-analysis",
+          "paths": [
+            "docs/analysis/legacy-workspace-reconciliation.md"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Protected revert of the document; all private archives and history remain retained."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "Verify archive manifest, restored bytes and historical Git ancestry; compare product/configuration with accepted base"
+        ],
+        "evidence": "docs/analysis/legacy-workspace-reconciliation.md"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "./project/governance-check.sh",
+          "Exact base/head CI; independent OneDev and Validator review/merge"
+        ],
+        "evidence": "project/ticket-132/README.md"
+      }
+    ]
+  }
+}
