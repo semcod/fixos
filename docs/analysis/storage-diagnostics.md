@@ -3,19 +3,20 @@
   "schema": "wellmanifest.docs/document/v1",
   "id": "storage-diagnostics",
   "kind": "analysis",
-  "version": 1,
+  "version": 2,
   "title": "Diagnoza zajętości dysku: wdrożone reguły i dalsze usprawnienia Fixos",
   "status": "proposed",
   "owner": "semcod/fixos",
   "created": "2026-11-04",
   "updated": "2026-11-04",
   "review_after": "2026-12-04",
-  "source_revision": "cfeea5b8060082350c185b00e300641a46cc64b3",
+  "source_revision": "d039c49b4f290657bb7ddcab92bd7c9b30f28e85",
   "affected_repositories": ["semcod/fixos"],
   "evidence": [
     "https://github.com/semcod/fixos/blob/947a1492906605dd79a33132af871d1a6774cc82/fixos/diagnostics/disk_analyzer.py",
     "https://github.com/semcod/fixos/blob/cfeea5b8060082350c185b00e300641a46cc64b3/fixos/diagnostics/large_files.py",
-    "https://github.com/semcod/fixos/blob/cfeea5b8060082350c185b00e300641a46cc64b3/fixos/diagnostics/storage_rules.py"
+    "https://github.com/semcod/fixos/blob/cfeea5b8060082350c185b00e300641a46cc64b3/fixos/diagnostics/storage_rules.py",
+    "https://github.com/semcod/fixos/blob/d039c49b4f290657bb7ddcab92bd7c9b30f28e85/fixos/diagnostics/large_files.py"
   ]
 }
 ---
@@ -36,6 +37,8 @@ Porównano stan bazowy 947a149 z implementacją aplikacyjną cfeea5b.
 Nowe zachowanie obejmuje kolektor plików i procesów, deterministyczne reguły,
 komendę `fixos storage`, lokalne raporty oraz zgodność DiskAnalyzer.
 Nie zmieniano procedur usuwania, kontenerów, usług, modeli, swapu ani IMG.
+Kontynuacja PLF-21811 analizuje commit aplikacyjny d039c49 oraz naprawę
+budowania paczki i wersję 2.3.0 w integracyjnym ticket-128.
 
 <!-- docs:section method -->
 ## Metoda
@@ -54,6 +57,12 @@ plik, hardlinki, sparse, symlinki, brak uprawnień, budżet skanu, ochronę dany
 zmianę pliku podczas skanu, realne deskryptory i otwarte usunięte dane,
 brak inicjalizacji konfiguracji LLM oraz eksport/escaping raportów.
 
+Ponowna weryfikacja: 55 testów obszaru PASS; pełny zestaw 1119 PASS,
+5 istniejących pominięć, 16 domyślnych wyłączeń, 57,14 s. Ruff i governance
+PASS. Osiem nowych przypadków aliasów zawodzi na pierwotnym kolektorze;
+po poprawce przechodzi dla obu kolejności korzeni. Testless zebrał pokrycie
+55 testów; 53 lokalne propozycje są doradcze, bez usuwania testów.
+
 Próba 2026-11-04 10:26:51 UTC, limit 50 000 wpisów i 5 s: przeskanowano
 50 000 wpisów w około 0,536 s po rozgrzaniu cache FS; znaleziono cztery duże
 pliki sklasyfikowane jako obrazy do kontroli zależności. Status `partial`
@@ -71,6 +80,13 @@ tej próby, bez gwarancji pełnego inventory lub trwałości wyniku.
 | Rozmiar logiczny mógł sugerować niewłaściwy odzysk. | Oddzielne bloki/logiczne bajty, sparse i deduplikacja hardlinków; brak obietnicy odzysku. |
 | Brak pozytywnego dowodu ochrony pliku używanego przez proces. | Kontrola swapu, deskryptorów i mapowań; niepełne uprawnienia nie oznaczają braku użycia. |
 | Ograniczone możliwości szybkiego przeglądu poza terminalem. | JSON/CSV i samodzielny HTML z filtrami, grupami i listą wybranych propozycji. |
+| Klasyfikacja inode używała tylko pierwszej ścieżki; alias cache mógł zasłonić backup, Git lub bazę. | Ocena każdego zaobserwowanego aliasu, wybór najsilniejszej decyzji i jawny `decision_path`; nieznane aliasy pozostają niezweryfikowane. |
+| `make build` wywoływał brakujący `.venv/bin/pip`, aktualizował narzędzie podczas buildu i uruchamiał rekursywne `clean`. | Build przez pełny Wellman i wybrany interpreter, frontend zadeklarowany w dev extras, osobny `BUILD_OUT`, bez automatycznego czyszczenia. |
+
+Wersja 2.3.0 jest zmianą minor: od tagu v2.2.59 (6cf7994) dodano publiczną
+komendę `storage`. VERSION pozostaje źródłem wersji; pyproject jest zgodną
+projekcją. Kontrola paczki obejmuje wheel i sdist oraz ich metadane i źródła.
+Odrębne od tego pozostają chronione scalenie, instalacja i publikacja na PyPI.
 
 Wszystkie decyzje wynikają z jawnych reguł. LLM może kiedyś pomagać opisać
 wynik, ale nie jest wymagany do skanu ani decyzji. Nie powinien nadpisywać
@@ -115,3 +131,9 @@ lokalne nie stanowią dowodu merge, instalacji ani sprawdzenia urządzenia IMG.
 
 Te rozszerzenia są zaleceniami kolejnego etapu PLF-039, bez deklaracji, że
 zostały już zaimplementowane. [Instrukcja użycia](../information/storage-triage.md).
+
+<!-- docs:section history -->
+## Historia
+
+- Wersja 1: analiza implementacji cfeea5b i ograniczonej próby hosta, ticket-125.
+- Wersja 2: regresje aliasów d039c49, pełna weryfikacja i naprawa buildu z bumpem 2.3.0, ticket-128 / PLF-21811. Pierwotna próba hosta zachowana jako obserwacja historyczna.

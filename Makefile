@@ -10,6 +10,7 @@
         config-init run-scan run-fix publish
 
 GOAL ?= goal
+BUILD_OUT ?= dist
 
 # ── Domyślna komenda ──────────────────────────────────────
 help:
@@ -160,11 +161,10 @@ run-fix:
 	fixos fix
 
 # ── Paczka ───────────────────────────────────────────────
-build: clean
-	@echo "🔨 Budowanie paczki (cache enabled)..."
-	.venv/bin/pip install --quiet --upgrade build
-	.venv/bin/python -m build
-	@echo "✅ Paczka gotowa w dist/"
+build:
+	@echo "🔨 Budowanie paczki..."
+	wellman run --root . --allow-primary-venv -- python -m build --outdir "$(BUILD_OUT)"
+	@echo "✅ Paczka gotowa w $(BUILD_OUT)/"
 
 publish:
 	$(GOAL) -a
