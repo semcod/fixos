@@ -57,6 +57,7 @@ Thumbs.db
 !.github/workflows/
 .github/workflows/*
 !.github/workflows/new-project-governance.yml
+!.github/workflows/new-project-branch-hygiene.yml
 .pyqual/
 .ruff_cache/
 .planfile/

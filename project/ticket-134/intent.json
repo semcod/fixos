@@ -1,0 +1,87 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-134",
+  "summary": "Track the managed branch hygiene workflow before immutable adoption",
+  "workstream": "governance",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P2",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-134/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    ".gitignore"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "36fad40d3c9e68cb555bea9452af57ab33f6c700",
+    "targetBranch": "main",
+    "outcome": "Make the standard branch-hygiene workflow trackable before immutable135 adoption while retaining unrelated ignore rules.",
+    "nonGoals": [
+      "Full standard upgrade and PolicyDSL migration",
+      "Application/version/IMG changes",
+      "Legacy branch, quarantine or foreign lease cleanup"
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 25,
+    "budgets": {
+      "maxImplementationFiles": 1,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Add one exact workflow unignore after the existing broad workflow ignore.",
+      "components": [
+        {
+          "name": "workflow-tracking",
+          "paths": [
+            ".gitignore"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert only this exception through protected review; preserve the installed immutable standard pin."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "git check-ignore --no-index .github/workflows/new-project-branch-hygiene.yml"
+        ],
+        "evidence": "Native Git ignore probe must return not ignored."
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "git check-ignore --no-index .github/workflows/unrequested.yml"
+        ],
+        "evidence": "Unrelated workflows remain ignored; installed managed bytes unchanged."
+      },
+      {
+        "criterion": "AC-03",
+        "commands": [
+          "./project/governance-check.sh"
+        ],
+        "evidence": "Ordinary and exact-base/head deterministic gate plus independent Validator."
+      }
+    ]
+  }
+}
