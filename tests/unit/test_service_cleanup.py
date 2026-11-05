@@ -788,3 +788,127 @@ class TestHardlinkAwareFreedSpace:
         assert result["space_freed_gb"] == round(own_gb, 3)
         assert result["shared_hardlink_gb"] == round(shared_gb, 3)
         assert (env / "shared.whl").exists()
+
+
+class TestDockerCleanupPlanDeduplication:
+    def test_docker_age_actions_do_not_double_count_in_total_size(self):
+        docker_service = ServiceDataInfo(
+            service_type=ServiceType.DOCKER,
+            name="Docker",
+            path="/var/lib/docker",
+            size_mb=619.0,
+            size_gb=0.619,
+            description="Docker storage",
+            can_cleanup=True,
+            cleanup_command="docker system prune",
+            preview_command="docker system df",
+            safe_to_cleanup=False,
+            risk_level="review",
+            details={
+                "usage": {
+                    "Images": {"reclaimable_gb": 0.016},
+                    "Build Cache": {"reclaimable_gb": 0.314},
+                }
+            },
+        )
+
+        class MockScanner:
+            def __init__(self):
+                self.threshold_mb = 50
+                self.scan_warnings = []
+
+            def scan_all_services(self):
+                return [docker_service]
+
+            def scan_service(self, service_type):
+                return [docker_service] if service_type == ServiceType.DOCKER else []
+
+        cleaner = ServiceCleaner(MockScanner())
+        age_actions = [
+            {
+                "service_type": "docker-unused",
+                "cleanup_kind": "docker-unused",
+                "name": "Docker (nieużywane zasoby)",
+                "path": "/var/lib/docker",
+                "size_mb": 16.0,
+                "size_gb": 0.016,
+                "safe_to_cleanup": True,
+                "risk_level": "safe",
+            },
+            {
+                "service_type": "docker-buildcache",
+                "cleanup_kind": "docker-buildcache",
+                "name": "Docker (cache builderów buildx)",
+                "path": "/var/lib/docker",
+                "size_mb": 314.0,
+                "size_gb": 0.314,
+                "safe_to_cleanup": True,
+                "risk_level": "safe",
+            },
+        ]
+        cleaner.build_safe_age_actions = lambda selected=None: age_actions
+
+        plan = cleaner.get_cleanup_plan()
+
+        # Total size must reflect the real Docker directory size (0.62 GB),
+        # not 0.619 + 0.016 + 0.314 = 0.95 GB.
+        assert plan["total_size_gb"] == 0.62
+
+    def test_build_safe_age_actions_deduplicates_buildcache_from_unused(self, monkeypatch):
+        docker_service = ServiceDataInfo(
+            service_type=ServiceType.DOCKER,
+            name="Docker",
+            path="/var/lib/docker",
+            size_mb=619.0,
+            size_gb=0.619,
+            description="Docker storage",
+            can_cleanup=True,
+            cleanup_command="docker system prune",
+            preview_command="docker system df",
+            safe_to_cleanup=False,
+            risk_level="review",
+            details={
+                "usage": {
+                    "Images": {"reclaimable_gb": 0.016},
+                    "Build Cache": {"reclaimable_gb": 0.314},
+                }
+            },
+        )
+
+        class MockScanner:
+            def __init__(self):
+                self.threshold_mb = 50
+                self.scan_warnings = []
+                self.SERVICE_PATHS = {ServiceType.DOCKER: ["/var/lib/docker"]}
+
+            def scan_service(self, service_type):
+                return [docker_service] if service_type == ServiceType.DOCKER else []
+
+        cleaner = ServiceCleaner(MockScanner())
+        cleaner.cleanup_docker_networks = lambda dry_run=True: {"candidates": []}
+
+        # Mock scan_docker_buildcache to return targets with 314 MB
+        target_bytes = int(0.314 * (1024**3))
+        cleaner.scan_docker_buildcache = lambda: {
+            "error": None,
+            "targets": [
+                {
+                    "name": "default",
+                    "total_bytes": target_bytes,
+                    "reclaimable_bytes": target_bytes,
+                    "command": ["docker", "builder", "prune"],
+                }
+            ],
+        }
+
+        actions = cleaner.build_safe_age_actions()
+        unused_action = next(a for a in actions if a["cleanup_kind"] == "docker-unused")
+        buildcache_action = next(a for a in actions if a["cleanup_kind"] == "docker-buildcache")
+
+        # docker-unused should have the build cache deduplicated (0.016 GB, not 0.330 GB)
+        assert unused_action["size_gb"] == 0.016
+        assert buildcache_action["size_gb"] == 0.314
+        # Their sum should be 0.330 GB, avoiding double-counting
+        total_safe_docker = round(unused_action["size_gb"] + buildcache_action["size_gb"], 3)
+        assert total_safe_docker == 0.330
+

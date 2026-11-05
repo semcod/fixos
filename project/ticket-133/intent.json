@@ -1,0 +1,97 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-133",
+  "summary": "Fix project scanner stale detection and docker size calculation",
+  "workstream": "application",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P2",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-133/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/diagnostics/project_scanner.py",
+    "fixos/diagnostics/service_cleanup.py",
+    "tests/unit/test_project_scanner.py",
+    "tests/unit/test_service_cleanup.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "af471b00cb25fdfecc665e5b2a7886b752990b33",
+    "targetBranch": "main",
+    "outcome": "Fix project artifact stale detection to verify project source activity before recommending deletion, and deduplicate Docker storage sizes and service count in cleanup planning.",
+    "nonGoals": [
+      "No changes to Docker cleanup commands or safety classification",
+      "No changes to package manager dependencies"
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 30,
+    "budgets": {
+      "maxImplementationFiles": 4,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Check recent project activity via shared source inspection so actively developed projects never have their artifacts falsely marked stale. In cleanup planning, deduplicate Docker components and count unique services.",
+      "components": [
+        {
+          "name": "project-scanner",
+          "paths": [
+            "fixos/diagnostics/project_scanner.py",
+            "tests/unit/test_project_scanner.py"
+          ]
+        },
+        {
+          "name": "service-cleanup",
+          "paths": [
+            "fixos/diagnostics/service_cleanup.py",
+            "tests/unit/test_service_cleanup.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert only the scoped source and test changes through protected delivery."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python -m pytest tests/unit/test_project_scanner.py -q"
+        ],
+        "evidence": "tests/unit/test_project_scanner.py"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "python -m pytest tests/unit/test_service_cleanup.py -q"
+        ],
+        "evidence": "tests/unit/test_service_cleanup.py"
+      },
+      {
+        "criterion": "AC-03",
+        "commands": [
+          "./project/governance-check.sh"
+        ],
+        "evidence": "project/ticket-133/README.md"
+      }
+    ]
+  }
+}

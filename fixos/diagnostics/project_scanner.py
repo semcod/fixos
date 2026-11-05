@@ -101,6 +101,7 @@ class ProjectArtifact:
     days_since_modified: int | None
     stale: bool
     cleanup_command: str
+    project_has_recent_activity: bool = False
 
 
 def _get_dir_size_mb(path: str) -> float:
@@ -205,6 +206,66 @@ def discover_project_roots(
     return roots
 
 
+_PROJECT_SOURCE_EXCLUDE: set[str] = set(REMOVABLE_ARTIFACTS) | set(_PRUNE_DIR_NAMES) | {
+    ".git",
+    ".hg",
+    ".svn",
+    ".idea",
+    ".vscode",
+    "__pycache__",
+    "CLAUDE.md",
+    "GEMINI.md",
+    "AGENTS.md",
+}
+
+
+def _project_source_has_recent_activity(
+    project: Path,
+    exclude: set[str] | None = None,
+    cutoff: float | None = None,
+    max_depth: int = 4,
+    max_files: int = 500,
+) -> bool:
+    """Return True if any non-excluded file in `project` has mtime >= cutoff."""
+    if cutoff is None:
+        return False
+
+    exclude_set = _PROJECT_SOURCE_EXCLUDE if exclude is None else exclude
+
+    for git_rel in (".git/index", ".git/HEAD", ".git/FETCH_HEAD"):
+        try:
+            if (project / git_rel).lstat().st_mtime >= cutoff:
+                return True
+        except OSError:
+            pass
+
+    stack: list[tuple[Path, int]] = [(project, 0)]
+    files_checked = 0
+
+    while stack and files_checked < max_files:
+        current, depth = stack.pop()
+        try:
+            with os.scandir(current) as scandir_entries:
+                for entry in scandir_entries:
+                    if entry.name in exclude_set or entry.name.endswith(".egg-info"):
+                        continue
+                    try:
+                        st = entry.stat(follow_symlinks=False)
+                    except OSError:
+                        continue
+
+                    if entry.is_dir(follow_symlinks=False):
+                        if depth < max_depth:
+                            stack.append((Path(entry.path), depth + 1))
+                    else:
+                        files_checked += 1
+                        if st.st_mtime >= cutoff:
+                            return True
+        except OSError:
+            continue
+    return False
+
+
 def scan_project_artifacts(
     project_root: Path,
     threshold_mb: float = 50,
@@ -216,6 +277,8 @@ def scan_project_artifacts(
         entries = os.listdir(project_root)
     except OSError:
         return artifacts
+
+    has_recent_activity: bool | None = None
 
     for entry in entries:
         if not _is_removable_artifact(project_root, entry):
@@ -232,6 +295,17 @@ def scan_project_artifacts(
         description, ecosystem, risk_level = REMOVABLE_ARTIFACTS[entry]
         days = _days_since_modified(str(artifact_path))
 
+        if days is not None and days >= stale_days:
+            if has_recent_activity is None:
+                now_ts = datetime.now(timezone.utc).timestamp()
+                cutoff = now_ts - float(stale_days) * 86400.0
+                has_recent_activity = _project_source_has_recent_activity(
+                    project_root, cutoff=cutoff
+                )
+            is_stale = not has_recent_activity
+        else:
+            is_stale = False
+
         artifacts.append(
             ProjectArtifact(
                 project_name=project_root.name,
@@ -244,8 +318,9 @@ def scan_project_artifacts(
                 ecosystem=ecosystem,
                 risk_level=risk_level,
                 days_since_modified=days,
-                stale=days is not None and days >= stale_days,
+                stale=is_stale,
                 cleanup_command=f"rm -rf {shlex.quote(str(artifact_path))}",
+                project_has_recent_activity=bool(has_recent_activity),
             )
         )
 

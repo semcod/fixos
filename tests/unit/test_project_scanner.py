@@ -519,3 +519,99 @@ class TestDiskAnalyzerBoundedExecution:
         res = analyzer._get_oldest_file_date(base, max_depth=6)
         assert res != "unknown"
 
+
+class TestProjectScannerActivityAwareStale:
+    def test_active_project_with_old_artifact_is_not_stale(self, tmp_path, monkeypatch):
+        import time
+
+        project = tmp_path / "active_proj"
+        project.mkdir()
+        (project / "package.json").write_text("{}")
+        src = project / "src"
+        src.mkdir()
+        main_file = src / "main.js"
+        main_file.write_text("console.log('hi');")
+
+        modules = project / "node_modules"
+        modules.mkdir()
+        (modules / "dummy.txt").write_text("data")
+
+        # Set node_modules mtime to 30 days ago
+        now = time.time()
+        thirty_days_ago = now - 30 * 86400
+        os.utime(modules, (thirty_days_ago, thirty_days_ago))
+        os.utime(modules / "dummy.txt", (thirty_days_ago, thirty_days_ago))
+        # src/main.js is touched right now
+        os.utime(main_file, (now, now))
+
+        monkeypatch.setattr(ps, "_get_dir_size_mb", lambda p: 100.0)
+
+        artifacts = ps.scan_project_artifacts(project, threshold_mb=10, stale_days=7)
+        assert len(artifacts) == 1
+        assert artifacts[0].artifact_name == "node_modules"
+        assert artifacts[0].days_since_modified is not None
+        assert artifacts[0].days_since_modified >= 29
+        assert artifacts[0].project_has_recent_activity is True
+        assert artifacts[0].stale is False
+
+    def test_inactive_project_with_old_artifact_is_stale(self, tmp_path, monkeypatch):
+        import time
+
+        project = tmp_path / "inactive_proj"
+        project.mkdir()
+        (project / "package.json").write_text("{}")
+        src = project / "src"
+        src.mkdir()
+        main_file = src / "main.js"
+        main_file.write_text("console.log('hi');")
+
+        modules = project / "node_modules"
+        modules.mkdir()
+        (modules / "dummy.txt").write_text("data")
+
+        # Set all files in project to 30 days ago
+        thirty_days_ago = time.time() - 30 * 86400
+        os.utime(modules, (thirty_days_ago, thirty_days_ago))
+        os.utime(modules / "dummy.txt", (thirty_days_ago, thirty_days_ago))
+        os.utime(main_file, (thirty_days_ago, thirty_days_ago))
+        os.utime(project / "package.json", (thirty_days_ago, thirty_days_ago))
+
+        monkeypatch.setattr(ps, "_get_dir_size_mb", lambda p: 100.0)
+
+        artifacts = ps.scan_project_artifacts(project, threshold_mb=10, stale_days=7)
+        assert len(artifacts) == 1
+        assert artifacts[0].artifact_name == "node_modules"
+        assert artifacts[0].days_since_modified is not None
+        assert artifacts[0].days_since_modified >= 29
+        assert artifacts[0].project_has_recent_activity is False
+        assert artifacts[0].stale is True
+
+    def test_active_git_repo_with_old_venv_is_not_stale(self, tmp_path, monkeypatch):
+        import time
+
+        project = tmp_path / "git_proj"
+        project.mkdir()
+        git_dir = project / ".git"
+        git_dir.mkdir()
+        git_index = git_dir / "index"
+        git_index.write_text("git index data")
+
+        venv = project / ".venv"
+        venv.mkdir()
+        (venv / "pyvenv.cfg").write_text("home = /usr/bin")
+
+        now = time.time()
+        thirty_days_ago = now - 30 * 86400
+        os.utime(venv, (thirty_days_ago, thirty_days_ago))
+        os.utime(venv / "pyvenv.cfg", (thirty_days_ago, thirty_days_ago))
+        os.utime(git_index, (now, now))
+
+        monkeypatch.setattr(ps, "_get_dir_size_mb", lambda p: 100.0)
+
+        artifacts = ps.scan_project_artifacts(project, threshold_mb=10, stale_days=7)
+        assert len(artifacts) == 1
+        assert artifacts[0].artifact_name == ".venv"
+        assert artifacts[0].project_has_recent_activity is True
+        assert artifacts[0].stale is False
+
+
