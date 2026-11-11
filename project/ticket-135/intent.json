@@ -1,0 +1,100 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-135",
+  "summary": "Reference-aware artifact store and system-wide reclaim cleanup",
+  "workstream": "application",
+  "classification": {
+    "kind": "SERVICE",
+    "priority": "P1",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-135/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/cli/cleanup_cmd.py",
+    "fixos/cli/_cleanup_artifacts.py",
+    "fixos/diagnostics/artifact_store.py",
+    "tests/unit/test_artifact_store.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "bd830cfdafbb603c192c8b4b4d024c0479aebaf8",
+    "targetBranch": "main",
+    "outcome": "Add a reference-aware artifact-store reclamation flow and an allowlisted system-wide reclaim analysis to fixos cleanup, so content-addressed digests referenced only by absolute paths inside manifests are protected and private user data is never a candidate.",
+    "nonGoals": [
+      "No deletion outside the declared allowlist",
+      "No changes to existing docker/tmp/journal cleanup flows",
+      "No new runtime dependencies"
+    ],
+    "complexity": "M",
+    "estimatedMinutes": 45,
+    "budgets": {
+      "maxImplementationFiles": 4,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 1,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "New diagnostics module fixos/diagnostics/artifact_store.py owns scanning and removal; fixos/cli/_cleanup_artifacts.py renders the inventory-first flow; cleanup_cmd.py exposes -c artifacts with --artifacts, --artifacts-min-age-days, --artifacts-receipt-dir, --artifacts-build-caches and --artifacts-system-wide.",
+      "components": [
+        {
+          "name": "diagnostics",
+          "paths": [
+            "fixos/diagnostics/artifact_store.py"
+          ]
+        },
+        {
+          "name": "cli",
+          "paths": [
+            "fixos/cli/cleanup_cmd.py",
+            "fixos/cli/_cleanup_artifacts.py",
+            "tests/unit/test_artifact_store.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [
+        "fixos cleanup -c artifacts with --artifacts-system-wide"
+      ],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert ticket-135; cleanup returns to previous services only."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python -m pytest tests/unit/test_artifact_store.py -q"
+        ],
+        "evidence": "12 tests cover unreferenced/referenced digests, implicit absolute-path references, symlinks, receipts, private home directories, credential stores and receipt writing."
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "python -m fixos.cli cleanup -c artifacts --artifacts-system-wide --list"
+        ],
+        "evidence": "Live inventory lists 7222 entries with mount points, fresh entries and unexpected owners protected."
+      },
+      {
+        "criterion": "AC-05",
+        "commands": [
+          "./project/governance-check.sh"
+        ],
+        "evidence": "Governance check plus exact-head review before merge."
+      }
+    ]
+  }
+}
