@@ -14,6 +14,7 @@ import re
 
 import click
 
+from fixos.cli._cleanup_artifacts import _cleanup_artifacts
 from fixos.cli._cleanup_docker_volumes import _cleanup_docker_volumes
 
 # Re-export public symbols used by fixos.cli (backward-compat)
@@ -46,7 +47,6 @@ from fixos.cli._cleanup_space import (
 from fixos.cli._cleanup_system import _cleanup_full_system
 from fixos.cli._cleanup_utils import _format_bytes, _parse_numeric_range_set
 from fixos.cli._cleanup_venvs import _cleanup_venvs
-from fixos.cli._cleanup_artifacts import _cleanup_artifacts
 from fixos.constants import (
     DEFAULT_CLEANUP_THRESHOLD_MB,
     DEFAULT_STATE_OLD_DAYS,
