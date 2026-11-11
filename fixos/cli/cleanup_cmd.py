@@ -14,6 +14,7 @@ import re
 
 import click
 
+from fixos.cli._cleanup_artifacts import _cleanup_artifacts
 from fixos.cli._cleanup_docker_volumes import _cleanup_docker_volumes
 
 # Re-export public symbols used by fixos.cli (backward-compat)
@@ -1795,6 +1796,43 @@ def _run_free_target_mode(
     ),
 )
 @click.option(
+    "--artifacts",
+    "artifacts_paths",
+    multiple=True,
+    type=click.Path(exists=True, file_okay=False, path_type=str),
+    help=(
+        "Magazyn artefaktów do analizy (można podać wielokrotnie). "
+        "Wymagane z -c artifacts; wpisy bez referencji w manifestach, "
+        "symlinkach i indeksie Git są kandydatami do usunięcia."
+    ),
+)
+@click.option(
+    "--artifacts-min-age-days",
+    type=int,
+    default=None,
+    help="Minimalny wiek wpisu artefaktu w dniach (domyślnie 1).",
+)
+@click.option(
+    "--artifacts-receipt-dir",
+    type=click.Path(file_okay=False, path_type=str),
+    default=None,
+    help="Katalog na receipt każdego usunięcia artefaktów.",
+)
+@click.option(
+    "--artifacts-build-caches/--no-artifacts-build-caches",
+    default=False,
+    help="Dołącz dyspozytorskie cache buildów (__pycache__, node_modules, dist…).",
+)
+@click.option(
+    "--artifacts-system-wide/--no-artifacts-system-wide",
+    default=False,
+    help=(
+        "Dołącz systemowe cele odzyskiwania z allowlisty (apt-archives, crash, "
+        "coredumps, rotowane logi, /tmp, /var/tmp, pip/uv/npm cache, miniatury, kosz, "
+        "journal). Dane prywatne użytkownika i magazyny poświadczeń pozostają chronione."
+    ),
+)
+@click.option(
     "--docker-old",
     "docker_old",
     is_flag=True,
@@ -2134,6 +2172,11 @@ def cleanup_services(
     yes,
     free_gb,
     full_analysis,
+    artifacts_paths=(),
+    artifacts_min_age_days=None,
+    artifacts_receipt_dir=None,
+    artifacts_build_caches=False,
+    artifacts_system_wide=False,
 ) -> None:
     """
     Skanuje i czyści dane usług przekraczające próg.
@@ -2192,8 +2235,34 @@ def cleanup_services(
       fixos cleanup --tmp --days 1 --dry-run # pliki i katalogi w /tmp starsze niż 1 dzień
       fixos cleanup --venvs-old --days 30 --dry-run
       fixos cleanup --venvs-old --projects-path ~/work --days 60
+      fixos cleanup -c artifacts --artifacts ~/github/paxlet-com/artifacts/inputs --list
+      # magazyn content-addressed: chroni referencje z manifestów, symlinków i Git
+      fixos cleanup -c artifacts --artifacts ./inputs --artifacts-min-age-days 7 \\
+        --artifacts-receipt-dir ./runs/receipts --artifacts-build-caches
       fixos cleanup --full              # pełna analiza systemu
     """
+    if artifacts_paths or artifacts_system_wide or cleanup == "artifacts":
+        if cleanup not in (None, "artifacts"):
+            raise click.UsageError(
+                "--artifacts uruchom jako osobną akcję (-c artifacts)"
+            )
+        if not artifacts_paths and not artifacts_system_wide:
+            raise click.UsageError(
+                "-c artifacts wymaga --artifacts PATH lub --artifacts-system-wide"
+            )
+        _cleanup_artifacts(
+            json_output,
+            dry_run,
+            list_only,
+            yes,
+            paths=list(artifacts_paths),
+            min_age_days=artifacts_min_age_days,
+            receipt_dir=artifacts_receipt_dir,
+            include_build_caches=artifacts_build_caches,
+            include_system=artifacts_system_wide,
+        )
+        return
+
     if threshold_gb is not None:
         threshold = int(threshold_gb * 1024)
 
