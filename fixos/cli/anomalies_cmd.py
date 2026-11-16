@@ -98,6 +98,11 @@ def anomalies(json_output, min_size_gb, min_age_days, remove, remove_safe, dry_r
     if removal:
         for item in removal["removed"]:
             click.echo(f"usunięto: {item['path']}")
+        for item in removal["partial"]:
+            click.echo(
+                f"częściowo: {item['path']} (pozostało "
+                f"{_format_bytes(item['remaining_bytes'])}, {item['reason']})"
+            )
         for item in removal["refused"]:
             click.echo(f"pominięto: {item['path']} ({item['reason']})")
         click.echo(f"Zwolniono: {_format_bytes(removal['freed_bytes'])}")

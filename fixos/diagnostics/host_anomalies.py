@@ -14,13 +14,15 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import stat
 import subprocess
+import sys
 import time
 from collections import Counter
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
-from fixos.diagnostics.artifact_store import is_protected_path
+from fixos.diagnostics.artifact_store import is_protected_path, measure_tree
 
 SCHEMA = "fixos.host-anomalies/v1"
 RECEIPT_SCHEMA = "fixos.host-anomaly-removal/v1"
@@ -448,6 +450,35 @@ def scan_all(
     }
 
 
+def _remove_tree(path: Path) -> int | None:
+    """Remove *path*; return the errno of the first entry that could not go.
+
+    Trees copied from read-only stores keep directories without the owner
+    write bit, so an entry owned by this user is made writable and retried
+    once. Entries owned by somebody else stay, and the caller reports what is
+    left instead of claiming either success or an untouched directory.
+    """
+    first_error: list[int] = []
+
+    def retry(function, target, error) -> None:
+        if isinstance(error, tuple):  # Python < 3.12 passes sys.exc_info()
+            error = error[1]
+        try:
+            for entry in (os.path.dirname(target), target):
+                if os.lstat(entry).st_uid == os.getuid() and not os.path.islink(entry):
+                    os.chmod(entry, os.lstat(entry).st_mode | stat.S_IRWXU)
+            function(target)
+        except OSError as again:
+            if not first_error:
+                first_error.append(again.errno or getattr(error, "errno", 0) or 0)
+
+    if sys.version_info >= (3, 12):
+        shutil.rmtree(path, onexc=retry)
+    else:
+        shutil.rmtree(path, onerror=retry)
+    return first_error[0] if first_error else None
+
+
 def remove_paths(
     paths: Sequence[Path],
     findings: Sequence[dict],
@@ -455,10 +486,14 @@ def remove_paths(
     home: Path | None = None,
     receipt_dir: Path | None = None,
 ) -> dict:
-    """Delete only paths a current scan marks removable; write one receipt."""
+    """Delete only paths a current scan marks removable; write one receipt.
+
+    A tree that could only be removed in part is listed under ``partial`` with
+    the bytes that remain, never under ``removed`` or ``refused``.
+    """
     home = home or Path.home()
     allowed = {f["subject"]: f for f in findings if f["removable"]}
-    removed, refused = [], []
+    removed, refused, partial = [], [], []
     for path in paths:
         finding = allowed.get(str(path))
         reason = None
@@ -473,26 +508,36 @@ def remove_paths(
         if reason:
             refused.append({"path": str(path), "reason": reason})
             continue
+        size = finding["evidence"].get("size_bytes", 0)
         try:
-            shutil.rmtree(path)
+            errno_left = _remove_tree(path)
         except OSError as error:
-            refused.append({"path": str(path), "reason": f"os_error:{error.errno}"})
+            errno_left = error.errno or 0
+        if not path.exists():
+            removed.append(
+                {"path": str(path), "category": finding["category"], "size_bytes": size}
+            )
             continue
-        removed.append(
+        remaining = measure_tree(path)
+        partial.append(
             {
                 "path": str(path),
                 "category": finding["category"],
-                "size_bytes": finding["evidence"].get("size_bytes", 0),
+                "reason": f"os_error:{errno_left}",
+                "remaining_bytes": remaining,
+                "freed_bytes": max(size - remaining, 0),
             }
         )
     receipt = {
         "schema": RECEIPT_SCHEMA,
         "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "removed": removed,
+        "partial": partial,
         "refused": refused,
-        "freed_bytes": sum(item["size_bytes"] for item in removed),
+        "freed_bytes": sum(item["size_bytes"] for item in removed)
+        + sum(item["freed_bytes"] for item in partial),
     }
-    if receipt_dir is not None and removed:
+    if receipt_dir is not None and (removed or partial):
         receipt_dir.mkdir(parents=True, exist_ok=True)
         name = f"host-anomaly-removal-{int(time.time())}.json"
         (receipt_dir / name).write_text(
