@@ -252,3 +252,47 @@ def test_cli_reports_and_dry_run_removes_nothing(tmp_path, monkeypatch):
     assert result.exit_code == 0, result.output
     assert json.loads(result.output)["would_remove"] == [str(target)]
     assert target.exists()
+
+
+def test_remove_paths_removes_trees_with_read_only_directories(tmp_path):
+    home = tmp_path
+    target = home / ".local/state/tool/copied-store"
+    _write(target / "locked/deep/data.bin")
+    for directory in (target / "locked/deep", target / "locked"):
+        directory.chmod(0o555)
+    findings = [ha._finding("stale-state", "review", target, "x", size_bytes=10)]
+
+    receipt = ha.remove_paths([target], findings, home=home)
+
+    assert not target.exists()
+    assert [item["path"] for item in receipt["removed"]] == [str(target)]
+    assert receipt["partial"] == [] and receipt["refused"] == []
+
+
+def test_remove_paths_reports_partial_removal_with_remaining_bytes(
+    tmp_path, monkeypatch
+):
+    home = tmp_path
+    target = home / ".local/state/tool/mixed"
+    _write(target / "mine.bin", 40)
+    foreign = _write(target / "foreign/kept.bin", 60)
+    real_unlink = os.unlink
+
+    def unlink(path, *args, **kwargs):
+        if str(path).endswith("kept.bin"):
+            raise PermissionError(13, "Permission denied", str(path))
+        return real_unlink(path, *args, **kwargs)
+
+    monkeypatch.setattr(os, "unlink", unlink)
+    findings = [ha._finding("stale-state", "review", target, "x", size_bytes=100)]
+
+    receipt = ha.remove_paths(
+        [target], findings, home=home, receipt_dir=home / "receipts"
+    )
+
+    assert foreign.exists() and not (target / "mine.bin").exists()
+    assert receipt["removed"] == [] and receipt["refused"] == []
+    assert receipt["partial"][0]["reason"] == "os_error:13"
+    assert 0 < receipt["partial"][0]["remaining_bytes"] < 100 * 1024
+    assert receipt["freed_bytes"] == receipt["partial"][0]["freed_bytes"]
+    assert Path(receipt["receipt_path"]).is_file()

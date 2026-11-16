@@ -1,0 +1,90 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-138",
+  "summary": "Report partial removals truthfully and remove read-only directories in fixos anomalies",
+  "workstream": "application",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P2",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-138/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/cli/anomalies_cmd.py",
+    "fixos/diagnostics/host_anomalies.py",
+    "tests/unit/test_host_anomalies.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "3cd0003ac81a7c455a37ccb63d610f85204099cd",
+    "targetBranch": "main",
+    "outcome": "fixos anomalies removes trees that contain read-only directories owned by the user and reports a partially removed tree with its remaining bytes instead of 'refused'.",
+    "nonGoals": [
+      "No privilege escalation; entries owned by another user stay and are reported.",
+      "No change to detection or to which paths are removable."
+    ],
+    "complexity": "M",
+    "estimatedMinutes": 30,
+    "budgets": {
+      "maxImplementationFiles": 3,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 1,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Wrap shutil.rmtree with a handler that makes user-owned entries writable and retries once; after removal classify by whether the path still exists and add a 'partial' list to the receipt.",
+      "components": [
+        {
+          "name": "diagnostics",
+          "paths": [
+            "fixos/diagnostics/host_anomalies.py",
+            "tests/unit/test_host_anomalies.py"
+          ]
+        },
+        {
+          "name": "cli",
+          "paths": [
+            "fixos/cli/anomalies_cmd.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [
+        "fixos.host-anomaly-removal/v1 receipt gains a 'partial' list; freed_bytes includes partially freed bytes"
+      ],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the commit."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python -m pytest tests/unit/test_host_anomalies.py -q"
+        ],
+        "evidence": "12 unit tests"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "./project/governance-check.sh"
+        ],
+        "evidence": "governance-check output"
+      }
+    ]
+  }
+}
