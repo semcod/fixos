@@ -1,0 +1,88 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-137",
+  "summary": "Document host anomaly detection and release 2.4.0",
+  "workstream": "integration",
+  "classification": {
+    "kind": "FEATURE",
+    "priority": "P2",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-137/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "VERSION",
+    "docs/information/host-anomalies.md",
+    "pyproject.toml"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "6d38f9beb4c1dfd1dffb64be82b107f5b9535734",
+    "targetBranch": "main",
+    "outcome": "fixos 2.4.0 ships host anomaly detection and artifact store reclaim, with the anomalies command documented.",
+    "nonGoals": [
+      "No code changes; the feature was delivered by ticket-135 and ticket-136.",
+      "No PyPI publication in this ticket."
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 20,
+    "budgets": {
+      "maxImplementationFiles": 3,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Add an information document for fixos anomalies in the repository docs format and raise VERSION and pyproject.toml to 2.4.0 in the same integration ticket.",
+      "components": [
+        {
+          "name": "documentation",
+          "paths": [
+            "docs/information/host-anomalies.md"
+          ]
+        },
+        {
+          "name": "packaging",
+          "paths": [
+            "VERSION",
+            "pyproject.toml"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the commit; no runtime behaviour depends on it."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python -m fixos.cli --version"
+        ],
+        "evidence": "reports 2.4.0"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "./project/governance-check.sh"
+        ],
+        "evidence": "governance-check output"
+      }
+    ]
+  }
+}
