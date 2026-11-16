@@ -9,6 +9,7 @@ from fixos.cli.shared import BANNER, LazyCommandDict, NaturalLanguageGroup
 from fixos.config import FixOsConfig
 
 LAZY_COMMANDS: dict[str, tuple[str, str]] = {
+    "anomalies": ("fixos.cli.anomalies_cmd", "anomalies"),
     "ask": ("fixos.cli.ask_cmd", "ask"),
     "auto": ("fixos.cli.fix_cmd", "auto_cmd"),
     "cleanup": ("fixos.cli.cleanup_cmd", "cleanup_services"),
