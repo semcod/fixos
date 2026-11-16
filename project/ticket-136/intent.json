@@ -1,0 +1,99 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-136",
+  "summary": "Host anomaly detection: restart loops, unrotated container logs, stale state stores, IDE indexes, leaked processes",
+  "workstream": "application",
+  "classification": {
+    "kind": "FEATURE",
+    "priority": "P1",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-136/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/diagnostics/host_anomalies.py",
+    "fixos/cli/anomalies_cmd.py",
+    "fixos/cli/main.py",
+    "tests/unit/test_host_anomalies.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "a33cac68d28d37edc78250ad00cb024da3788e47",
+    "targetBranch": "main",
+    "outcome": "fixos anomalies reports restart-looping services, unrotated container logs, large stale state directories, regenerable IDE indexes and leaked processes.",
+    "nonGoals": [
+      "No automatic service changes, log truncation or process signals; those stay suggested commands.",
+      "No removal outside the user's state roots or of paths a current scan does not mark removable."
+    ],
+    "complexity": "M",
+    "estimatedMinutes": 45,
+    "budgets": {
+      "maxImplementationFiles": 4,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 1,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Add a stdlib-only read-only detector module with injectable command runner and /proc root, exposed as a new lazy CLI command. Removal is limited to stale-state and idle IDE-index findings revalidated against a fresh scan, with a receipt.",
+      "components": [
+        {
+          "name": "diagnostics",
+          "paths": [
+            "fixos/diagnostics/host_anomalies.py",
+            "tests/unit/test_host_anomalies.py"
+          ]
+        },
+        {
+          "name": "cli",
+          "paths": [
+            "fixos/cli/anomalies_cmd.py",
+            "fixos/cli/main.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [
+        "fixos anomalies [--json] [--min-size-gb] [--min-age-days] [--remove PATH] [--remove-safe] [--dry-run]"
+      ],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the commit; the command is additive and no existing behaviour changes."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python -m pytest tests/unit/test_host_anomalies.py -q"
+        ],
+        "evidence": "10 unit tests"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "python -m fixos.cli anomalies --json"
+        ],
+        "evidence": "report on the live host"
+      },
+      {
+        "criterion": "AC-03",
+        "commands": [
+          "./project/governance-check.sh"
+        ],
+        "evidence": "governance-check output"
+      }
+    ]
+  }
+}
