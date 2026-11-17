@@ -22,6 +22,7 @@ LAZY_COMMANDS: dict[str, tuple[str, str]] = {
     "llm": ("fixos.cli.provider_cmd", "llm_providers"),
     "mcp": ("fixos.cli.mcp_cmd", "mcp_cmd"),
     "orchestrate": ("fixos.cli.orchestrate_cmd", "orchestrate"),
+    "printers": ("fixos.cli.printers_cmd", "printers"),
     "profile": ("fixos.cli.profile_cmd", "profile"),
     "projects": ("fixos.cli.projects_cmd", "projects_cmd"),
     "providers": ("fixos.cli.provider_cmd", "providers"),

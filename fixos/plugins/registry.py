@@ -36,14 +36,23 @@ class PluginRegistry:
         """Rejestracja wbudowanych pluginów."""
         from fixos.plugins.builtin import (
             audio,
+            disk,
+            hardware,
+            printers,
+            resources,
+            security,
+            thumbnails,
+        )
+
+        for module in [
+            audio,
             hardware,
             security,
             resources,
             disk,
             thumbnails,
-        )
-
-        for module in [audio, hardware, security, resources, disk, thumbnails]:
+            printers,
+        ]:
             plugin = module.Plugin()
             self._plugins[plugin.name] = plugin
 
