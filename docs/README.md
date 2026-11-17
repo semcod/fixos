@@ -4,6 +4,8 @@ Ta dokumentacja dotyczy narzędzia do diagnostyki i naprawy systemu fixOS.
 
 ## Dla użytkownika
 
+- [Diagnostyka i naprawa drukarek](information/printers.md) — `fixos printers`,
+  nierozwiązywalne nazwy drukarek sieciowych, IPP Everywhere, CUPS i Windows.
 - [Duże pliki i decyzje bez LLM](information/storage-triage.md) — `fixos storage`,
   grupy, uzasadnienia i raporty JSON/CSV/HTML.
 - [Pierwsze kroki](getting-started.md) — instalacja, szybka analiza i bezpieczne
