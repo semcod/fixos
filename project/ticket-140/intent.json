@@ -1,0 +1,83 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-140",
+  "summary": "Printer digital twin: Ubuntu and Fedora guests against an emulated laser printer",
+  "workstream": "application",
+  "classification": {
+    "kind": "FEATURE",
+    "priority": "P2",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-140/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "tests/twin/printers/**"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [
+    "ticket-139"
+  ],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "8524601157dbd95f25733b0343a3eca317df48f5",
+    "targetBranch": "main",
+    "outcome": "A reproducible printer digital twin (Ubuntu 24.04 and Fedora 43 libvirt guests plus an emulated Brother laser printer with IPP Everywhere, LPD and raw 9100 in its own network namespace) runs nine break/diagnose/repair scenarios against `fixos printers` and verifies that test pages reach the emulator.",
+    "nonGoals": [
+      "No Windows guest in this ticket (needs an evaluation image and ~20 GB disk).",
+      "No change to fixos runtime code.",
+      "Not part of the default pytest run; requires root, KVM and libvirt."
+    ],
+    "complexity": "M",
+    "estimatedMinutes": 90,
+    "budgets": {
+      "maxImplementationFiles": 5,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Shell harness under tests/twin/printers: printer-emulator.sh (netns on virbr0, ippeveprinter + job_sink.py), twin.sh (cloud-image overlays, cloud-init, install the checkout), scenarios.sh (in-guest break/diagnose/fix/verify).",
+      "components": [
+        {
+          "name": "twin",
+          "paths": [
+            "tests/twin/printers/**"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the commit; run `sudo tests/twin/printers/twin.sh destroy` to remove guests."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "sudo tests/twin/printers/twin.sh up",
+          "sudo tests/twin/printers/twin.sh test"
+        ],
+        "evidence": "scenario results per guest and emulator spool delta"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "./project/governance-check.sh"
+        ],
+        "evidence": "governance-check output"
+      }
+    ]
+  }
+}
