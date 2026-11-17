@@ -88,7 +88,7 @@
         "commands": [
           "fixos printers --test-print HL-L5200DW-2"
         ],
-        "evidence": "live run on a Brother HL-L5200DW on LAN"
+        "evidence": "live run on a Brother HL-L5200DW on LAN; Ubuntu/Fedora digital twin follows in ticket-140"
       },
       {
         "criterion": "AC-03",
