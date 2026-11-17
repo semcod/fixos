@@ -1,0 +1,93 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-141",
+  "summary": "Release fixos 2.5.0 with printer diagnostics",
+  "workstream": "integration",
+  "classification": {
+    "kind": "FEATURE",
+    "priority": "P2",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-141/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "VERSION",
+    "docs/information/printers.md",
+    "pyproject.toml",
+    "docs/README.md"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "2984f88572fbdb7d69fc8461bcd0870b09a0d778",
+    "targetBranch": "main",
+    "outcome": "fixos 2.5.0 ships `fixos printers` (ticket-139) and its digital twin (ticket-140), documented in docs/information/printers.md and listed in the docs index.",
+    "nonGoals": [
+      "No code changes.",
+      "CHANGELOG.md is owned by the governance workstream and is not touched.",
+      "Pre-existing docs-standard findings in other documents are not fixed here."
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 20,
+    "budgets": {
+      "maxImplementationFiles": 4,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Raise VERSION and pyproject.toml to 2.5.0 and add the information document, following the ticket-137 release pattern.",
+      "components": [
+        {
+          "name": "release",
+          "paths": [
+            "VERSION",
+            "pyproject.toml",
+            "docs/information/printers.md",
+            "docs/README.md"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the commit."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python -m pytest tests/unit/test_version_parity.py -q"
+        ],
+        "evidence": "version carriers agree on 2.5.0"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "python3 <wellmanifest/docs@19efafb>/docs/standard/check.py --root . --deliverable docs/information/printers.md"
+        ],
+        "evidence": "no finding for the new document"
+      },
+      {
+        "criterion": "AC-03",
+        "commands": [
+          "./project/governance-check.sh"
+        ],
+        "evidence": "governance-check output"
+      }
+    ]
+  }
+}
