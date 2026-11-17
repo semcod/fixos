@@ -11,7 +11,7 @@ from __future__ import annotations
 import importlib.metadata
 import logging
 import time
-from typing import Callable, Optional
+from collections.abc import Callable
 
 from .base import DiagnosticPlugin, DiagnosticResult, Finding, Severity
 
@@ -36,14 +36,23 @@ class PluginRegistry:
         """Rejestracja wbudowanych pluginów."""
         from fixos.plugins.builtin import (
             audio,
+            disk,
+            hardware,
+            printers,
+            resources,
+            security,
+            thumbnails,
+        )
+
+        for module in [
+            audio,
             hardware,
             security,
             resources,
             disk,
             thumbnails,
-        )
-
-        for module in [audio, hardware, security, resources, disk, thumbnails]:
+            printers,
+        ]:
             plugin = module.Plugin()
             self._plugins[plugin.name] = plugin
 
@@ -67,7 +76,7 @@ class PluginRegistry:
                     continue
                 self._plugins[plugin.name] = plugin
                 logger.info(f"Loaded external plugin: {plugin.name}")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - a broken third-party plugin must not stop discovery
                 logger.error(f"Failed to load plugin {ep.name}: {e}")
 
     def register(self, plugin: DiagnosticPlugin):
@@ -81,14 +90,14 @@ class PluginRegistry:
             plugins = [p for p in plugins if p.can_run()]
         return [p.get_metadata() for p in plugins]
 
-    def get_plugin(self, name: str) -> Optional[DiagnosticPlugin]:
+    def get_plugin(self, name: str) -> DiagnosticPlugin | None:
         """Pobierz plugin po nazwie."""
         return self._plugins.get(name)
 
     def run(
         self,
         modules: list[str] | None = None,
-        progress_callback: Optional[Callable[[str, str], None]] = None,
+        progress_callback: Callable[[str, str], None] | None = None,
     ) -> list[DiagnosticResult]:
         """Uruchom diagnostykę dla wybranych (lub wszystkich) modułów."""
         targets = modules or list(self._plugins.keys())
@@ -113,7 +122,7 @@ class PluginRegistry:
                 result.duration_ms = (time.monotonic() - start) * 1000
                 results.append(result)
                 self._results[name] = result
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - one failing plugin must not abort the others
                 logger.error(f"Plugin {name} failed: {e}")
                 results.append(
                     DiagnosticResult(

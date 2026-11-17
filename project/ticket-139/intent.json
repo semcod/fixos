@@ -1,0 +1,102 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-139",
+  "summary": "Printer diagnostics and repair across Linux, macOS and Windows",
+  "workstream": "application",
+  "classification": {
+    "kind": "FEATURE",
+    "priority": "P2",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-139/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/cli/main.py",
+    "fixos/cli/printers_cmd.py",
+    "fixos/plugins/builtin/printers.py",
+    "fixos/plugins/registry.py",
+    "tests/unit/test_printers_plugin.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "63d641492374ed35be66b628e309e505b8a9bc59",
+    "targetBranch": "main",
+    "outcome": "`fixos printers` diagnoses CUPS and Windows spooler print queues (unresolvable printer host name, unreachable port, paused queue, stuck jobs, generic driver on a driverless printer, stopped service), relocates a printer by the MAC embedded in its NetBIOS name, proposes or applies repair commands and can send a verified test page; the plugin also runs in quickfix.",
+    "nonGoals": [
+      "No automatic driver package installation.",
+      "No change to other plugins or to quickfix execution logic.",
+      "No unbounded network scanning: the optional sweep touches at most the local /24 on TCP 631."
+    ],
+    "complexity": "M",
+    "estimatedMinutes": 60,
+    "budgets": {
+      "maxImplementationFiles": 5,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 1,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Add a built-in DiagnosticPlugin 'printers' with injectable command runner, resolver and port probe; CUPS backend via lpstat/lpoptions/ipptool, Windows backend via PowerShell PrintManagement; repairs are expressed as Finding.command so both quickfix and the new `fixos printers --fix` command reuse them.",
+      "components": [
+        {
+          "name": "plugins",
+          "paths": [
+            "fixos/plugins/builtin/printers.py",
+            "fixos/plugins/registry.py",
+            "tests/unit/test_printers_plugin.py"
+          ]
+        },
+        {
+          "name": "cli",
+          "paths": [
+            "fixos/cli/printers_cmd.py",
+            "fixos/cli/main.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [
+        "new CLI command `fixos printers [--fix] [--yes] [--scan] [--test-print QUEUE] [--json]`"
+      ],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the commit."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python -m pytest tests/unit/test_printers_plugin.py -q"
+        ],
+        "evidence": "unit tests with mocked CUPS/Windows outputs"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "fixos printers --test-print HL-L5200DW-2"
+        ],
+        "evidence": "live run on a Brother HL-L5200DW on LAN; Ubuntu/Fedora digital twin follows in ticket-140"
+      },
+      {
+        "criterion": "AC-03",
+        "commands": [
+          "./project/governance-check.sh"
+        ],
+        "evidence": "governance-check output"
+      }
+    ]
+  }
+}
