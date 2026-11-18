@@ -8,6 +8,7 @@ for argument parsing and presentation while preserving all safety guards.
 
 from __future__ import annotations
 
+import subprocess
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
@@ -259,19 +260,41 @@ def _check_early_exclusive_modes(
     return None
 
 
+def _has_artifacts_conflicts(req: CleanupCliRequest) -> bool:
+    return any(
+        (
+            _has_non_venv_flags(req),
+            req.venvs_old,
+            req.free_gb is not None,
+            req.policy_matrix,
+            req.projects_path is not None,
+            req.days is not None,
+            req.retention is not None,
+            req.hours is not None,
+        )
+    )
+
+
 def _check_docker_mode_conflicts(
     req: CleanupCliRequest,
     *,
     want_docker_old: bool,
     want_docker_all: bool,
+    want_docker_containers: bool = False,
     want_docker_networks: bool,
     want_docker_stale: bool,
     want_orphaned: bool,
     want_ollama_old: bool,
 ) -> CleanupRouteDecision | None:
-    docker_data = want_docker_old or want_docker_all or want_docker_networks
+    docker_data = (
+        want_docker_old or want_docker_all or want_docker_networks or want_docker_containers
+    )
     if want_docker_old and want_docker_all:
         return _styled_err("Wybierz jeden zakres obrazów: --docker-old albo -c docker-all.")
+    if want_docker_containers and (want_docker_old or want_docker_all or want_docker_networks):
+        return _styled_err(
+            "Wybierz jeden tryb czyszczenia Dockera: -c docker-containers albo obrazy/sieci."
+        )
     if want_ollama_old and docker_data:
         return _styled_err("Czyszczenie Ollama i Dockera uruchom jako osobne akcje.")
     if want_docker_stale and (docker_data or want_ollama_old):
@@ -338,6 +361,7 @@ def _resolve_docker_and_space_modes(
         req,
         want_docker_old=want_docker_old,
         want_docker_all=want_docker_all,
+        want_docker_containers=want_docker_containers,
         want_docker_networks=want_docker_networks,
         want_docker_stale=want_docker_stale,
         want_orphaned=want_orphaned,
@@ -368,7 +392,7 @@ def _resolve_docker_and_space_modes(
 def resolve_cleanup_route(req: CleanupCliRequest) -> CleanupRouteDecision:
     """Deterministically validate CLI flags and resolve the exact cleanup route."""
     if req.artifacts_paths or req.artifacts_system_wide or req.cleanup == "artifacts":
-        if req.cleanup not in (None, "artifacts"):
+        if req.cleanup not in (None, "artifacts") or _has_artifacts_conflicts(req):
             return _usage_err("--artifacts uruchom jako osobną akcję (-c artifacts)")
         if not req.artifacts_paths and not req.artifacts_system_wide:
             return _usage_err("-c artifacts wymaga --artifacts PATH lub --artifacts-system-wide")
@@ -432,6 +456,30 @@ def plan_service_cleanup(
     )
 
 
+def _invoke_service_runner(
+    runner: Callable[[dict[str, Any], bool], Mapping[str, Any]],
+    svc: dict[str, Any],
+    dry_run: bool,
+) -> dict[str, Any]:
+    try:
+        raw_res = runner(svc, dry_run)
+    except (
+        OSError,
+        RuntimeError,
+        ValueError,
+        TypeError,
+        LookupError,
+        subprocess.SubprocessError,
+    ) as exc:
+        return {"success": False, "error": str(exc) or type(exc).__name__}
+    if not isinstance(raw_res, Mapping):
+        return {
+            "success": False,
+            "error": f"invalid runner result type: {type(raw_res).__name__}",
+        }
+    return dict(raw_res)
+
+
 def execute_service_cleanup(
     plan: ServiceCleanupPlan,
     *,
@@ -471,7 +519,7 @@ def execute_service_cleanup(
     freed_gb = 0.0
 
     for svc in targets:
-        res = dict(runner(svc, dry_run))
+        res = _invoke_service_runner(runner, svc, dry_run)
         results.append(res)
         stype = str(svc.get("service_type") or svc.get("name") or "")
         if stype and stype not in executed_types:

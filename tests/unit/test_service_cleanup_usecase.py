@@ -43,6 +43,45 @@ def test_route_resolution_and_conflict_guards():
     conflict_venv = resolve_cleanup_route(CleanupCliRequest(venvs_old=True, docker_old=True))
     assert conflict_venv.error_kind == "usage_error"
 
+    # Validator advisory #1: -c docker-containers conflicts with docker_all / docker_old / ollama_old / orphaned_projects
+    for bad_containers_req in (
+        CleanupCliRequest(cleanup="docker-containers", docker_all=True),
+        CleanupCliRequest(cleanup="docker-containers", docker_old=True),
+        CleanupCliRequest(cleanup="docker-containers", docker_networks=True),
+        CleanupCliRequest(cleanup="docker-containers", ollama_old=True),
+        CleanupCliRequest(cleanup="docker-containers", docker_stale_services=True),
+        CleanupCliRequest(cleanup="docker-containers", orphaned_projects=True),
+    ):
+        decision = resolve_cleanup_route(bad_containers_req)
+        assert decision.kind == "error"
+        assert decision.error_kind == "styled_error"
+
+    assert resolve_cleanup_route(CleanupCliRequest(cleanup="docker-containers")).kind == "docker_containers"
+
+    # Validator advisory #2: --artifacts rejects unrelated cleanup/analysis/retention flags
+    for bad_artifacts_req in (
+        CleanupCliRequest(artifacts_paths=("/tmp/x",), docker_all=True),
+        CleanupCliRequest(artifacts_paths=("/tmp/x",), full_analysis=True),
+        CleanupCliRequest(artifacts_paths=("/tmp/x",), free_gb=5.0),
+        CleanupCliRequest(artifacts_paths=("/tmp/x",), venvs_old=True),
+        CleanupCliRequest(artifacts_paths=("/tmp/x",), days=7),
+        CleanupCliRequest(artifacts_system_wide=True, snap_old=True),
+    ):
+        decision = resolve_cleanup_route(bad_artifacts_req)
+        assert decision.kind == "error"
+        assert decision.error_kind == "usage_error"
+
+    ok_artifacts = resolve_cleanup_route(
+        CleanupCliRequest(
+            cleanup="artifacts",
+            artifacts_paths=("/tmp/x",),
+            artifacts_min_age_days=3.0,
+            artifacts_build_caches=True,
+            dry_run=True,
+        )
+    )
+    assert ok_artifacts.kind == "artifacts"
+
 
 def test_usecase_success_partial_declined_consent_and_readback():
     initial_raw = {
@@ -135,6 +174,38 @@ def test_usecase_success_partial_declined_consent_and_readback():
     assert rb_part.outcome == "partial"
     assert rb_part.observed_delta_gb == 1.5
     assert rb_part.remaining_service_types == ["pip"]
+
+    # 4. Per-service exception and non-Mapping runner isolation (Validator advisory #3)
+    scanner_exc = _FakeScanner([initial_raw, after_partial_raw])
+    plan_exc = plan_service_cleanup(scanner_exc)
+
+    def raising_runner(svc, _dry):
+        if svc["service_type"] == "npm":
+            return {"success": True, "space_freed_gb": 1.5}
+        raise PermissionError("access denied on pip cache")
+
+    exec_exc = execute_service_cleanup(
+        plan_exc,
+        runner=raising_runner,
+        consent_granted=True,
+        dry_run=False,
+    )
+    assert exec_exc.outcome == "partial"
+    assert exec_exc.attempted_count == 2
+    assert exec_exc.succeeded_count == 1
+    assert exec_exc.failed_count == 1
+    assert exec_exc.space_freed_gb == 1.5
+    assert "access denied" in exec_exc.results[1]["error"]
+
+    exec_non_map = execute_service_cleanup(
+        plan_exc,
+        runner=lambda _svc, _dry: None,  # type: ignore[return-value]
+        consent_granted=True,
+        dry_run=False,
+    )
+    assert exec_non_map.outcome == "failed"
+    assert exec_non_map.failed_count == 2
+    assert "invalid runner result type" in exec_non_map.results[0]["error"]
 
 
 def _cyclomatic_complexity(func_node: ast.FunctionDef) -> int:
