@@ -1701,13 +1701,13 @@ def _run_free_target_mode(
             echo=_echo,
             dry_run=dry_run,
         )
-        freed = (report.ended_free_bytes - report.started_free_bytes) / 1024**3
+        free_space_change = (report.ended_free_bytes - report.started_free_bytes) / 1024**3
         _echo("")
         if report.goal_reached:
             _echo(
                 click.style(
                     f"Cel osiągnięty: {report.ended_free_bytes / 1024**3:.1f} GB wolnego "
-                    f"(zwolniono {freed:.2f} GB).",
+                    f"(zmiana wolnego miejsca {free_space_change:+.2f} GB).",
                     fg="green",
                     bold=True,
                 )
@@ -1715,7 +1715,7 @@ def _run_free_target_mode(
         else:
             _echo(
                 click.style(
-                    f"Zwolniono {freed:.2f} GB, wolne: "
+                    f"Zmiana wolnego miejsca {free_space_change:+.2f} GB, teraz wolne "
                     f"{report.ended_free_bytes / 1024**3:.1f} GB — cel nieosiągnięty.",
                     fg="yellow",
                     bold=True,

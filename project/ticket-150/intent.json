@@ -1,0 +1,92 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-150",
+  "summary": "Separate Fixos cleanup effects from observed free space",
+  "workstream": "application",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P2",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-150/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/cli/_cleanup_free_target.py",
+    "fixos/cli/cleanup_cmd.py",
+    "tests/unit/test_cleanup_free_target.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "5c3a49cce757d266a2149feccd6da0726884afaf",
+    "targetBranch": "main",
+    "outcome": "Target-based cleanup distinguishes simulated or skipped work from actual capacity changes.",
+    "nonGoals": [
+      "Keep the current cleanup effects and order.",
+      "Keep the report schema."
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 25,
+    "budgets": {
+      "maxImplementationFiles": 3,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 1,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Record measured reclaim for eligible execution tiers and label aggregate host-space change separately.",
+      "components": [
+        {
+          "name": "cleanup-cli",
+          "paths": [
+            "fixos/cli/_cleanup_free_target.py",
+            "fixos/cli/cleanup_cmd.py",
+            "tests/unit/test_cleanup_free_target.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [
+        "Report zero reclaimed bytes for tiers that simulate or skip cleanup."
+      ],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the source change."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python -m pytest tests/unit/test_cleanup_free_target.py"
+        ],
+        "evidence": "Simulated and skipped tiers report zero despite increasing free-space readings."
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "python -m pytest tests/unit/test_cleanup_free_target.py tests/unit/test_cleanup_safety.py"
+        ],
+        "evidence": "Existing execution stop conditions, measured reclaim and tier order remain covered."
+      },
+      {
+        "criterion": "AC-03",
+        "commands": [
+          "./project/governance-check.sh"
+        ],
+        "evidence": "Managed governance and cleanup checks pass."
+      }
+    ]
+  }
+}
