@@ -174,6 +174,18 @@ def generic_driver(model: str) -> bool:
     return any(word in lowered for word in ("generic", "foomatic", "raw queue"))
 
 
+def active_fault_reasons(raw: str) -> list[str]:
+    """Return non-benign IPP ``printer-state-reasons`` tokens in order."""
+    faults: list[str] = []
+    for part in raw.split(","):
+        reason = part.strip()
+        if not reason or reason == "none" or reason.endswith("-report"):
+            continue
+        if reason not in faults:
+            faults.append(reason)
+    return faults
+
+
 class Plugin(DiagnosticPlugin):
     name = "printers"
     description = "Diagnostyka drukarek (CUPS/Windows spooler, sieć, sterownik)"
@@ -292,6 +304,7 @@ class Plugin(DiagnosticPlugin):
                         severity=Severity.CRITICAL,
                         description="Serwer wydruku CUPS jest zatrzymany.",
                         command="sudo systemctl enable --now cups",
+                        data={"repair": {"op": "enable_cups", "system": self._system}},
                     )
                 )
                 return []
@@ -347,7 +360,14 @@ class Plugin(DiagnosticPlugin):
                     description="Kolejka jest wyłączona lub odrzuca zadania "
                     "(zwykle po wcześniejszym błędzie połączenia).",
                     command=cmd,
-                    data={"queue": queue.name},
+                    data={
+                        "queue": queue.name,
+                        "repair": {
+                            "op": "resume_queue",
+                            "system": self._system,
+                            "queue": queue.name,
+                        },
+                    },
                 )
             )
         if queue.pending_jobs:
@@ -369,7 +389,15 @@ class Plugin(DiagnosticPlugin):
                         if windows
                         else f"cancel -a {_sh_quote(queue.name)}"
                     ),
-                    data={"queue": queue.name, "jobs": queue.pending_jobs},
+                    data={
+                        "queue": queue.name,
+                        "jobs": queue.pending_jobs,
+                        "repair": {
+                            "op": "clear_jobs",
+                            "system": self._system,
+                            "queue": queue.name,
+                        },
+                    },
                 )
             )
         return found
@@ -413,7 +441,17 @@ class Plugin(DiagnosticPlugin):
             suggestion="Przepnij kolejkę na adres IP i ustaw rezerwację DHCP "
             "dla tej drukarki na routerze.",
             command=self._repoint_command(queue, address),
-            data={"queue": queue.name, "host": host, "address": address},
+            data={
+                "queue": queue.name,
+                "host": host,
+                "address": address,
+                "repair": {
+                    "op": "repoint_queue",
+                    "system": self._system,
+                    "queue": queue.name,
+                    "address": address,
+                },
+            },
         )
 
     def _driver_findings(
@@ -445,15 +483,15 @@ class Plugin(DiagnosticPlugin):
             )
         }
         found = []
-        reasons = attrs.get("printer-state-reasons", "none")
-        if reasons not in ("none", "") and not reasons.endswith("-report"):
+        faults = active_fault_reasons(attrs.get("printer-state-reasons", "none"))
+        if faults:
             found.append(
                 Finding(
                     title=f"{queue.name}: drukarka zgłasza problem",
                     severity=Severity.WARNING,
-                    description=f"printer-state-reasons = {reasons}",
+                    description=f"printer-state-reasons = {', '.join(faults)}",
                     suggestion="Sprawdź panel drukarki (papier, toner, pokrywa).",
-                    data={"queue": queue.name},
+                    data={"queue": queue.name, "reasons": faults},
                 )
             )
         if driverless_capable(attrs) and (
@@ -466,7 +504,16 @@ class Plugin(DiagnosticPlugin):
                     description=f"Kolejka używa '{queue.model or queue.scheme}', a "
                     "drukarka obsługuje druk bez sterownika (IPP Everywhere).",
                     command=self._repoint_command(queue, address),
-                    data={"queue": queue.name, "address": address},
+                    data={
+                        "queue": queue.name,
+                        "address": address,
+                        "repair": {
+                            "op": "repoint_queue",
+                            "system": self._system,
+                            "queue": queue.name,
+                            "address": address,
+                        },
+                    },
                 )
             )
         return found
@@ -502,6 +549,7 @@ class Plugin(DiagnosticPlugin):
                     severity=Severity.CRITICAL,
                     description=f"Usługa Spooler ma stan {status.strip()}.",
                     command=_ps("Restart-Service Spooler -Force"),
+                    data={"repair": {"op": "restart_spooler", "system": "windows"}},
                 )
             )
             return []

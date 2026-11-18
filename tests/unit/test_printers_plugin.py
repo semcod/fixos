@@ -8,6 +8,7 @@ from fixos.plugins.builtin import printers
 from fixos.plugins.builtin.printers import (
     Plugin,
     PrinterQueue,
+    active_fault_reasons,
     find_ip_by_mac,
     mac_hint_from_hostname,
     parse_ipp_attributes,
@@ -249,3 +250,42 @@ def test_registry_includes_printers():
     registry = PluginRegistry()
     registry.discover()
     assert "printers" in registry._plugins
+
+
+def test_active_fault_reasons_evaluates_each_reason_independently():
+    assert active_fault_reasons("media-empty-error,toner-low-report") == [
+        "media-empty-error"
+    ]
+    assert active_fault_reasons("toner-low-report, media-empty-error") == [
+        "media-empty-error"
+    ]
+    assert active_fault_reasons(
+        " media-empty-error , door-open-error , toner-low-report , none , "
+    ) == ["media-empty-error", "door-open-error"]
+    assert active_fault_reasons("toner-low-report,marker-supply-low-report") == []
+    assert active_fault_reasons("none") == []
+    assert active_fault_reasons("   ,  ") == []
+
+
+def test_diagnose_reports_mixed_ipp_fault_even_when_trailing_reason_is_report():
+    responses = cups_responses(
+        "ipp://192.168.188.158/ipp/print",
+        "Brother HL-L5200DW series, driverless",
+    )
+    responses["ipptool"] = IPP_OUT.replace(
+        "printer-state-reasons (keyword) = none",
+        "printer-state-reasons (keyword) = media-empty-error,toner-low-report",
+    )
+    plugin = Plugin(
+        runner=make_runner(responses),
+        resolver=lambda host: host,
+        port_open=lambda *a: True,
+        system="linux",
+    )
+    result = plugin.diagnose()
+    assert result.status == Severity.WARNING
+    fault = next(f for f in result.findings if "zgłasza problem" in f.title)
+    assert fault.data["reasons"] == ["media-empty-error"]
+    assert "media-empty-error" in fault.description
+    assert "toner-low-report" not in fault.description
+

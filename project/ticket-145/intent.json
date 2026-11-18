@@ -1,0 +1,101 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-145",
+  "summary": "Handle all IPP faults and execute printer repairs without a shell",
+  "workstream": "application",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P1",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-145/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/cli/printers_cmd.py",
+    "fixos/plugins/builtin/printer_repairs.py",
+    "fixos/plugins/builtin/printers.py",
+    "tests/unit/test_printer_repairs.py",
+    "tests/unit/test_printers_plugin.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [
+    "ticket-139"
+  ],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "34fbfd89845843efb93f3532e0d6dadc9bbfb55b",
+    "targetBranch": "main",
+    "outcome": "IPP printer-state-reasons tokens are evaluated independently, and `fixos printers --fix` executes validated argv repair steps with `shell=False` across Linux, macOS, and Windows (closing #183).",
+    "nonGoals": [
+      "No modification to tests/twin/printers/** (handled separately in ticket-146)."
+    ],
+    "complexity": "M",
+    "estimatedMinutes": 45,
+    "budgets": {
+      "maxImplementationFiles": 5,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Introduce `fixos/plugins/builtin/printer_repairs.py` with strict queue-name and IP-address validation, building `list[list[str]]` argv steps executed via `subprocess.run(..., shell=False)` (using `-EncodedCommand` UTF-16LE on Windows); attach structured `repair` metadata to `Finding.data` while retaining human-readable `Finding.command`.",
+      "components": [
+        {
+          "name": "plugins",
+          "paths": [
+            "fixos/plugins/builtin/printer_repairs.py",
+            "fixos/plugins/builtin/printers.py",
+            "tests/unit/test_printer_repairs.py",
+            "tests/unit/test_printers_plugin.py"
+          ]
+        },
+        {
+          "name": "cli",
+          "paths": [
+            "fixos/cli/printers_cmd.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the commit."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python -m pytest tests/unit/test_printers_plugin.py -q"
+        ],
+        "evidence": "unit tests for mixed-order IPP printer-state-reasons"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "python -m pytest tests/unit/test_printer_repairs.py -q"
+        ],
+        "evidence": "unit tests for shell=False repair argv generation and hostile input rejection"
+      },
+      {
+        "criterion": "AC-03",
+        "commands": [
+          "./project/governance-check.sh",
+          "python -m ruff check fixos/plugins/builtin/printer_repairs.py fixos/plugins/builtin/printers.py fixos/cli/printers_cmd.py tests/unit/test_printer_repairs.py tests/unit/test_printers_plugin.py"
+        ],
+        "evidence": "governance-check and ruff check outputs"
+      }
+    ]
+  }
+}
