@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 
+import click
+import pytest
 from click.testing import CliRunner
 
 from fixos.cli.mesh_cmd import mesh as mesh_cmd
@@ -9,6 +13,7 @@ from fixos.cli.mesh_cmd import parse_ports
 from fixos.cli.printers_cmd import printers as printers_cmd
 from fixos.plugins.base import Severity
 from fixos.plugins.builtin.mesh import (
+    REMOTE_PYTHON_PROBE,
     Plugin,
     TargetSnmpInfo,
     _ber_decode_oid,
@@ -346,3 +351,60 @@ def test_registry_includes_mesh():
     registry = PluginRegistry()
     registry.discover()
     assert "mesh" in registry._plugins
+
+
+def test_remote_probe_script_and_port_validation_and_usb_queue(monkeypatch):
+    with pytest.raises(click.BadParameter):
+        parse_ports("631,abc")
+    with pytest.raises(click.BadParameter):
+        parse_ports("70000")
+
+    proc = subprocess.run(
+        [sys.executable, "-c", REMOTE_PYTHON_PROBE, "127.0.0.1", "1", "127.0.0.1"],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    payload = json.loads(proc.stdout.strip())
+    assert payload["resolved_ip"] == "127.0.0.1"
+    assert payload["closed_ports"] == [1]
+
+    captured_targets: list[list[str] | None] = []
+
+    def fake_printer_usb(self):
+        from fixos.plugins.base import DiagnosticResult
+
+        return DiagnosticResult(
+            plugin_name="printers",
+            status=Severity.OK,
+            findings=[],
+            raw_data={
+                "queues": [
+                    {"name": "USB_HL", "uri": "usb://Brother/HL-L5200DW"},
+                    {"name": "IPV6_HL", "uri": "ipp://[fe80::1]:631/ipp/print"},
+                ]
+            },
+        )
+
+    orig_init = Plugin.__init__
+
+    def spy_init(self, *args, **kwargs):
+        captured_targets.append(kwargs.get("targets"))
+        orig_init(self, *args, **kwargs)
+
+    def fake_mesh_diag(self):
+        from fixos.plugins.base import DiagnosticResult
+
+        return DiagnosticResult(
+            plugin_name="mesh", status=Severity.OK, findings=[], raw_data={"targets": []}
+        )
+
+    monkeypatch.setattr(
+        "fixos.plugins.builtin.printers.Plugin.diagnose", fake_printer_usb
+    )
+    monkeypatch.setattr("fixos.plugins.builtin.mesh.Plugin.__init__", spy_init)
+    monkeypatch.setattr("fixos.plugins.builtin.mesh.Plugin.diagnose", fake_mesh_diag)
+    res = CliRunner().invoke(printers_cmd, ["--mesh", "--json"])
+    assert res.exit_code == 0
+    assert captured_targets == [["fe80::1"]]
