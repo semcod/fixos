@@ -1,0 +1,101 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-151",
+  "summary": "Canonical POA and MCP registry of commands, URI processes, and URN resources",
+  "workstream": "application",
+  "classification": {
+    "kind": "FEATURE",
+    "priority": "P2",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-151/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/cli/mcp_cmd.py",
+    "fixos/mcp_server.py",
+    "fixos/poa_registry.py",
+    "tests/unit/test_mcp_server.py",
+    "tests/unit/test_poa_registry.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "8ef828d85aee30be97cf358e9c8ebf368ca79574",
+    "targetBranch": "main",
+    "outcome": "`fixos/poa_registry.py` provides the single canonical POA/MCP capability registry separating `operation_id`, `process_uri`, and `resource_urn`, exporting `wellmanifest.mcp/registry/v1`, validating uniqueness/freshness/availability, and enforcing parity across all Click commands, subcommands, and builtin plugins (closing #164).",
+    "nonGoals": [
+      "Input-bound receipt journals and post-cleanup read-back are delivered separately in #163.",
+      "MCP resources/list and resources/read endpoints are delivered separately in #165."
+    ],
+    "complexity": "M",
+    "estimatedMinutes": 35,
+    "budgets": {
+      "maxImplementationFiles": 5,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 1,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Create `fixos/poa_registry.py` as the SSOT for canonical `OperationSpec` and `NonExposedCapability` records, project `OPERATIONS_CATALOG`, `registry_search`, `mcp_tools_list`, and `task_execute` in `fixos/mcp_server.py`, add `--registry-v1` to `fixos/cli/mcp_cmd.py`, and gate CLI/plugin parity with `verify_capability_parity()`.",
+      "components": [
+        {
+          "name": "mcp",
+          "paths": [
+            "fixos/poa_registry.py",
+            "fixos/mcp_server.py",
+            "tests/unit/test_poa_registry.py",
+            "tests/unit/test_mcp_server.py"
+          ]
+        },
+        {
+          "name": "cli",
+          "paths": [
+            "fixos/cli/mcp_cmd.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [
+        "Expose canonical `wellmanifest.mcp/registry/v1` projection and `fixos mcp --registry-v1`."
+      ],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert ticket-151 commit to restore static 4-item `OPERATIONS_CATALOG`."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python -m pytest tests/unit/test_poa_registry.py -q"
+        ],
+        "evidence": "All Click commands, subcommands, and builtin plugins pass parity and v1 schema conformance checks."
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "python -m pytest tests/unit/test_mcp_server.py -q"
+        ],
+        "evidence": "MCP server discovery, validation, and stdio roundtrips pass."
+      },
+      {
+        "criterion": "AC-03",
+        "commands": [
+          "./project/governance-check.sh"
+        ],
+        "evidence": "Governance, ruff, and scope checks pass."
+      }
+    ]
+  }
+}

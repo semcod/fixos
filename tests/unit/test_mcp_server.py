@@ -29,9 +29,11 @@ from fixos.mcp_server import (
 
 def test_registry_search_and_catalog_digest():
     result = registry_search()
-    assert result["schema"] == CATALOG_SCHEMA
+    assert result["schema"] == CATALOG_SCHEMA == "wellmanifest.mcp/registry/v1"
     assert result["registry_digest"] == catalog_digest()
     assert len(result["registry_digest"]) == 64
+    assert result["expiresAt"].endswith("Z")
+    assert len(result["operations"]) > 4
     op_ids = {op["operation_id"] for op in result["operations"]}
     assert {
         "fixos://diagnostics/quick",
@@ -39,6 +41,11 @@ def test_registry_search_and_catalog_digest():
         "fixos://diagnostics/projects",
         "fixos://cleanup/auto",
     } <= op_ids
+    for op in result["operations"]:
+        assert op["owner"] == "semcod/fixos"
+        assert isinstance(op["outputSchema"], dict)
+        assert op["resource_urn"].startswith("urn:uuid:")
+        assert isinstance(op["available"], bool)
 
     filtered = registry_search(query="projects")
     assert filtered["count"] >= 1
