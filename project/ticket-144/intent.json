@@ -27,7 +27,7 @@
   "conflictsWith": [],
   "integrationTicket": null,
   "delivery": {
-    "acceptedBaseSha": "3ddd64ff8b61d7718f0c19a6367d9bdbf707c0d1",
+    "acceptedBaseSha": "af0248c6beb7dfa4bd0723c2a4500d8f6d01413f",
     "targetBranch": "main",
     "outcome": "fixos 2.6.0 ships `fixos mesh` and `fixos printers --mesh`, documented in docs/information/mesh.md and indexed in docs/README.md.",
     "nonGoals": [

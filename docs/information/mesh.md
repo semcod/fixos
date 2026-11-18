@@ -11,13 +11,13 @@
   "created": "2026-11-18",
   "updated": "2026-11-18",
   "review_after": "2026-12-18",
-  "source_revision": "3ddd64ff8b61d7718f0c19a6367d9bdbf707c0d1",
+  "source_revision": "af0248c6beb7dfa4bd0723c2a4500d8f6d01413f",
   "affected_repositories": ["semcod/fixos"],
   "evidence": [
-    "https://github.com/semcod/fixos/blob/3ddd64ff8b61d7718f0c19a6367d9bdbf707c0d1/fixos/plugins/builtin/mesh.py",
-    "https://github.com/semcod/fixos/blob/3ddd64ff8b61d7718f0c19a6367d9bdbf707c0d1/fixos/cli/mesh_cmd.py",
-    "https://github.com/semcod/fixos/blob/3ddd64ff8b61d7718f0c19a6367d9bdbf707c0d1/fixos/cli/printers_cmd.py",
-    "https://github.com/semcod/fixos/blob/3ddd64ff8b61d7718f0c19a6367d9bdbf707c0d1/tests/unit/test_mesh_plugin.py"
+    "https://github.com/semcod/fixos/blob/af0248c6beb7dfa4bd0723c2a4500d8f6d01413f/fixos/plugins/builtin/mesh.py",
+    "https://github.com/semcod/fixos/blob/af0248c6beb7dfa4bd0723c2a4500d8f6d01413f/fixos/cli/mesh_cmd.py",
+    "https://github.com/semcod/fixos/blob/af0248c6beb7dfa4bd0723c2a4500d8f6d01413f/fixos/cli/printers_cmd.py",
+    "https://github.com/semcod/fixos/blob/af0248c6beb7dfa4bd0723c2a4500d8f6d01413f/tests/unit/test_mesh_plugin.py"
   ]
 }
 ---
@@ -64,7 +64,7 @@ Wykrywane problemy:
 <!-- docs:section evidence -->
 ## Dowody
 
-Źródło: ticket-142 (PR 187, commit 3ddd64ff8b61d7718f0c19a6367d9bdbf707c0d1) i
+Źródło: ticket-142 (PR 187, commit af0248c6beb7dfa4bd0723c2a4500d8f6d01413f) i
 poprawki walidacji argumentów w ticket-143 (PR 188). Testy jednostkowe w
 `tests/unit/test_mesh_plugin.py` oraz testy CI na Pythonie 3.10–3.12 i obrazach
 Alpine, Arch, Debian, Fedora i Ubuntu zakończone statusem PASS.

@@ -68,13 +68,17 @@ def printers(
 
     if run_mesh or mesh_nodes:
         from fixos.plugins.builtin.mesh import Plugin as MeshPlugin
+        from fixos.plugins.builtin.printers import PrinterQueue
 
         printer_targets: list[str] = []
         for queue in result.raw_data.get("queues", []):
             candidate = (
                 queue.get("address")
                 or queue.get("located_address")
-                or queue.get("uri", "").split("://")[-1].split("/")[0].split(":")[0]
+                or PrinterQueue(
+                    name=str(queue.get("name") or ""),
+                    uri=str(queue.get("uri") or ""),
+                ).host
             )
             if candidate and candidate not in printer_targets:
                 printer_targets.append(candidate)

@@ -72,9 +72,12 @@ IGNORED_SSH_HOSTS = {
 
 REMOTE_PYTHON_PROBE = """
 import json, socket, struct, sys, time
-target = sys.argv[1]
-ports = [int(p) for p in sys.argv[2].split(",") if p]
-target_ip_hint = sys.argv[3] if len(sys.argv) > 3 and sys.argv[3] else None
+args = sys.argv[1:]
+if args and args[0] == "--":
+    args = args[1:]
+target = args[0]
+ports = [int(p) for p in args[1].split(",") if p]
+target_ip_hint = args[2] if len(args) > 2 and args[2] else None
 out = {
     "hostname": socket.gethostname(),
     "source_ip": "",
@@ -112,7 +115,7 @@ if connect_host:
     pkt = struct.pack(">HHHHHH", 0, 0, 1, 0, 0, 0)
     for lbl in ("_services", "_dns-sd", "_udp", "local"):
         pkt += bytes([len(lbl)]) + lbl.encode()
-    pkt += b"\\x00\\x00\\x0c\\x80\\x01"
+    pkt += struct.pack(">BHH", 0, 12, 0x8001)
     for mcast, key in ((False, "mdns_unicast_ok"), (True, "mdns_multicast_ok")):
         ms = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         ms.settimeout(0.7)
@@ -838,7 +841,7 @@ class Plugin(DiagnosticPlugin):
             + shlex.quote(
                 f"import base64,sys;exec(base64.b64decode('{encoded}').decode())"
             )
-            + f" -- {shlex.quote(target)} {shlex.quote(ports_csv)} {ip_arg}"
+            + f" {shlex.quote(target)} {shlex.quote(ports_csv)} {ip_arg}"
         )
         ssh_cmd = (
             "ssh -o BatchMode=yes -o ConnectTimeout=3 "
