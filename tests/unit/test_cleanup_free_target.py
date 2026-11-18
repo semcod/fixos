@@ -79,6 +79,23 @@ def test_ladder_runs_all_tiers_when_goal_unmet():
     assert len(report.tiers) == 2
 
 
+@pytest.mark.parametrize("dry_run, attempted", [(True, True), (False, False)])
+def test_ladder_does_not_attribute_space_to_nonexecuting_tiers(dry_run, attempted):
+    free_values = iter([1024, 1024, 2048])
+    messages = []
+    report = run_free_target_ladder(
+        1,
+        tiers=[lambda: TierResult("example", attempted=attempted)],
+        free_fn=lambda: next(free_values),
+        echo=messages.append,
+        dry_run=dry_run,
+    )
+    assert report.started_free_bytes == 1024
+    assert report.ended_free_bytes == 2048
+    assert report.tiers[0].bytes_freed == 0
+    assert "zwolniono" not in messages[0]
+
+
 def test_ladder_skips_tiers_already_at_goal():
     def free_fn():
         return 20 * 1024**3

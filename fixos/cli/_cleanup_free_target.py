@@ -255,9 +255,9 @@ def run_free_target_ladder(
 ) -> LadderReport:
     """Run tiers in order, stopping once free space reaches ``goal_gb``.
 
-    Tiers are callables returning :class:`TierResult`; the free-space delta
-    measured around each tier is authoritative (tier-reported byte counts are
-    advisory only).
+    Tiers are callables returning :class:`TierResult`. Measure the observed
+    change around an executing tier. Simulated or skipped tiers cannot
+    reclaim space, though the host's available capacity can still change.
     """
     report = LadderReport(
         goal_bytes=int(goal_gb * 1024**3),
@@ -274,12 +274,13 @@ def run_free_target_ladder(
         before = free_fn()
         result = tier()
         after = free_fn()
-        result.bytes_freed = max(0, after - before)
+        result.bytes_freed = max(0, after - before) if result.attempted and not dry_run else 0
         report.tiers.append(result)
         report.ended_free_bytes = after
         if result.attempted:
+            outcome = "symulacja" if dry_run else f"zwolniono {result.bytes_freed / 1024**3:.2f} GB"
             echo(
-                f"  • {result.name}: zwolniono {result.bytes_freed / 1024**3:.2f} GB"
+                f"  • {result.name}: {outcome}"
                 + (f" ({result.skipped_reason})" if result.skipped_reason else "")
             )
         else:
