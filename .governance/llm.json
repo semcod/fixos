@@ -1,0 +1,11 @@
+{
+  "schema": "wellmanifest.llm-profile/v1",
+  "profileId": "fixos-advisory-nl-router",
+  "version": "1.0.0",
+  "transport": {
+    "preferred": "mcp"
+  },
+  "authorityBoundary": {
+    "grantsExecutionAuthority": false
+  }
+}

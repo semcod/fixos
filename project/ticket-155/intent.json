@@ -1,0 +1,104 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-155",
+  "summary": "Pin POA, MCP, NL-URI, and SSOT governance contracts for Wellman check",
+  "workstream": "governance",
+  "classification": {
+    "kind": "FEATURE",
+    "priority": "P2",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-155/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    ".governance/authority-lifecycle.json",
+    ".governance/dsl-manifest.json",
+    ".governance/llm.json",
+    ".governance/nl-uri-profile.json",
+    ".governance/poa.json",
+    ".governance/standard-adoption.json",
+    ".governance/standards-lock.json"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [
+    "ticket-151",
+    "ticket-152",
+    "ticket-153",
+    "ticket-154"
+  ],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "62cf819c4b5b3e541d5eb7314f9005b265d324cd",
+    "targetBranch": "main",
+    "outcome": "Pin immutable POA (`b0432f3`), MCP (`91f0271`), NL-URI (`adc0056`), and URIProcess (`0a81334`) revisions and SHA-256 contract digests in `.governance/standards-lock.json`, add `.governance/{poa.json,nl-uri-profile.json,dsl-manifest.json,llm.json}` artifacts, and bind `.governance/poa.json` digest in `.governance/standard-adoption.json` while preserving immutable `.governance/manifest.lock.json` and the `#174` (`ticket/110`) scope fence on `.governance/standard-requirements.json`.",
+    "nonGoals": [
+      "Modifying `.governance/manifest.lock.json`-managed files or `.governance/standard-requirements.json` (fenced by preserved `refs/heads/ticket/110-sync-standard-requirements-backup` in #174).",
+      "Updating `docs/INFORMATION/WELLMANIFEST_STANDARDS.md` and `VERSION` (delivered in the integration ticket)."
+    ],
+    "complexity": "M",
+    "estimatedMinutes": 25,
+    "budgets": {
+      "maxImplementationFiles": 7,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Add governed authority-lifecycle, POA, NL-URI `semantic-v1`, DSL, LLM, and SSOT standards-lock JSON artifacts under `.governance/` and bind `wellmanifest/poa` `0.1.0@b0432f3729e6da51cf0c7007970cb16bb971f937` with SHA-256 artifact evidence in `.governance/standard-adoption.json`.",
+      "components": [
+        {
+          "name": "governance-contracts",
+          "paths": [
+            ".governance/authority-lifecycle.json",
+            ".governance/dsl-manifest.json",
+            ".governance/llm.json",
+            ".governance/nl-uri-profile.json",
+            ".governance/poa.json",
+            ".governance/standard-adoption.json",
+            ".governance/standards-lock.json"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert ticket-155 commit."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python3 .governance/standard_pack_check.py --root ."
+        ],
+        "evidence": "`standard_pack_check.py` passes with 0 findings on pinned `wellmanifest/poa` adoption."
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "wellman check --root .",
+          "wellman check --root . -s wellmanifest/poa -s wellmanifest/mcp -s wellmanifest/nl-uri-dsl-llm -s wellmanifest/ssot -s wellmanifest/uriprocess -s wellmanifest/dsl -s wellmanifest/llm"
+        ],
+        "evidence": "`wellman check` passes with 0 errors across baseline, POA, MCP, NL-URI, SSOT, URIProcess, DSL, and LLM packs."
+      },
+      {
+        "criterion": "AC-03",
+        "commands": [
+          "./project/governance-check.sh"
+        ],
+        "evidence": "Repository governance gate passes with 0 errors and immutable lock intact."
+      }
+    ]
+  }
+}

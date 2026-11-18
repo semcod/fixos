@@ -272,14 +272,18 @@
     },
     {
       "id": "wellmanifest/poa",
-      "version": "0.20.46",
-      "revision": "3ab9d484ce9de248f4f0b129b084851e93271e55",
+      "version": "0.1.0",
+      "revision": "b0432f3729e6da51cf0c7007970cb16bb971f937",
       "model": "runtime-conformance",
       "level": "S5",
       "artifacts": [
         {
           "target": ".governance/manifest.json",
           "sha256": "3b5599377963e0d1336aaba974b920909f009bce6613fca76b654ed5bf733592"
+        },
+        {
+          "target": ".governance/poa.json",
+          "sha256": "b337c7ce45e78c2c7b0d75078fdb9d63d7b16e5945314a6c0af24ee6bc3927f4"
         }
       ],
       "evidence": [
@@ -312,6 +316,11 @@
           "level": "S5",
           "uri": ".governance/manifest.json",
           "sha256": "38aa1ec77db50246ad91443c949526c5b6d1797f7ea87bd9a6265794995ceb27"
+        },
+        {
+          "level": "S2",
+          "uri": ".governance/poa.json",
+          "sha256": "b337c7ce45e78c2c7b0d75078fdb9d63d7b16e5945314a6c0af24ee6bc3927f4"
         }
       ]
     },

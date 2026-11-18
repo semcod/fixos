@@ -1,0 +1,45 @@
+{
+  "schema": "wellmanifest.poa/v1",
+  "process_id": "fixos.cleanup.auto",
+  "process_ref": "poa://semcod.fixos/process/cleanup.auto/v1",
+  "title": "FixOS Observation-Bound Cleanup POA Process",
+  "owner": "service:semcod.fixos",
+  "steps": [
+    {
+      "id": "observe_host",
+      "operation": "fixos://diagnostics/disk",
+      "kind": "query",
+      "effects": ["read_data"],
+      "depends_on": [],
+      "requires_approval": false,
+      "idempotency": "read_only"
+    },
+    {
+      "id": "plan_cleanup",
+      "operation": "fixos://cleanup/plan",
+      "kind": "query",
+      "effects": ["read_data"],
+      "depends_on": ["observe_host"],
+      "requires_approval": false,
+      "idempotency": "read_only"
+    },
+    {
+      "id": "authorize_and_execute",
+      "operation": "fixos://cleanup/auto",
+      "kind": "command",
+      "effects": ["local_write", "destructive"],
+      "depends_on": ["plan_cleanup"],
+      "requires_approval": true,
+      "idempotency": "required"
+    },
+    {
+      "id": "verify_readback",
+      "operation": "fixos://diagnostics/disk",
+      "kind": "query",
+      "effects": ["read_data"],
+      "depends_on": ["authorize_and_execute"],
+      "requires_approval": false,
+      "idempotency": "read_only"
+    }
+  ]
+}

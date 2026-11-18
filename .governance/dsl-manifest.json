@@ -1,0 +1,7 @@
+{
+  "schema": "wellmanifest.dsl/manifest/v1",
+  "id": "fixos-nl-uri-plan",
+  "name": "FixOS NL-to-URI Plan Envelope",
+  "version": "1.0.0",
+  "domain": "diagnostics-and-cleanup"
+}

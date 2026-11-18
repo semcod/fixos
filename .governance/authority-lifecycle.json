@@ -1,0 +1,11 @@
+{
+  "schema": "wellmanifest.authority-lifecycle/profile/v1",
+  "profileId": "fixos-poa-single-use-grant",
+  "principal": {
+    "uri": "authority://principal/semcod.fixos/operator",
+    "kind": "human-or-delegated-controller"
+  },
+  "fencingToken": 1,
+  "singleUseGrants": true,
+  "grantsExecutionAuthority": false
+}
