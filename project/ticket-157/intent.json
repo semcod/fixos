@@ -1,0 +1,97 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-157",
+  "summary": "Harden service_cleanup_usecase guards and add Planfile sprint contract tests",
+  "workstream": "application",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P2",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-157/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/core/service_cleanup_usecase.py",
+    "tests/unit/test_planfile_sprint_contract.py",
+    "tests/unit/test_service_cleanup_usecase.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [
+    "ticket-154"
+  ],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "4f88fcb20380b489614f7f3a6d7c214d387d49ff",
+    "targetBranch": "main",
+    "outcome": "Resolve Validator advisory edge cases in `fixos/core/service_cleanup_usecase.py` (`docker-containers` mode conflict detection, exclusive `--artifacts` route validation, and per-service exception/non-mapping isolation in `execute_service_cleanup`) and add `tests/unit/test_planfile_sprint_contract.py` proving writer -> persisted sprint -> validator roundtrip and SHA-256 CAS backup migration (#170).",
+    "nonGoals": [
+      "Modifying CLI flag names or interactive prompts in `fixos/cli/cleanup_cmd.py`.",
+      "Updating `.governance/standards-lock.json` or `docs/` (delivered in separate governance/integration tickets)."
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 25,
+    "budgets": {
+      "maxImplementationFiles": 5,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Keep `resolve_cleanup_route` and `execute_service_cleanup` deterministic and fail-closed by adding `_has_artifacts_conflicts`, passing `want_docker_containers` into `_check_docker_mode_conflicts`, and isolating runner exceptions in `_invoke_service_runner`, accompanied by unit contract tests for cleanup routing and Planfile sprint schema/CAS persistence.",
+      "components": [
+        {
+          "name": "core",
+          "paths": [
+            "fixos/core/service_cleanup_usecase.py",
+            "tests/unit/test_service_cleanup_usecase.py"
+          ]
+        },
+        {
+          "name": "tests",
+          "paths": [
+            "tests/unit/test_planfile_sprint_contract.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert ticket-157 commit."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python -m pytest tests/unit/test_service_cleanup_usecase.py tests/unit/test_cleanup_cmd.py -q"
+        ],
+        "evidence": "Docker-containers mode conflicts, exclusive --artifacts flag checks, and per-service runner exception isolation pass with zero CLI regressions."
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "python -m pytest tests/unit/test_planfile_sprint_contract.py -q"
+        ],
+        "evidence": "Official planfile writer -> persisted sprint YAML -> validate schema roundtrip and SHA-256 CAS backup migration pass without history loss."
+      },
+      {
+        "criterion": "AC-03",
+        "commands": [
+          "./project/governance-check.sh"
+        ],
+        "evidence": "Governance, ruff, and scope checks pass."
+      }
+    ]
+  }
+}
