@@ -24,96 +24,22 @@ from pathlib import Path
 from typing import Any
 
 from fixos import __version__
+from fixos.poa_registry import (
+    DEFAULT_REGISTRY_TTL_SECONDS,
+    MCP_REGISTRY_SCHEMA,
+    catalog_static_digest,
+    deployment_revision,
+    export_mcp_registry_v1,
+    operations_catalog_projection,
+    validate_timestamp_freshness,
+)
 
-CATALOG_SCHEMA = "wellmanifest.mcp/operation-catalog/v1"
+CATALOG_SCHEMA = MCP_REGISTRY_SCHEMA
 RECEIPT_SCHEMA = "wellmanifest.mcp/task-receipt/v1"
 PLAN_SCHEMA = "wellmanifest.nl-dsl-llm/task-plan/v1"
 _REQUEST_ID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 
-OPERATIONS_CATALOG: tuple[dict[str, Any], ...] = (
-    {
-        "operation_id": "fixos://diagnostics/quick",
-        "tool_name": "fixos_quick",
-        "title": "Quick deterministic system & storage snapshot",
-        "description": "Collect fast local CPU, RAM, disk, safe cache, and top process telemetry without LLM calls.",
-        "effect": "read",
-        "annotations": {
-            "readOnlyHint": True,
-            "destructiveHint": False,
-            "idempotentHint": True,
-        },
-        "input_schema": {
-            "type": "object",
-            "properties": {},
-            "additionalProperties": False,
-        },
-    },
-    {
-        "operation_id": "fixos://diagnostics/disk",
-        "tool_name": "fixos_scan_disk",
-        "title": "Disk usage & safe cache inventory",
-        "description": "Analyze root filesystem free space, safe user caches, and JetBrains/build cache candidates.",
-        "effect": "read",
-        "annotations": {
-            "readOnlyHint": True,
-            "destructiveHint": False,
-            "idempotentHint": True,
-        },
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "path": {"type": "string", "minLength": 1, "default": "/"},
-            },
-            "additionalProperties": False,
-        },
-    },
-    {
-        "operation_id": "fixos://diagnostics/projects",
-        "tool_name": "fixos_scan_projects",
-        "title": "Scan stale developer project artifacts & state partitions",
-        "description": "Discover unused developer build/venv artifacts and date-partitioned app state older than min_age_days.",
-        "effect": "read",
-        "annotations": {
-            "readOnlyHint": True,
-            "destructiveHint": False,
-            "idempotentHint": True,
-        },
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "min_age_days": {"type": "number", "minimum": 1, "default": 7.0},
-            },
-            "additionalProperties": False,
-        },
-    },
-    {
-        "operation_id": "fixos://cleanup/auto",
-        "tool_name": "fixos_auto_cleanup",
-        "title": "Deterministic safe disk cleanup",
-        "description": "Reclaim disk space from safe caches, stale (>7d) unused project artifacts, and date-partitioned state.",
-        "effect": "mutate",
-        "annotations": {
-            "readOnlyHint": False,
-            "destructiveHint": False,
-            "idempotentHint": True,
-        },
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "dry_run": {"type": "boolean", "default": True},
-                "min_age_days": {"type": "number", "minimum": 1, "default": 7.0},
-                "include_projects": {"type": "boolean", "default": True},
-                "request_id": {
-                    "type": "string",
-                    "default": "",
-                    "maxLength": 128,
-                    "description": "Opaque ID starting with a letter/digit, using letters, digits, dots, underscores or hyphens; no '..'. Empty generates an ID.",
-                },
-            },
-            "additionalProperties": False,
-        },
-    },
-)
+OPERATIONS_CATALOG: tuple[dict[str, Any], ...] = operations_catalog_projection()
 
 
 def _canonical_digest(payload: Any) -> str:
@@ -160,14 +86,15 @@ def _validate_arguments(schema: Mapping[str, Any], value: Any, path: str = "argu
             raise ValueError(f"INVALID_ARGUMENTS: {path}: expected finite number")
         if value < schema.get("minimum", value) or value > schema.get("maximum", value):
             raise ValueError(f"INVALID_ARGUMENTS: {path}: out of range")
-    elif kind == "string":
-        if len(value) < schema.get("minLength", 0) or len(value) > schema.get("maxLength", len(value)):
-            raise ValueError(f"INVALID_ARGUMENTS: {path}: invalid length")
+    elif kind == "string" and (
+        len(value) < schema.get("minLength", 0) or len(value) > schema.get("maxLength", len(value))
+    ):
+        raise ValueError(f"INVALID_ARGUMENTS: {path}: invalid length")
 
 
 def catalog_digest() -> str:
     """Return deterministic SHA-256 digest of the registered MCP operations."""
-    return _canonical_digest(list(OPERATIONS_CATALOG))
+    return catalog_static_digest(OPERATIONS_CATALOG)
 
 
 def _receipts_dir(custom_dir: str | Path | None = None) -> Path:
@@ -180,19 +107,43 @@ def _receipts_dir(custom_dir: str | Path | None = None) -> Path:
     return base
 
 
-def registry_search(query: str = "", limit: int = 12) -> dict[str, Any]:
+def registry_search(
+    query: str = "",
+    limit: int = 50,
+    *,
+    strict_v1: bool = False,
+    now: datetime | None = None,
+) -> dict[str, Any]:
     """Search registered FixOS MCP URI operations (wellmanifest/mcp discovery)."""
     q = (query or "").strip().lower()
     bounded_limit = max(1, min(int(limit), 50))
+    if strict_v1:
+        v1 = export_mcp_registry_v1(now=now, ttl_seconds=DEFAULT_REGISTRY_TTL_SECONDS)
+        ops = [
+            op
+            for op in v1["operations"]
+            if not q
+            or q in f"{op['id']} {op['uri']} {op['description']}".lower()
+            or any(tok in f"{op['id']} {op['uri']} {op['description']}".lower() for tok in q.split())
+        ][:bounded_limit]
+        return {**v1, "operations": ops}
+
+    v1_envelope = export_mcp_registry_v1(now=now, ttl_seconds=DEFAULT_REGISTRY_TTL_SECONDS)
+    expires_at = v1_envelope["expiresAt"]
     matches: list[dict[str, Any]] = []
     for op in OPERATIONS_CATALOG:
-        haystack = f"{op['operation_id']} {op['tool_name']} {op['title']} {op['description']}".lower()
+        haystack = (
+            f"{op.get('id', '')} {op['operation_id']} {op.get('tool_name', '')} "
+            f"{op['title']} {op['description']}"
+        ).lower()
         if not q or q in haystack or any(tok in haystack for tok in q.split()):
-            matches.append(dict(op))
+            matches.append({**dict(op), "expiresAt": expires_at})
         if len(matches) >= bounded_limit:
             break
     return {
         "schema": CATALOG_SCHEMA,
+        "revision": deployment_revision(),
+        "expiresAt": expires_at,
         "server": "fixos",
         "version": __version__,
         "registry_digest": catalog_digest(),
@@ -598,7 +549,12 @@ def task_execute(
 ) -> dict[str, Any]:
     """Execute a registered FixOS URI operation with optional digest verification."""
     operation = next(
-        (op for op in OPERATIONS_CATALOG if operation_id in (op["operation_id"], op["tool_name"])),
+        (
+            op
+            for op in OPERATIONS_CATALOG
+            if operation_id
+            and operation_id in (op["operation_id"], op.get("id"), op.get("tool_name"))
+        ),
         None,
     )
     if operation is None:
@@ -606,18 +562,24 @@ def task_execute(
     _validate_arguments({"type": "string"}, registry_digest, "registry_digest")
     _validate_arguments({"type": "string"}, request_id, "request_id")
     _validate_arguments(operation["input_schema"], {} if payload is None else payload)
+    if operation.get("expiresAt"):
+        validate_timestamp_freshness(str(operation["expiresAt"]))
+    if not operation.get("available", True):
+        reason = operation.get("unavailableReason") or "operation unavailable"
+        raise ValueError(f"OPERATION_UNAVAILABLE: {reason}")
     params = dict(payload) if payload is not None else {}
     current_digest = catalog_digest()
     if registry_digest and registry_digest != current_digest:
         raise ValueError("CATALOG_DIGEST_MISMATCH")
 
-    if operation_id in ("fixos://diagnostics/quick", "fixos_quick"):
+    canonical_uri = operation["operation_id"]
+    if canonical_uri == "fixos://diagnostics/quick":
         return run_fixos_quick()
-    if operation_id in ("fixos://diagnostics/disk", "fixos_scan_disk"):
+    if canonical_uri == "fixos://diagnostics/disk":
         return run_fixos_scan_disk(path=params.get("path", "/"))
-    if operation_id in ("fixos://diagnostics/projects", "fixos_scan_projects"):
+    if canonical_uri == "fixos://diagnostics/projects":
         return run_fixos_scan_projects(min_age_days=float(params.get("min_age_days", 7.0)))
-    if operation_id in ("fixos://cleanup/auto", "fixos_auto_cleanup"):
+    if canonical_uri == "fixos://cleanup/auto":
         return run_fixos_auto_cleanup(
             dry_run=params.get("dry_run", True),
             min_age_days=float(params.get("min_age_days", 7.0)),
@@ -625,7 +587,7 @@ def task_execute(
             request_id=request_id or params.get("request_id", ""),
             receipts_dir=receipts_dir,
         )
-    raise ValueError(f"UNKNOWN_OPERATION: {operation_id}")
+    raise ValueError("OPERATION_UNAVAILABLE")
 
 
 def mcp_tools_list() -> list[dict[str, Any]]:
@@ -638,7 +600,7 @@ def mcp_tools_list() -> list[dict[str, Any]]:
                 "type": "object",
                 "properties": {
                     "query": {"type": "string", "default": ""},
-                    "limit": {"type": "integer", "minimum": 1, "maximum": 50, "default": 12},
+                    "limit": {"type": "integer", "minimum": 1, "maximum": 50, "default": 50},
                 },
                 "additionalProperties": False,
             },
@@ -684,6 +646,13 @@ def mcp_tools_list() -> list[dict[str, Any]]:
         },
     ]
     for op in OPERATIONS_CATALOG:
+        if (
+            not op.get("mcp_exposed", True)
+            or op.get("mcp_gateway_builtin", False)
+            or not op.get("available", True)
+            or not op.get("tool_name")
+        ):
+            continue
         tools.append(
             {
                 "name": op["tool_name"],
@@ -708,7 +677,7 @@ def handle_mcp_tool_call(
     _validate_arguments(descriptor["inputSchema"], {} if arguments is None else arguments)
     args = dict(arguments) if arguments is not None else {}
     if name == "registry_search":
-        return registry_search(query=args.get("query", ""), limit=args.get("limit", 12))
+        return registry_search(query=args.get("query", ""), limit=args.get("limit", 50))
     if name == "task_plan":
         return task_plan(task=args["task"])
     if name == "task_execute":

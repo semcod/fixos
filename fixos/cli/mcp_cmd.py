@@ -16,6 +16,13 @@ import click
     help="Wypisz katalog operacji MCP URI (wellmanifest/mcp) jako JSON i zakończ",
 )
 @click.option(
+    "--registry-v1",
+    "registry_v1",
+    is_flag=True,
+    default=False,
+    help="Wypisz ścisły dokument wellmanifest.mcp/registry/v1 i zakończ",
+)
+@click.option(
     "--tools",
     is_flag=True,
     default=False,
@@ -35,7 +42,13 @@ import click
     default="",
     help="Zaplanuj operację URI na podstawie opisu w języku naturalnym (bez wykonania)",
 )
-def mcp_cmd(catalog: bool, tools: bool, print_config: bool, plan_task: str) -> None:
+def mcp_cmd(
+    catalog: bool,
+    registry_v1: bool,
+    tools: bool,
+    print_config: bool,
+    plan_task: str,
+) -> None:
     """Uruchom serwer Model Context Protocol (MCP) przez stdio (JSON-RPC 2.0)."""
     from fixos.mcp_server import (
         mcp_tools_list,
@@ -43,7 +56,11 @@ def mcp_cmd(catalog: bool, tools: bool, print_config: bool, plan_task: str) -> N
         serve_stdio,
         task_plan,
     )
+    from fixos.poa_registry import export_mcp_registry_v1
 
+    if registry_v1:
+        click.echo(json.dumps(export_mcp_registry_v1(), indent=2, ensure_ascii=False))
+        return
     if catalog:
         click.echo(json.dumps(registry_search(), indent=2, ensure_ascii=False))
         return
