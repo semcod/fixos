@@ -1,0 +1,116 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-154",
+  "summary": "Extract cleanup_services use cases and add POA/MCP/NL runtime canary",
+  "workstream": "application",
+  "classification": {
+    "kind": "FEATURE",
+    "priority": "P2",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-154/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/cli/cleanup_cmd.py",
+    "fixos/core/__init__.py",
+    "fixos/core/service_cleanup_usecase.py",
+    "fixos/nl_router.py",
+    "fixos/poa_canary.py",
+    "tests/unit/test_nl_router.py",
+    "tests/unit/test_service_cleanup_usecase.py",
+    "tests/unit/test_wellman_canary.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [
+    "ticket-151",
+    "ticket-152",
+    "ticket-153"
+  ],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "e83f5f4e590ce17b5b1e28e7774ea6b5ff0e0413",
+    "targetBranch": "main",
+    "outcome": "Extract deterministic route resolution, service-cleanup planning, consent-gated execution, and post-cleanup read-back verification out of `cleanup_services` (dropping CC from 98 to <10, closing #169), add end-to-end POA/MCP/NL runtime canary (`fixos/poa_canary.py`) for #168, and enforce closed canonical envelope reconstruction + English project-disk disambiguation in `fixos/nl_router.py`.",
+    "nonGoals": [
+      "Refactoring `_cleanup_space.py` or `service_cleanup.py` beyond `cleanup_services` and its direct use case.",
+      "Updating `.governance/*.json` and `docs/INFORMATION/WELLMANIFEST_STANDARDS.md` (delivered in governance/integration tickets)."
+    ],
+    "complexity": "M",
+    "estimatedMinutes": 45,
+    "budgets": {
+      "maxImplementationFiles": 9,
+      "maxAffectedComponents": 3,
+      "maxPublicInterfaceChanges": 1,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Introduce `fixos/core/service_cleanup_usecase.py` for route resolution, planning, consent-gated execution, and post-cleanup read-back wired into `fixos/cli/cleanup_cmd.py`, and add `fixos/poa_canary.py` separating declared adoption, static checks, and observed runtime canary evidence.",
+      "components": [
+        {
+          "name": "core",
+          "paths": [
+            "fixos/core/__init__.py",
+            "fixos/core/service_cleanup_usecase.py",
+            "tests/unit/test_service_cleanup_usecase.py"
+          ]
+        },
+        {
+          "name": "cli",
+          "paths": [
+            "fixos/cli/cleanup_cmd.py"
+          ]
+        },
+        {
+          "name": "mcp",
+          "paths": [
+            "fixos/poa_canary.py",
+            "fixos/nl_router.py",
+            "tests/unit/test_wellman_canary.py",
+            "tests/unit/test_nl_router.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [
+        "Added `fixos.core.service_cleanup_usecase` and `fixos.poa_canary` application modules."
+      ],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert ticket-154 commit."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python -m pytest tests/unit/test_service_cleanup_usecase.py tests/unit/test_cleanup_cmd.py tests/unit/test_cleanup_safety.py -q"
+        ],
+        "evidence": "Extracted service cleanup planning, consent-gated execution, partial failure, and post-cleanup read-back pass with `cleanup_services` CC < 20 and zero CLI regressions."
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "python -m pytest tests/unit/test_wellman_canary.py tests/unit/test_nl_router.py -q"
+        ],
+        "evidence": "End-to-end POA/MCP/URN/NL runtime canary and strict NL envelope reconstruction pass."
+      },
+      {
+        "criterion": "AC-03",
+        "commands": [
+          "./project/governance-check.sh"
+        ],
+        "evidence": "Governance, ruff, and scope checks pass."
+      }
+    ]
+  }
+}

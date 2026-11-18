@@ -44,7 +44,6 @@ from fixos.cli._cleanup_space import (
     _cleanup_trash,
     _cleanup_user_cache,
     _display_cleanup_policies,
-    parse_retention_days,
 )
 from fixos.cli._cleanup_system import _cleanup_full_system
 from fixos.cli._cleanup_utils import _format_bytes, _parse_numeric_range_set
@@ -56,6 +55,15 @@ from fixos.constants import (
     DEFAULT_TMP_UNUSED_DAYS,
     DEFAULT_TRASH_UNUSED_DAYS,
     PROJECT_SCAN_STALE_DAYS,
+)
+from fixos.core.service_cleanup_usecase import (
+    CleanupCliRequest,
+    CleanupRouteDecision,
+    ServiceCleanupPlan,
+    execute_service_cleanup,
+    plan_service_cleanup,
+    resolve_cleanup_route,
+    verify_service_cleanup_readback,
 )
 from fixos.diagnostics.docker_startup_optimizer import (
     DEFAULT_DOCKER_STALE_SERVICE_DAYS,
@@ -290,57 +298,90 @@ def _display_dry_run_result(result: dict) -> None:
         click.echo(f"    Szacowane maksimum do odzyskania: {estimate:.2f} GB")
 
 
-def _execute_safe_cleanup(services: list, scanner, dry_run: bool = False) -> float:
-    """Execute cleanup for safe-to-remove services. Returns total space freed in GB."""
-    total_freed = 0.0
-    for svc in services:
-        click.echo(f"Czyszczenie {svc.get('name') or svc['service_type']}...")
-        result = _execute_planned_cleanup(scanner, svc, dry_run=dry_run)
-        if dry_run:
-            _display_dry_run_result(result)
-        elif result["success"]:
-            freed = float(result.get("space_freed_gb", 0) or 0)
-            total_freed += freed
-            if freed > 0:
-                click.echo(click.style(f"  Zwolniono {freed:.2f} GB", fg="green"))
-            elif result.get("network_cleanup"):
-                click.echo(
-                    click.style(
-                        "  Czyszczenie obrazów/cache zakończone; wynik sieci poniżej.",
-                        fg="green",
-                    )
+def _present_safe_cleanup_item(svc: dict, result: dict, *, dry_run: bool) -> None:
+    """Render CLI output for a single safe service cleanup outcome."""
+    if dry_run:
+        _display_dry_run_result(result)
+    elif result["success"]:
+        freed = float(result.get("space_freed_gb", 0) or 0)
+        if freed > 0:
+            click.echo(click.style(f"  Zwolniono {freed:.2f} GB", fg="green"))
+        elif result.get("network_cleanup"):
+            click.echo(
+                click.style(
+                    "  Czyszczenie obrazów/cache zakończone; wynik sieci poniżej.",
+                    fg="green",
                 )
-            elif svc.get("reclaim") == PRUNE_UNREFERENCED:
-                click.echo(
-                    click.style(
-                        "  Brak mierzalnej zmiany (0.00 GB) — prune usuwa tylko pakiety "
-                        "nieużywane przez projekty/środowiska; pozostałe są w użyciu.",
-                        fg="yellow",
-                    )
-                )
-            else:
-                click.echo(
-                    click.style(
-                        "  Brak mierzalnej zmiany rozmiaru (0.00 GB) — "
-                        "komenda zakończyła się OK, ale cache mógł być już pusty "
-                        "albo filtr wieku nic nie trafił.",
-                        fg="yellow",
-                    )
-                )
-                note = (result.get("output") or result.get("error") or "").strip()
-                if note:
-                    for line in note.splitlines()[:4]:
-                        click.echo(f"    {line}")
-        else:
-            click.echo(click.style(f"  Błąd: {_error_message(result)}", fg="red"))
-        network_result = result.get("network_cleanup")
-        if network_result:
-            _display_docker_network_result(
-                network_result,
-                dry_run=dry_run,
-                title="  Docker — osierocone sieci",
             )
-    return total_freed
+        elif svc.get("reclaim") == PRUNE_UNREFERENCED:
+            click.echo(
+                click.style(
+                    "  Brak mierzalnej zmiany (0.00 GB) — prune usuwa tylko pakiety "
+                    "nieużywane przez projekty/środowiska; pozostałe są w użyciu.",
+                    fg="yellow",
+                )
+            )
+        else:
+            click.echo(
+                click.style(
+                    "  Brak mierzalnej zmiany rozmiaru (0.00 GB) — "
+                    "komenda zakończyła się OK, ale cache mógł być już pusty "
+                    "albo filtr wieku nic nie trafił.",
+                    fg="yellow",
+                )
+            )
+            note = (result.get("output") or result.get("error") or "").strip()
+            if note:
+                for line in note.splitlines()[:4]:
+                    click.echo(f"    {line}")
+    else:
+        click.echo(click.style(f"  Błąd: {_error_message(result)}", fg="red"))
+    network_result = result.get("network_cleanup")
+    if network_result:
+        _display_docker_network_result(
+            network_result,
+            dry_run=dry_run,
+            title="  Docker — osierocone sieci",
+        )
+
+
+def _execute_safe_cleanup(
+    services: list,
+    scanner,
+    dry_run: bool = False,
+    *,
+    service_plan: ServiceCleanupPlan | None = None,
+) -> float:
+    """Execute cleanup for safe-to-remove services. Returns total space freed in GB."""
+    effective_plan = service_plan or ServiceCleanupPlan(
+        raw_plan={
+            "services": list(services),
+            "services_found": len(services),
+            "total_size_gb": sum(float(s.get("size_gb", 0.0) or 0.0) for s in services),
+        },
+        services_found=len(services),
+        total_size_gb=round(sum(float(s.get("size_gb", 0.0) or 0.0) for s in services), 4),
+        safe_services=list(services),
+        requires_review=[],
+        dangerous=[],
+    )
+
+    def _run_and_present(svc: dict, is_dry: bool) -> dict:
+        click.echo(f"Czyszczenie {svc.get('name') or svc['service_type']}...")
+        result = _execute_planned_cleanup(scanner, svc, dry_run=is_dry)
+        _present_safe_cleanup_item(svc, result, dry_run=is_dry)
+        return result
+
+    execution = execute_service_cleanup(
+        effective_plan,
+        runner=_run_and_present,
+        selected_services=services,
+        consent_granted=True,
+        dry_run=dry_run,
+    )
+    if service_plan is not None and not dry_run and hasattr(scanner, "get_cleanup_plan"):
+        verify_service_cleanup_readback(scanner, service_plan, execution)
+    return execution.space_freed_gb
 
 
 def _format_hint_line(hint: str) -> None:
@@ -1517,7 +1558,12 @@ def _execute_individual_cleanup(
 
 
 def _run_interactive_cleanup(
-    plan: dict, list_only: bool, scanner, dry_run: bool = False
+    plan: dict,
+    list_only: bool,
+    scanner,
+    dry_run: bool = False,
+    *,
+    service_plan: ServiceCleanupPlan | None = None,
 ) -> None:
     """Offer interactive safe cleanup and display unsafe services."""
     if not list_only and plan["services"]:
@@ -1541,7 +1587,12 @@ def _run_interactive_cleanup(
                 click.echo(click.style("Pominięto czyszczenie.", fg="yellow"))
             return
         if selected:
-            _execute_safe_cleanup(selected, scanner, dry_run=dry_run)
+            _execute_safe_cleanup(
+                selected,
+                scanner,
+                dry_run=dry_run,
+                service_plan=service_plan,
+            )
             if not dry_run:
                 click.echo()
                 click.echo(
@@ -1559,7 +1610,13 @@ def _run_interactive_cleanup(
         _display_dangerous_services(plan["dangerous"])
 
 
-def _execute_yes_cleanup(plan: dict, scanner, dry_run: bool = False) -> None:
+def _execute_yes_cleanup(
+    plan: dict,
+    scanner,
+    dry_run: bool = False,
+    *,
+    service_plan: ServiceCleanupPlan | None = None,
+) -> None:
     """Execute the whole safe plan without prompting (--yes)."""
     safe = plan["safe_to_cleanup"]
     if not safe:
@@ -1578,7 +1635,12 @@ def _execute_yes_cleanup(plan: dict, scanner, dry_run: bool = False) -> None:
                     bold=True,
                 )
             )
-        _execute_safe_cleanup(safe, scanner, dry_run=dry_run)
+        _execute_safe_cleanup(
+            safe,
+            scanner,
+            dry_run=dry_run,
+            service_plan=service_plan,
+        )
         if not dry_run:
             click.echo()
             click.echo(
@@ -2247,451 +2309,213 @@ def cleanup_services(
         --artifacts-receipt-dir ./runs/receipts --artifacts-build-caches
       fixos cleanup --full              # pełna analiza systemu
     """
-    if artifacts_paths or artifacts_system_wide or cleanup == "artifacts":
-        if cleanup not in (None, "artifacts"):
-            raise click.UsageError(
-                "--artifacts uruchom jako osobną akcję (-c artifacts)"
-            )
-        if not artifacts_paths and not artifacts_system_wide:
-            raise click.UsageError(
-                "-c artifacts wymaga --artifacts PATH lub --artifacts-system-wide"
-            )
-        _cleanup_artifacts(
-            json_output,
-            dry_run,
-            list_only,
-            yes,
-            paths=list(artifacts_paths),
-            min_age_days=artifacts_min_age_days,
-            receipt_dir=artifacts_receipt_dir,
-            include_build_caches=artifacts_build_caches,
-            include_system=artifacts_system_wide,
-        )
-        return
-
-    if threshold_gb is not None:
-        threshold = int(threshold_gb * 1024)
-
-    if policy_matrix:
-        _display_cleanup_policies(json_output=json_output)
-        return
-
-    parsed_days: float | None = None
-    if retention is not None:
-        try:
-            parsed_days = parse_retention_days(retention)
-        except ValueError as exc:
-            raise click.UsageError(str(exc)) from exc
-    elif hours is not None:
-        parsed_days = float(hours) / 24.0
-    elif days is not None:
-        parsed_days = float(days)
-
-    effective_days = parsed_days
-
-    if venvs_old or cleanup == "venvs-old":
-        if any(
-            (
-                full_analysis,
-                services,
-                docker_old,
-                docker_all,
-                docker_buildcache,
-                docker_networks,
-                docker_stale_services,
-                orphaned_projects,
-                pin_orphan_project,
-                unpin_orphan_project,
-                list_orphan_pins,
-                ollama_old,
-                snap_old,
-                docker_volumes,
-                journal_cleanup,
-                user_cache,
-                jetbrains,
-                libvirt,
-                gitive,
-                tmp_cleanup,
-                trash_cleanup,
-                thumbnails_cleanup,
-                state_old,
-                projects_old,
-            )
-        ) or cleanup not in (None, "venvs-old"):
-            raise click.UsageError("--venvs-old uruchom jako osobną akcję")
-        venvs_days = int(effective_days) if effective_days is not None else None
-        _cleanup_venvs(
-            json_output,
-            dry_run,
-            list_only,
-            yes,
-            days=venvs_days,
-            path=projects_path,
-        )
-        return
-    if projects_path is not None and not (projects_old or cleanup == "projects-old"):
-        raise click.UsageError("--projects-path wymaga --venvs-old lub --projects-old")
-    if free_gb is not None:
-        if any(
-            (
-                full_analysis,
-                bool(services),
-                bool(cleanup),
-                docker_old,
-                docker_all,
-                docker_buildcache,
-                docker_networks,
-                docker_stale_services,
-                orphaned_projects,
-                pin_orphan_project is not None,
-                unpin_orphan_project is not None,
-                list_orphan_pins,
-                ollama_old,
-                snap_old,
-                docker_volumes,
-                journal_cleanup,
-                user_cache,
-                jetbrains,
-                libvirt,
-                gitive,
-                tmp_cleanup,
-                trash_cleanup,
-                thumbnails_cleanup,
-                state_old,
-                projects_old,
-                venvs_old,
-                policy_matrix,
-            )
-        ):
-            raise click.UsageError("--free-gb uruchom jako osobną akcję")
-        _run_free_target_mode(
-            goal_gb=free_gb,
-            threshold_mb=threshold,
-            json_output=json_output,
-            dry_run=dry_run,
-            days=effective_days,
-        )
-        return
-    pin_actions = sum(
-        value is not None and value is not False
-        for value in (pin_orphan_project, unpin_orphan_project, list_orphan_pins)
+    req = CleanupCliRequest(
+        threshold=threshold,
+        threshold_gb=threshold_gb,
+        services=services,
+        json_output=json_output,
+        cleanup=cleanup,
+        docker_old=docker_old,
+        docker_all=docker_all,
+        docker_buildcache=docker_buildcache,
+        docker_networks=docker_networks,
+        docker_stale_services=docker_stale_services,
+        orphaned_projects=orphaned_projects,
+        pin_orphan_project=pin_orphan_project,
+        unpin_orphan_project=unpin_orphan_project,
+        list_orphan_pins=list_orphan_pins,
+        process_hours=process_hours,
+        ollama_old=ollama_old,
+        docker_volumes=docker_volumes,
+        match=match,
+        snap_old=snap_old,
+        journal_cleanup=journal_cleanup,
+        user_cache=user_cache,
+        jetbrains=jetbrains,
+        libvirt=libvirt,
+        gitive=gitive,
+        tmp_cleanup=tmp_cleanup,
+        trash_cleanup=trash_cleanup,
+        thumbnails_cleanup=thumbnails_cleanup,
+        state_old=state_old,
+        projects_old=projects_old,
+        venvs_old=venvs_old,
+        projects_path=projects_path,
+        days=days,
+        retention=retention,
+        hours=hours,
+        policy_matrix=policy_matrix,
+        dry_run=dry_run,
+        list_only=list_only,
+        yes=yes,
+        free_gb=free_gb,
+        full_analysis=full_analysis,
+        artifacts_paths=tuple(artifacts_paths),
+        artifacts_min_age_days=artifacts_min_age_days,
+        artifacts_receipt_dir=artifacts_receipt_dir,
+        artifacts_build_caches=artifacts_build_caches,
+        artifacts_system_wide=artifacts_system_wide,
     )
-    if pin_actions > 1:
-        click.echo(
-            click.style(
-                "Wybierz tylko jedną operację: pin, unpin albo listę przypięć.",
-                fg="red",
-            )
-        )
+    route = resolve_cleanup_route(req)
+    if route.kind == "error":
+        if route.error_kind == "usage_error":
+            raise click.UsageError(route.error_message)
+        click.echo(click.style(route.error_message, fg="red"))
         return
-    if pin_actions:
-        conflicting = any(
-            (
-                full_analysis,
-                bool(services),
-                bool(cleanup),
-                docker_old,
-                docker_all,
-                docker_networks,
-                docker_stale_services,
-                orphaned_projects,
-                ollama_old,
-                docker_buildcache,
-                snap_old,
-                docker_volumes,
-                journal_cleanup,
-                user_cache,
-                jetbrains,
-                libvirt,
-                gitive,
-                tmp_cleanup,
-                trash_cleanup,
-                thumbnails_cleanup,
-                state_old,
-                projects_old,
-                days is not None,
-                retention is not None,
-                hours is not None,
-                dry_run,
-            )
-        )
-        if conflicting:
-            click.echo(
-                click.style(
-                    "Zarządzanie przypięciami uruchom jako osobną akcję bez --dry-run.",
-                    fg="red",
-                )
-            )
-            return
-        _manage_orphan_pins(
-            pin_path=pin_orphan_project,
-            unpin_path=unpin_orphan_project,
-            list_pins=list_orphan_pins,
-            json_output=json_output,
-        )
-        return
+    _dispatch_cleanup_route(req, route)
 
-    if full_analysis:
-        _cleanup_full_system(json_output, dry_run)
-        return
 
-    scanner = ServiceDataScanner(threshold_mb=threshold)
-
-    want_docker_old = docker_old or (cleanup == "docker-old")
-    want_docker_all = docker_all or cleanup in {"docker-all", "docker-unused"}
-    want_docker_containers = cleanup == "docker-containers"
-    want_docker_networks = docker_networks or (cleanup == "docker-networks")
-    want_docker_stale_services = docker_stale_services or (
-        cleanup == "docker-stale-services"
-    )
-    want_orphaned_projects = orphaned_projects or cleanup == "orphaned-projects"
-    want_ollama_old = ollama_old or (cleanup == "ollama-old")
-    space_actions = {
-        "snap-old": (snap_old, _cleanup_snap_old),
-        "journal": (journal_cleanup, _cleanup_journal),
-        "user-cache": (user_cache, _cleanup_user_cache),
-        "jetbrains": (jetbrains, _cleanup_jetbrains),
-        "libvirt": (libvirt, _cleanup_libvirt),
-        "gitive": (gitive, _cleanup_gitive),
-        "docker-buildcache": (docker_buildcache, _cleanup_docker_buildcache),
-        "docker-volumes": (
-            docker_volumes,
-            lambda j, d, lst, y: _cleanup_docker_volumes(
-                j,
-                d,
-                lst,
-                y,
-                days=effective_days,
-                match=[t.strip() for t in (match or "").split(",") if t.strip()],
-            ),
+def _dispatch_space_action(req: CleanupCliRequest, route: CleanupRouteDecision) -> None:
+    eff = route.effective_days
+    handlers = {
+        "snap-old": _cleanup_snap_old,
+        "journal": _cleanup_journal,
+        "user-cache": _cleanup_user_cache,
+        "jetbrains": _cleanup_jetbrains,
+        "libvirt": _cleanup_libvirt,
+        "gitive": _cleanup_gitive,
+        "docker-buildcache": _cleanup_docker_buildcache,
+        "docker-volumes": lambda j, d, lst, y: _cleanup_docker_volumes(
+            j,
+            d,
+            lst,
+            y,
+            days=eff,
+            match=[t.strip() for t in (req.match or "").split(",") if t.strip()],
         ),
-        "tmp": (
-            tmp_cleanup,
-            lambda j, d, lst, y: _cleanup_tmp(
-                j,
-                d,
-                lst,
-                y,
-                days=effective_days
-                if effective_days is not None
-                else DEFAULT_TMP_UNUSED_DAYS,
-            ),
+        "tmp": lambda j, d, lst, y: _cleanup_tmp(
+            j, d, lst, y, days=eff if eff is not None else DEFAULT_TMP_UNUSED_DAYS
         ),
-        "trash": (
-            trash_cleanup,
-            lambda j, d, lst, y: _cleanup_trash(
-                j,
-                d,
-                lst,
-                y,
-                days=effective_days
-                if effective_days is not None
-                else DEFAULT_TRASH_UNUSED_DAYS,
-            ),
+        "trash": lambda j, d, lst, y: _cleanup_trash(
+            j, d, lst, y, days=eff if eff is not None else DEFAULT_TRASH_UNUSED_DAYS
         ),
-        "thumbnails": (
-            thumbnails_cleanup,
-            lambda j, d, lst, y: _cleanup_thumbnails(
-                j,
-                d,
-                lst,
-                y,
-                days=effective_days
-                if effective_days is not None
-                else DEFAULT_THUMBNAILS_UNUSED_DAYS,
-            ),
+        "thumbnails": lambda j, d, lst, y: _cleanup_thumbnails(
+            j, d, lst, y, days=eff if eff is not None else DEFAULT_THUMBNAILS_UNUSED_DAYS
         ),
-        "state-old": (
-            state_old,
-            lambda j, d, lst, y: _cleanup_state_old(
-                j,
-                d,
-                lst,
-                y,
-                days=int(effective_days)
-                if effective_days is not None
-                else DEFAULT_STATE_OLD_DAYS,
-            ),
+        "state-old": lambda j, d, lst, y: _cleanup_state_old(
+            j, d, lst, y, days=int(eff) if eff is not None else DEFAULT_STATE_OLD_DAYS
         ),
-        "projects-old": (
-            projects_old,
-            lambda j, d, lst, y: _cleanup_projects_old(
-                j,
-                d,
-                lst,
-                y,
-                days=int(effective_days)
-                if effective_days is not None
-                else PROJECT_SCAN_STALE_DAYS,
-                base_dir=projects_path,
-            ),
+        "projects-old": lambda j, d, lst, y: _cleanup_projects_old(
+            j,
+            d,
+            lst,
+            y,
+            days=int(eff) if eff is not None else PROJECT_SCAN_STALE_DAYS,
+            base_dir=req.projects_path,
         ),
     }
-    want_space = [
-        name
-        for name, (flag, _handler) in space_actions.items()
-        if flag or cleanup == name
-    ]
-    space_conflicts = (
-        len(want_space) > 1
-        or (want_space and cleanup and cleanup not in space_actions)
-        or (
-            want_space
-            and (
-                want_docker_old
-                or want_docker_all
-                or want_docker_containers
-                or want_docker_networks
-                or want_docker_stale_services
-                or want_orphaned_projects
-                or want_ollama_old
-            )
-        )
-    )
-    if space_conflicts:
-        click.echo(
-            click.style(
-                "Akcje odzyskiwania miejsca (snap/journal/cache/JetBrains/"
-                "libvirt/gitive/docker-buildcache/docker-volumes/tmp/trash/thumbnails) uruchom jako osobną, pojedynczą akcję.",
-                fg="red",
-            )
-        )
-        return
-    if want_space:
-        space_actions[want_space[0]][1](json_output, dry_run, list_only, yes)
-        return
-    if want_docker_old and want_docker_all:
-        click.echo(
-            click.style(
-                "Wybierz jeden zakres obrazów: --docker-old albo -c docker-all.",
-                fg="red",
-            )
-        )
-        return
-    if want_ollama_old and (want_docker_old or want_docker_all or want_docker_networks):
-        click.echo(
-            click.style(
-                "Czyszczenie Ollama i Dockera uruchom jako osobne akcje.",
-                fg="red",
-            )
-        )
-        return
-    if want_docker_stale_services and (
-        want_docker_old or want_docker_all or want_docker_networks or want_ollama_old
-    ):
-        click.echo(
-            click.style(
-                "Optymalizację usług uruchom osobno od czyszczenia danych Dockera/Ollama.",
-                fg="red",
-            )
-        )
-        return
-    if want_orphaned_projects and (
-        want_docker_old
-        or want_docker_all
-        or want_docker_networks
-        or want_docker_stale_services
-        or want_ollama_old
-    ):
-        click.echo(
-            click.style(
-                "Czyszczenie osieroconych projektów uruchom jako osobną akcję.",
-                fg="red",
-            )
-        )
-        return
-    if docker_stale_services and cleanup and cleanup != "docker-stale-services":
-        click.echo(
-            click.style(
-                "--docker-stale-services nie można łączyć z innym -c/--cleanup.",
-                fg="red",
-            )
-        )
-        return
-    if orphaned_projects and cleanup and cleanup != "orphaned-projects":
-        click.echo(
-            click.style(
-                "--orphaned-projects nie można łączyć z innym -c/--cleanup.",
-                fg="red",
-            )
-        )
-        return
-    if (
-        docker_networks
-        and cleanup
-        and cleanup
-        not in {"docker-all", "docker-unused", "docker-old", "docker-networks"}
-    ):
-        click.echo(
-            click.style(
-                "--docker-networks można łączyć tylko z docker-all lub docker-old.",
-                fg="red",
-            )
-        )
-        return
-    if want_docker_all:
-        _cleanup_docker_all_unused(scanner, json_output, dry_run)
-        return
-    if want_docker_containers:
-        _cleanup_docker_containers(scanner, json_output, dry_run)
-        return
-    if want_docker_old:
-        days_val = int(effective_days) if effective_days is not None else DEFAULT_DOCKER_OLD_UNUSED_DAYS
-        _cleanup_docker_old_unused(scanner, days_val, json_output, dry_run)
-        return
-    if want_docker_networks:
-        days_val = int(effective_days) if effective_days is not None else DEFAULT_DOCKER_NETWORK_AGE_DAYS
-        _cleanup_docker_networks(scanner, days_val, json_output, dry_run)
-        return
-    if want_docker_stale_services:
-        days_val = int(effective_days) if effective_days is not None else DEFAULT_DOCKER_STALE_SERVICE_DAYS
-        _cleanup_docker_stale_services(
-            days_val,
-            json_output,
-            dry_run,
-            list_only,
-        )
-        return
-    if want_orphaned_projects:
-        days_val = int(effective_days) if effective_days is not None else DEFAULT_ORPHANED_PROJECT_DAYS
-        _cleanup_orphaned_projects(
-            days_val,
-            process_hours,
-            json_output,
-            dry_run,
-            list_only,
-        )
-        return
-    if want_ollama_old:
-        days_val = int(effective_days) if effective_days is not None else DEFAULT_OLLAMA_OLD_UNUSED_DAYS
-        _cleanup_ollama_old_unused(scanner, days_val, json_output, dry_run)
-        return
+    handlers[route.action_name](req.json_output, req.dry_run, req.list_only, req.yes)
 
-    if cleanup:
-        if cleanup == "flatpak":
-            _cleanup_flatpak_detailed(scanner, json_output, dry_run)
-        else:
-            _cleanup_single_service(cleanup, scanner, json_output, dry_run)
-        return
 
-    service_filter = services.split(",") if services else None
-    plan = scanner.get_cleanup_plan(selected_services=service_filter)
-
-    if json_output:
+def _run_service_plan_route(
+    req: CleanupCliRequest,
+    route: CleanupRouteDecision,
+    scanner: ServiceDataScanner,
+) -> None:
+    typed_plan = plan_service_cleanup(scanner, selected_services=route.service_filter)
+    plan = typed_plan.raw_plan
+    if req.json_output:
         import json
 
         click.echo(json.dumps(plan, indent=2, default=str))
         return
 
-    _display_cleanup_summary(plan, threshold)
-    if plan["services_found"] == 0:
+    _display_cleanup_summary(plan, route.threshold_mb)
+    if typed_plan.services_found == 0:
         return
 
     for svc in plan["services"]:
         _display_service_item(svc)
 
-    if yes:
-        _execute_yes_cleanup(plan, scanner, dry_run=dry_run)
+    if req.yes:
+        _execute_yes_cleanup(plan, scanner, dry_run=req.dry_run, service_plan=typed_plan)
         return
 
-    _run_interactive_cleanup(plan, list_only, scanner, dry_run=dry_run)
+    _run_interactive_cleanup(
+        plan,
+        req.list_only,
+        scanner,
+        dry_run=req.dry_run,
+        service_plan=typed_plan,
+    )
+
+
+def _dispatch_scanner_route(req: CleanupCliRequest, route: CleanupRouteDecision) -> None:
+    scanner = ServiceDataScanner(threshold_mb=route.threshold_mb)
+    eff = route.effective_days
+    if route.kind == "docker_all":
+        _cleanup_docker_all_unused(scanner, req.json_output, req.dry_run)
+    elif route.kind == "docker_containers":
+        _cleanup_docker_containers(scanner, req.json_output, req.dry_run)
+    elif route.kind == "docker_old":
+        days_val = int(eff) if eff is not None else DEFAULT_DOCKER_OLD_UNUSED_DAYS
+        _cleanup_docker_old_unused(scanner, days_val, req.json_output, req.dry_run)
+    elif route.kind == "docker_networks":
+        days_val = int(eff) if eff is not None else DEFAULT_DOCKER_NETWORK_AGE_DAYS
+        _cleanup_docker_networks(scanner, days_val, req.json_output, req.dry_run)
+    elif route.kind == "ollama_old":
+        days_val = int(eff) if eff is not None else DEFAULT_OLLAMA_OLD_UNUSED_DAYS
+        _cleanup_ollama_old_unused(scanner, days_val, req.json_output, req.dry_run)
+    elif route.kind == "single_service":
+        if route.action_name == "flatpak":
+            _cleanup_flatpak_detailed(scanner, req.json_output, req.dry_run)
+        else:
+            _cleanup_single_service(route.action_name, scanner, req.json_output, req.dry_run)
+    else:
+        _run_service_plan_route(req, route, scanner)
+
+
+def _dispatch_cleanup_route(req: CleanupCliRequest, route: CleanupRouteDecision) -> None:
+    eff = route.effective_days
+    if route.kind == "artifacts":
+        _cleanup_artifacts(
+            req.json_output,
+            req.dry_run,
+            req.list_only,
+            req.yes,
+            paths=list(req.artifacts_paths),
+            min_age_days=req.artifacts_min_age_days,
+            receipt_dir=req.artifacts_receipt_dir,
+            include_build_caches=req.artifacts_build_caches,
+            include_system=req.artifacts_system_wide,
+        )
+    elif route.kind == "policy_matrix":
+        _display_cleanup_policies(json_output=req.json_output)
+    elif route.kind == "venvs_old":
+        _cleanup_venvs(
+            req.json_output,
+            req.dry_run,
+            req.list_only,
+            req.yes,
+            days=int(eff) if eff is not None else None,
+            path=req.projects_path,
+        )
+    elif route.kind == "free_target":
+        _run_free_target_mode(
+            goal_gb=float(req.free_gb or 0.0),
+            threshold_mb=route.threshold_mb,
+            json_output=req.json_output,
+            dry_run=req.dry_run,
+            days=eff,
+        )
+    elif route.kind == "orphan_pins":
+        _manage_orphan_pins(
+            pin_path=req.pin_orphan_project,
+            unpin_path=req.unpin_orphan_project,
+            list_pins=req.list_orphan_pins,
+            json_output=req.json_output,
+        )
+    elif route.kind == "full_analysis":
+        _cleanup_full_system(req.json_output, req.dry_run)
+    elif route.kind == "space_action":
+        _dispatch_space_action(req, route)
+    elif route.kind == "docker_stale_services":
+        days_val = int(eff) if eff is not None else DEFAULT_DOCKER_STALE_SERVICE_DAYS
+        _cleanup_docker_stale_services(days_val, req.json_output, req.dry_run, req.list_only)
+    elif route.kind == "orphaned_projects":
+        days_val = int(eff) if eff is not None else DEFAULT_ORPHANED_PROJECT_DAYS
+        _cleanup_orphaned_projects(
+            days_val, req.process_hours, req.json_output, req.dry_run, req.list_only
+        )
+    else:
+        _dispatch_scanner_route(req, route)
