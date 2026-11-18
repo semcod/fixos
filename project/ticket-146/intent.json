@@ -1,0 +1,90 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-146",
+  "summary": "Reject truncated LPD jobs in the printer twin sink",
+  "workstream": "application",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P1",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-146/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "tests/twin/printers/job_sink.py",
+    "tests/unit/test_printer_twin_sink.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [
+    "ticket-140"
+  ],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "56da4fa815c301bcce02a1e895c3ec934ba084c4",
+    "targetBranch": "main",
+    "outcome": "`tests/twin/printers/job_sink.py` validates exact `size + 1` bytes and trailing NUL terminator before acknowledging or saving LPD jobs, with isolated loopback regressions in `tests/unit/test_printer_twin_sink.py` (closing #185).",
+    "nonGoals": [
+      "No runtime changes under `fixos/**` and no privileged port or VM operations."
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 30,
+    "budgets": {
+      "maxImplementationFiles": 2,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Validate subcommand framing, exact byte length (`size + 1`), and trailing `\\x00` byte in `LpdHandler.handle()` before acknowledging or committing spool output; parameterize `Server(..., spool_dir=...)` for isolated `tmp_path` loopback tests.",
+      "components": [
+        {
+          "name": "tests",
+          "paths": [
+            "tests/twin/printers/job_sink.py",
+            "tests/unit/test_printer_twin_sink.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the commit."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python -m pytest tests/unit/test_printer_twin_sink.py -q"
+        ],
+        "evidence": "truncated and invalid-terminator LPD jobs return NAK and write zero files"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "python -m pytest tests/unit/test_printer_twin_sink.py -q"
+        ],
+        "evidence": "loopback tests for raw, empty raw, binary LPD, multi-file LPD, unsupported command, and prior-job preservation"
+      },
+      {
+        "criterion": "AC-03",
+        "commands": [
+          "./project/governance-check.sh",
+          "python -m ruff check tests/twin/printers/job_sink.py tests/unit/test_printer_twin_sink.py"
+        ],
+        "evidence": "governance-check and ruff check outputs"
+      }
+    ]
+  }
+}
