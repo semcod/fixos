@@ -1,0 +1,91 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-147",
+  "summary": "Add POSIX sh fallback for Python-less SSH peers in mesh diagnostics",
+  "workstream": "application",
+  "classification": {
+    "kind": "FEATURE",
+    "priority": "P2",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-147/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/plugins/builtin/mesh.py",
+    "tests/unit/test_mesh_plugin.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [
+    "ticket-142",
+    "ticket-143"
+  ],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "06636db51dec3aa1450800de7b0e4b69f5192647",
+    "targetBranch": "main",
+    "outcome": "`fixos/plugins/builtin/mesh.py` falls back to a validated POSIX `sh` probe when a reachable SSH peer lacks `python3` (e.g. OpenWrt / BusyBox routers), with unit tests in `tests/unit/test_mesh_plugin.py`.",
+    "nonGoals": [
+      "No modification to CLI flags or documentation files (documentation updated in integration ticket)."
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 30,
+    "budgets": {
+      "maxImplementationFiles": 2,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Add `REMOTE_POSIX_SH_PROBE` and `parse_posix_probe_output()` in `fixos/plugins/builtin/mesh.py`; invoke via positional `sh -c <script> sh <target> <ip_hint> <ports...>` only when `_is_missing_remote_python()` matches and all target/IP/port arguments pass strict allowlist validation.",
+      "components": [
+        {
+          "name": "plugins",
+          "paths": [
+            "fixos/plugins/builtin/mesh.py",
+            "tests/unit/test_mesh_plugin.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the commit."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python -m pytest tests/unit/test_mesh_plugin.py -q"
+        ],
+        "evidence": "unit tests for rc=127 fallback to POSIX sh and rc=255 non-retry"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "python -m pytest tests/unit/test_mesh_plugin.py -q"
+        ],
+        "evidence": "direct sh -c loopback probe test and unsafe target rejection"
+      },
+      {
+        "criterion": "AC-03",
+        "commands": [
+          "./project/governance-check.sh",
+          "python -m ruff check fixos/plugins/builtin/mesh.py tests/unit/test_mesh_plugin.py"
+        ],
+        "evidence": "governance-check and ruff check outputs"
+      }
+    ]
+  }
+}
