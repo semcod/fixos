@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import subprocess
 
 import click
 
@@ -105,27 +104,29 @@ def printers(
 
     failed = 0
     if apply_fix:
+        from fixos.plugins.builtin.printer_repairs import execute_repair
+
         for finding in result.findings:
-            if not finding.command or finding.severity not in (
-                Severity.CRITICAL,
-                Severity.WARNING,
+            repair_spec = (finding.data or {}).get("repair")
+            if (
+                not (finding.command or repair_spec)
+                or finding.severity not in (Severity.CRITICAL, Severity.WARNING)
             ):
                 continue
+            preview = finding.command or str(repair_spec)
             click.echo(
-                f"\n→ {finding.title}\n  {click.style(finding.command, fg='cyan')}"
+                f"\n→ {finding.title}\n  {click.style(preview, fg='cyan')}"
             )
             if not yes and not click.confirm("  Wykonać?", default=True):
                 continue
-            proc = subprocess.run(
-                finding.command, check=False, shell=True, text=True, capture_output=True
-            )
-            if proc.returncode == 0:
+            ok, rc, err_msg = execute_repair(repair_spec)
+            if ok:
                 click.echo(click.style("  OK", fg="green"))
             else:
                 failed += 1
                 click.echo(
                     click.style(
-                        f"  FAIL ({proc.returncode}): {proc.stderr[:300]}", fg="red"
+                        f"  FAIL ({rc}): {err_msg[:300]}", fg="red"
                     )
                 )
 
