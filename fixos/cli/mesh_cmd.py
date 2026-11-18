@@ -24,7 +24,10 @@ def parse_ports(ports_csv: str | None) -> tuple[int, ...] | None:
         raw = raw.strip()
         if not raw:
             continue
-        port = int(raw)
+        try:
+            port = int(raw)
+        except ValueError as exc:
+            raise click.BadParameter(f"Nieprawidłowy numer portu: {raw}") from exc
         if not (1 <= port <= 65535):
             raise click.BadParameter(f"Port poza zakresem 1..65535: {port}")
         parsed.append(port)

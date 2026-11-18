@@ -1,0 +1,99 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-143",
+  "summary": "Fix remote SSH argv, port validation, and USB queue filtering in mesh CLI",
+  "workstream": "application",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P2",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-143/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/cli/mesh_cmd.py",
+    "fixos/cli/printers_cmd.py",
+    "fixos/plugins/builtin/mesh.py",
+    "tests/unit/test_mesh_plugin.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [
+    "ticket-142"
+  ],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "3ddd64ff8b61d7718f0c19a6367d9bdbf707c0d1",
+    "targetBranch": "main",
+    "outcome": "Remote SSH mesh probes receive exact target/ports arguments and binary mDNS trailers, invalid `--ports` inputs raise `click.BadParameter`, and `fixos printers --mesh` skips non-network `usb://` queues via `PrinterQueue.host`.",
+    "nonGoals": [
+      "No new CLI flags or runtime dependencies."
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 20,
+    "budgets": {
+      "maxImplementationFiles": 4,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Fix `python3 -c` argv handling and `struct.pack` trailer in `REMOTE_PYTHON_PROBE`, catch `ValueError` in `parse_ports`, and reuse `PrinterQueue.host` in `printers_cmd.py`.",
+      "components": [
+        {
+          "name": "plugins",
+          "paths": [
+            "fixos/plugins/builtin/mesh.py",
+            "tests/unit/test_mesh_plugin.py"
+          ]
+        },
+        {
+          "name": "cli",
+          "paths": [
+            "fixos/cli/mesh_cmd.py",
+            "fixos/cli/printers_cmd.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the commit."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python -m pytest tests/unit/test_mesh_plugin.py -q"
+        ],
+        "evidence": "unit tests for remote probe argv, parse_ports, and USB queue filtering"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "fixos mesh 192.168.188.158"
+        ],
+        "evidence": "live execution including remote SSH node minis"
+      },
+      {
+        "criterion": "AC-03",
+        "commands": [
+          "./project/governance-check.sh",
+          "wellman check"
+        ],
+        "evidence": "governance-check and wellman check outputs"
+      }
+    ]
+  }
+}
