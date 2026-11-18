@@ -1,0 +1,98 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-148",
+  "summary": "Document printer/mesh updates, index host-anomalies, and release 2.6.1",
+  "workstream": "integration",
+  "classification": {
+    "kind": "FEATURE",
+    "priority": "P2",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-148/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "VERSION",
+    "pyproject.toml",
+    "docs/README.md",
+    "docs/information/printers.md",
+    "docs/information/mesh.md"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [
+    "ticket-145",
+    "ticket-146",
+    "ticket-147"
+  ],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "0927d1434da24c8c3c4d9cfc1d399b29a0a4bb89",
+    "targetBranch": "main",
+    "outcome": "fixos 2.6.1 updates docs/information/{printers,mesh}.md to v2, indexes docs/information/host-anomalies.md in docs/README.md, and aligns VERSION and pyproject.toml on 2.6.1.",
+    "nonGoals": [
+      "No runtime code changes.",
+      "CHANGELOG.md is owned by the governance workstream and is not modified here."
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 20,
+    "budgets": {
+      "maxImplementationFiles": 5,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Update `docs/information/printers.md` and `docs/information/mesh.md` to version 2, link `docs/information/host-anomalies.md` from `docs/README.md`, and raise `VERSION` and `pyproject.toml` to `2.6.1`.",
+      "components": [
+        {
+          "name": "release",
+          "paths": [
+            "VERSION",
+            "pyproject.toml",
+            "docs/README.md",
+            "docs/information/printers.md",
+            "docs/information/mesh.md"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the commit."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python -m pytest tests/unit/test_version_parity.py -q"
+        ],
+        "evidence": "version carriers agree on 2.6.1"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "python3 <wellmanifest/docs@19efafb>/docs/standard/check.py --root . --standard-revision 19efafbeb18923cfd51cc69bd519330488500137 --deliverable docs/information/printers.md --deliverable docs/information/mesh.md"
+        ],
+        "evidence": "zero findings for printers.md, mesh.md, and host-anomalies.md"
+      },
+      {
+        "criterion": "AC-03",
+        "commands": [
+          "./project/governance-check.sh"
+        ],
+        "evidence": "governance-check output"
+      }
+    ]
+  }
+}

@@ -9,6 +9,9 @@ Ta dokumentacja dotyczy narzędzia do diagnostyki i naprawy systemu fixOS.
   LAN/SSH, detekcja pustej bramy SNMP oraz blokady multicast mDNS.
 - [Diagnostyka i naprawa drukarek](information/printers.md) — `fixos printers`,
   nierozwiązywalne nazwy drukarek sieciowych, IPP Everywhere, CUPS i Windows.
+- [Anomalie hosta poza zwykłym cache](information/host-anomalies.md) —
+  `fixos anomalies`, pętle restartów usług, logi kontenerów, stare katalogi stanu
+  i procesy zombie.
 - [Duże pliki i decyzje bez LLM](information/storage-triage.md) — `fixos storage`,
   grupy, uzasadnienia i raporty JSON/CSV/HTML.
 - [Pierwsze kroki](getting-started.md) — instalacja, szybka analiza i bezpieczne
