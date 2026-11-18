@@ -11,6 +11,8 @@ Sub-modules (split from the original monolith):
 """
 
 import re
+import sys
+from contextlib import nullcontext, redirect_stdout
 
 import click
 
@@ -1689,33 +1691,37 @@ def _run_free_target_mode(
             bold=True,
         )
     )
-    report = run_free_target_ladder(
-        goal_gb,
-        tiers=tiers,
-        echo=_echo,
-        dry_run=dry_run,
-    )
-    freed = (report.ended_free_bytes - report.started_free_bytes) / 1024**3
-    _echo("")
-    if report.goal_reached:
-        _echo(
-            click.style(
-                f"Cel osiągnięty: {report.ended_free_bytes / 1024**3:.1f} GB wolnego "
-                f"(zwolniono {freed:.2f} GB).",
-                fg="green",
-                bold=True,
-            )
+    # The reused CLI tiers print their own diagnostics and previews.
+    # Keep stdout reserved for the aggregated report in JSON mode.
+    diagnostics = redirect_stdout(sys.stderr) if json_output else nullcontext()
+    with diagnostics:
+        report = run_free_target_ladder(
+            goal_gb,
+            tiers=tiers,
+            echo=_echo,
+            dry_run=dry_run,
         )
-    else:
-        _echo(
-            click.style(
-                f"Zwolniono {freed:.2f} GB, wolne: "
-                f"{report.ended_free_bytes / 1024**3:.1f} GB — cel nieosiągnięty.",
-                fg="yellow",
-                bold=True,
+        freed = (report.ended_free_bytes - report.started_free_bytes) / 1024**3
+        _echo("")
+        if report.goal_reached:
+            _echo(
+                click.style(
+                    f"Cel osiągnięty: {report.ended_free_bytes / 1024**3:.1f} GB wolnego "
+                    f"(zwolniono {freed:.2f} GB).",
+                    fg="green",
+                    bold=True,
+                )
             )
-        )
-        print_privileged_hints(goal_gb, report)
+        else:
+            _echo(
+                click.style(
+                    f"Zwolniono {freed:.2f} GB, wolne: "
+                    f"{report.ended_free_bytes / 1024**3:.1f} GB — cel nieosiągnięty.",
+                    fg="yellow",
+                    bold=True,
+                )
+            )
+            print_privileged_hints(goal_gb, report)
     if json_output:
         import json
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import time
@@ -338,6 +339,57 @@ def test_free_target_ladder_preserves_releases_and_continues_cache_tiers(monkeyp
     assert "dane wdrożeń i przywracania, nie cache" in output
     assert (release / "payload.bin").read_bytes() == b"x" * 4096
     assert calls == ([] if dry_run else ["dangling", "images"])
+
+
+@pytest.mark.parametrize("dry_run", [False, True])
+def test_free_gb_json_stdout_contains_only_the_ladder_report(monkeypatch, dry_run):
+    import fixos.cli._cleanup_free_target as target
+    import fixos.cli._cleanup_space as space
+    from fixos.diagnostics import state_retention
+
+    class Scanner:
+        def __init__(self, **kwargs):
+            pass
+
+        def get_cleanup_plan(self, **kwargs):
+            return {
+                "safe_to_cleanup": [{"name": "Example cache"}],
+                "requires_review": [],
+                "dangerous": [],
+            }
+
+    cleaned = []
+
+    def clean_cache(scanner, service, *, dry_run):
+        cleaned.append(dry_run)
+        return {"success": True, "space_freed_gb": 0.0, "output": "example progress"}
+
+    monkeypatch.setattr(target, "free_bytes", lambda *_: 0)
+    monkeypatch.setattr(cleanup_cmd, "ServiceDataScanner", Scanner)
+    monkeypatch.setattr(cleanup_cmd, "_execute_planned_cleanup", clean_cache)
+    monkeypatch.setattr(space, "_scan_tmp", lambda **kwargs: [])
+    monkeypatch.setattr(state_retention, "scan_state_retention", lambda *_a, **_k: [])
+    monkeypatch.setattr(space, "_scan_unused_projects", lambda **kwargs: [])
+    monkeypatch.setattr(cleanup_cmd, "find_stale_release_caches", lambda: ([], []))
+    monkeypatch.setattr(
+        cleanup_cmd, "docker_prune_dangling", lambda: TierResult("docker-dangling")
+    )
+    monkeypatch.setattr(
+        cleanup_cmd, "docker_remove_unused_old_images", lambda **_: TierResult("docker-unused-images")
+    )
+
+    args = ["--free-gb", "10", "--json"]
+    if dry_run:
+        args.append("--dry-run")
+    result = CliRunner().invoke(cleanup_cmd.cleanup_services, args)
+
+    assert result.exit_code == 0, result.output
+    report = json.loads(result.stdout)
+    assert report["goal_gb"] == 10 and report["goal_reached"] is False
+    assert len(report["tiers"]) == 7
+    assert "Czyszczenie Example cache" in result.stderr
+    assert "Brakuje" in result.stderr
+    assert cleaned == [dry_run]
 
 
 def test_free_gb_rejects_other_actions():
