@@ -123,6 +123,30 @@ def _spec_by_uri(uri: str, operations: Sequence[OperationSpec]) -> OperationSpec
     return next((op for op in operations if op.process_uri == uri), None)
 
 
+ALLOWED_NL_PLAN_KEYS: frozenset[str] = frozenset(
+    {
+        "schema",
+        "profile",
+        "task",
+        "normalized_task",
+        "status",
+        "advisory",
+        "grants_authority",
+        "executable",
+        "negation_detected",
+        "operation_id",
+        "operation",
+        "stable_operation_id",
+        "tool_name",
+        "effect",
+        "confidence",
+        "registry_digest",
+        "reason",
+        "candidate_uris",
+    }
+)
+
+
 def validate_nl_plan_envelope(
     candidate: Mapping[str, Any],
     *,
@@ -132,6 +156,9 @@ def validate_nl_plan_envelope(
     """Validate an NL plan envelope (including optional LLM DSL output) fail-closed."""
     if not isinstance(candidate, Mapping):
         raise TypeError("INVALID_NL_PLAN_OBJECT")
+    unknown_keys = set(candidate.keys()) - ALLOWED_NL_PLAN_KEYS
+    if unknown_keys:
+        raise ValueError(f"NL_PLAN_UNKNOWN_FIELDS: {sorted(unknown_keys)}")
     if candidate.get("schema") != NL_PLAN_SCHEMA:
         raise ValueError("INVALID_NL_PLAN_SCHEMA")
     if candidate.get("profile") != NL_PROFILE_ID:
@@ -153,6 +180,17 @@ def validate_nl_plan_envelope(
 
     known_uris = {op.process_uri: op for op in operations}
     op_uri = candidate.get("operation_id")
+    raw_task = str(candidate.get("task") or "")
+    norm_task = str(candidate.get("normalized_task") or normalize_nl_text(raw_task))
+    negated = bool(candidate.get("negation_detected", False))
+    confidence = float(candidate.get("confidence", 0.0) or 0.0)
+    reason = str(candidate.get("reason") or "")
+    raw_candidates = candidate.get("candidate_uris") or ()
+    if not isinstance(raw_candidates, Sequence) or isinstance(raw_candidates, (str, bytes)):
+        raise TypeError("NL_PLAN_INVALID_CANDIDATE_URIS")
+    for curi in raw_candidates:
+        if not isinstance(curi, str) or curi not in known_uris:
+            raise ValueError("NL_PLAN_UNKNOWN_CANDIDATE_URI")
 
     if status == "ok":
         if not isinstance(op_uri, str) or op_uri not in known_uris:
@@ -160,13 +198,47 @@ def validate_nl_plan_envelope(
         spec = known_uris[op_uri]
         if candidate.get("effect") not in (spec.legacy_effect, spec.effect):
             raise ValueError("NL_PLAN_EFFECT_MISMATCH")
-    else:
-        if op_uri is not None:
-            raise ValueError("NL_PLAN_ABSTENTION_MUST_NOT_SELECT_URI")
-        if not str(candidate.get("reason") or "").strip():
-            raise ValueError("NL_PLAN_ABSTENTION_REASON_REQUIRED")
+        if candidate.get("operation") not in (None, spec.process_uri):
+            raise ValueError("NL_PLAN_INCONSISTENT_OPERATION")
+        if candidate.get("stable_operation_id") not in (None, spec.operation_id):
+            raise ValueError("NL_PLAN_INCONSISTENT_STABLE_ID")
+        expected_tool = spec.mcp_tool_name or None
+        if candidate.get("tool_name") not in (None, expected_tool):
+            raise ValueError("NL_PLAN_INCONSISTENT_TOOL_NAME")
+        return _build_envelope(
+            task=raw_task,
+            normalized=norm_task,
+            status="ok",
+            registry_digest=expected_digest,
+            spec=spec,
+            confidence=confidence,
+            reason=reason,
+            candidate_uris=tuple(raw_candidates),
+            negated=negated,
+        )
 
-    return dict(candidate)
+    if (
+        op_uri is not None
+        or candidate.get("operation") is not None
+        or candidate.get("stable_operation_id") is not None
+        or candidate.get("tool_name") is not None
+        or candidate.get("effect") not in (None, "none")
+    ):
+        raise ValueError("NL_PLAN_ABSTENTION_MUST_NOT_SELECT_URI")
+    if not reason.strip():
+        raise ValueError("NL_PLAN_ABSTENTION_REASON_REQUIRED")
+
+    return _build_envelope(
+        task=raw_task,
+        normalized=norm_task,
+        status=status,
+        registry_digest=expected_digest,
+        spec=None,
+        confidence=confidence,
+        reason=reason,
+        candidate_uris=tuple(raw_candidates),
+        negated=negated,
+    )
 
 
 def _build_envelope(
@@ -391,7 +463,7 @@ def route_nl_to_uri(
     }
     if len(distinct_domains) > 1 and not (
         distinct_domains <= {"fixos://diagnostics/disk", "fixos://diagnostics/projects"}
-        and "projekt" in norm
+        and any(tok in norm for tok in ("projekt", "project"))
     ):
         return validate_nl_plan_envelope(
             _build_envelope(

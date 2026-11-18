@@ -36,6 +36,11 @@ def test_diacritic_normalization_and_pl_en_routing():
     assert en_disk["operation_id"] == "fixos://diagnostics/disk"
     assert en_disk["effect"] == "read"
 
+    en_project_disk = task_plan("show project disk space")
+    assert en_project_disk["status"] == "ok"
+    assert en_project_disk["operation_id"] == "fixos://diagnostics/projects"
+    assert en_project_disk["effect"] == "read"
+
     pl_printers = task_plan("sprawdź drukarki sieciowe w CUPS")
     assert pl_printers["status"] == "ok"
     assert pl_printers["operation_id"] == "fixos://diagnostics/printers"
@@ -115,6 +120,15 @@ def test_optional_llm_dsl_validation_fails_closed():
 
     with pytest.raises(ValueError, match="NL_PLAN_AUTHORITY_ESCALATION_FORBIDDEN"):
         validate_nl_plan_envelope({**ok_llm, "grants_authority": True})
+
+    with pytest.raises(ValueError, match="NL_PLAN_UNKNOWN_FIELDS"):
+        validate_nl_plan_envelope({**ok_llm, "shell_cmd": "rm -rf /"})
+
+    with pytest.raises(ValueError, match="NL_PLAN_INCONSISTENT_OPERATION"):
+        validate_nl_plan_envelope({**ok_llm, "operation": "fixos://cleanup/auto"})
+
+    with pytest.raises(ValueError, match="NL_PLAN_INCONSISTENT_TOOL_NAME"):
+        validate_nl_plan_envelope({**ok_llm, "tool_name": "cleanup_auto"})
 
 
 def test_ask_cli_blocks_negated_mutation_using_shared_nl_router():
