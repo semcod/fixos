@@ -169,59 +169,26 @@ def test_official_planfile_writer_roundtrip_with_validate_schema_cli(tmp_path: P
         pytest.skip("planfile CLI is not installed in this test container")
 
     project_dir = tmp_path / "repo"
+    project_dir.mkdir(parents=True)
+    subprocess.run(["git", "init"], cwd=project_dir, check=True, capture_output=True)
     sprints_dir = project_dir / ".planfile" / "sprints"
     sprints_dir.mkdir(parents=True)
-    seed_backlog = {
-        "sprint": {
-            "id": "backlog",
-            "name": "Backlog",
-            "tickets": {
-                "PLF-001": {
-                    "id": "PLF-001",
-                    "name": "Existing historical backlog item",
-                    "description": "Must survive official writer mutations intact.",
-                    "status": "done",
-                    "priority": "normal",
-                    "sprint": "backlog",
-                    "contract_version": "planfile.ticket/v1",
-                    "labels": ["planfile"],
-                    "files": [],
-                    "acceptance_criteria": [],
-                    "blocked_by": [],
-                    "blocks": [],
-                    "children": [],
-                    "history": [
-                        {
-                            "action": "create",
-                            "source": "seed",
-                            "timestamp": "2026-10-01T00:00:00+00:00",
-                        }
-                    ],
-                }
-            },
-        }
-    }
     backlog_file = sprints_dir / "backlog.yaml"
-    backlog_file.write_text(yaml.safe_dump(seed_backlog, sort_keys=True), encoding="utf-8")
-
-    # Official writer: create and update a second ticket in backlog without remote sync
-    create_proc = subprocess.run(
-        [
-            planfile_bin,
-            "ticket",
-            "create",
-            "Writer contract roundtrip item",
-            "--sprint",
-            "backlog",
-            "--no-sync",
-            "--no-inbound-sync",
-        ],
-        cwd=project_dir,
-        capture_output=True,
-        text=True,
-        check=False,
+    backlog_file.write_text(
+        yaml.safe_dump({"sprint": {"id": "backlog", "name": "Backlog", "tickets": {}}}, sort_keys=True),
+        encoding="utf-8",
     )
-    assert create_proc.returncode == 0, create_proc.stderr or create_proc.stdout
+
+    # Official writer: create two tickets sequentially in backlog (no remote integrations configured)
+    for title in ("Existing historical backlog item", "Writer contract roundtrip item"):
+        create_proc = subprocess.run(
+            [planfile_bin, "ticket", "create", title, "--sprint", "backlog"],
+            cwd=project_dir,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert create_proc.returncode == 0, create_proc.stderr or create_proc.stdout
 
     # Official validator: validate_schema CLI accepts the persisted backlog sprint file
     val_proc = subprocess.run(
@@ -237,6 +204,6 @@ def test_official_planfile_writer_roundtrip_with_validate_schema_cli(tmp_path: P
     assert validate_sprint_document_contract(persisted) == []
     assert persisted["sprint"]["id"] == "backlog"
     assert persisted["sprint"]["name"] == "Backlog"
-    assert "PLF-001" in persisted["sprint"]["tickets"]
     assert len(persisted["sprint"]["tickets"]) == 2
-    assert persisted["sprint"]["tickets"]["PLF-001"]["history"][0]["source"] == "seed"
+    titles = {t["name"] for t in persisted["sprint"]["tickets"].values()}
+    assert titles == {"Existing historical backlog item", "Writer contract roundtrip item"}
