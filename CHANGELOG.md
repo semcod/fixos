@@ -80,6 +80,22 @@
   rekurencyjnych skanów `/` oraz `/home` z szybkich kontroli.
 - Czyszczenie cache JetBrains trafia w aktualną ścieżkę i wymaga zamknięcia IDE.
 
+## [2.7.1] - 2026-11-18
+
+### Added
+- Testy kontraktowe `tests/unit/test_planfile_sprint_contract.py` weryfikujące roundtrip oficjalnego writera `planfile` -> zapis sprintu YAML -> `planfile validate schema --file-type sprint` oraz migrację z kopią i CAS SHA-256 bez utraty historii (`#170`).
+- Przypięcie niemutowalnych rewizji i digestów SHA-256 dla `wellmanifest/docs`, `wellmanifest/logs`, `wellmanifest/worktrees`, `wellmanifest/license` oraz `wellmanifest/report` w `.governance/standards-lock.json` (`PLF-033`) wraz z audytem `docs/ANALYSIS/PLANFILE_GITHUB_SYNC_AUDIT.md`.
+
+### Fixed
+- Wzmocniono reguły wykluczania flag w `fixos/core/service_cleanup_usecase.py` (`-c docker-containers`, wyłączność `--artifacts`) oraz izolację wyjątków na pojedynczą usługę w `execute_service_cleanup`.
+- Uporządkowano `TODO.md`, usuwając historyczne dostarczone zadania `ticket-001`..`ticket-062` i pozostawiając wyłącznie zweryfikowane otwarte i zewnętrznie zablokowane pozycje (`#171`, `#174`).
+
+## [2.7.0] - 2026-11-18
+
+### Added
+- Kanoniczny 31-operacyjny rejestr POA/MCP (`fixos/poa_registry.py`), zasoby URN `urn:uuid:` (`fixos/mcp_resources.py`), powiązane z wejściem receipty `fsync` (`fixos/mcp_receipts.py`), plany `minimal-plan/v1` i jednorazowe granty (`fixos/poa_grants.py`), dwujęzyczny router NL-do-URI `semantic-v1` (`fixos/nl_router.py`) oraz kanarek uruchomieniowy `fixos/poa_canary.py` (`#163`–`#168`).
+- Wydzielenie planowania, wykonania za zgodą i weryfikacji read-back usług do `fixos/core/service_cleanup_usecase.py` (redukcja złożoności cyklomatycznej `cleanup_services` z `98` do `3`, `#169`) oraz diagnostyka wielowęzłowa `fixos mesh` i naprawy drukarek IPP/LPD (`#183`, `#185`).
+
 ## [2.2.48] - 2026-09-12
 
 ### Docs

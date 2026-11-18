@@ -1,228 +1,39 @@
 # TODO
 
 Aktualna, ręcznie zweryfikowana lista zadań projektu. Zakończone pozycje są
-przenoszone do sekcji `Unreleased` w [CHANGELOG.md](CHANGELOG.md), zamiast
-pozostawać tutaj jako rosnąca lista zaznaczonych pól.
+przenoszone do sekcji `Unreleased` / wydań w [CHANGELOG.md](CHANGELOG.md),
+zamiast pozostawać tutaj jako rosnąca lista zaznaczonych pól.
 
-Ostatni przegląd: 2026-09-15.
+Ostatni przegląd: 2026-11-18.
 
-## Aktywne
+## Aktywne i zablokowane zewnętrznie
 
-- [ ] Dostarczyć [ticket-062](project/ticket-062/README.md): optymalizacja skanera
-  projektów deweloperskich (`project_scanner.py`), analizy dysku (`disk_analyzer.py`)
-  oraz szybkiego snapshotu (`quick_snapshot.py`) poprzez natywne pomiary Rust (`fixos-native`).
-  Stan: `IN_PROGRESS / EDIT`.
-
-- [ ] Dostarczyć [ticket-061](project/ticket-061/README.md): optymalizacja wąskich
-  gardeł FixOS za pomocą natywnego skanera Rust (`fixos-native`), leniwego
-  ładowania komend CLI, zabezpieczenia timeoutu Dockera, oraz graficznego
-  dashboardu w shellu z bezpieczną automatyczną interwencją. Stan: `IN_PROGRESS / PUBLICATION`.
-
-- [ ] Dostarczyć [ticket-032](project/ticket-032/README.md): bezpieczny triage
-  literówek i pakietów przez dokładny inventory, dry-run i potwierdzenie przed
-  usuwaniem. Stan: `IN_PROGRESS / EDIT`.
-
-- [ ] Dostarczyć [ticket-030](project/ticket-030/README.md): włączyć dla FixOS
-  zarządzaną projekcję aktywności ticketów z historii Git, aby `goal -a` nie
-  traktował zintegrowanych ticketów jako aktywnych przy braku zewnętrznego
-  terminal receipt. Stan: `IN_PROGRESS / EDIT`; zakres ograniczony do
-  `.governance/ticket-activity.override.json`.
-
-- [ ] Dostarczyć [ticket-031](project/ticket-031/README.md): przyspieszyć CI
-  przez szybki preflight, fail-closed failure taxonomy i actionable summary.
-  Stan: `IN_PROGRESS / EDIT`; zachować macierz Python i nie maskować błędów.
-
-- [ ] Dostarczyć [ticket-026](project/ticket-026/README.md): utrwalić testem
-  kontrakt, który odrzuca URL-e endpointów zawierające poświadczenia przed
-  zapytaniem DNS i nie zapisuje ich w obserwacji procesu. Stan:
-  `IN_PROGRESS / EDIT`; zakres dokumentuje także plan dalszej optymalizacji.
-
-- [ ] Dostarczyć [ticket-029](project/ticket-029/README.md): uzupełnić
-  `infrastructure.ownedPaths` o `docker/**`, zgodnie z lokalizacją obrazów
-  wymienioną w sekcji Docker manifestu. Stan: `IN_PROGRESS / EDIT`; zmiana
-  odblokowuje materialną naprawę obrazów w ticket-028.
-
-- [ ] Dostarczyć [ticket-023](project/ticket-023/README.md): usunąć lokalne
-  ścieżki worktree z generowanego raportu coverage i opublikować stabilne linki
-  źródłowe. Stan: `IN_PROGRESS / PUBLICATION`; PR #56 oczekuje na exact-head
-  review i scalenie przez chroniony Validator.
-- [ ] Dostarczyć [ticket-028](project/ticket-028/README.md): uzupełnić obrazy
-  Fedora, Ubuntu i Debian używane przez testy Multi-System o systemowy pakiet
-  `git`, wymagany przez aktywację zarządzanej bramki governance. Stan:
-  `IN_PROGRESS / EDIT`; zakres ograniczony do trzech Dockerfile i potwierdzony
-  przez awarię CI w PR #57.
-
-- [ ] Dostarczyć [ticket-027](project/ticket-027/README.md): zaktualizować
-  zarządzany standard Wellmanifest/new-project do opublikowanej rewizji 0.20.31,
-  śledzić wymagane pliki hosta, związać parser Policy DSL i używać zewnętrznego
-  merge receipt jako końca lifecycle. Stan: `IN_PROGRESS / PUBLICATION`.
-
-- [ ] Dostarczyć [ticket-025](project/ticket-025/README.md): uczynić
-  `fixos cleanup` bezpiecznym — respektować `--dry-run` w trybie
-  interaktywnym, raportować tylko realnie odzyskiwalne miejsce, cytować ścieżki
-  w komendach `rm`, nie unieważniać poświadczeń gcloud i ostrzegać, gdy pomiar
-  Dockera się nie powiedzie. Stan: `IN_PROGRESS / PUBLICATION`; implementacja
-  PR #48 jest scalona, a ten branch dodaje materialny regression test przed
-  zamknięciem ticketu przez chroniony Validator.
-
-- [x] Dostarczyć [ticket-024](project/ticket-024/README.md): automatycznie
-  obserwować DNS-backed endpoint providera przy ładowaniu konfiguracji i
-  sygnalizować zmianę adresu bez zapisywania sekretów ani trwałego cache'u.
-  Stan: `DONE / DONE`; chroniony Validator zatwierdził dokładny HEAD
-  `9cb5957...` w review `5206913215`, scalił PR #49 jako `d73bf65...`
-  i usunął zdalną gałąź ticketu.
-
-- [x] Dostarczyć [ticket-018](project/ticket-018/README.md): udokumentować
-  stan i pozostałe prace autonomizacji oraz lokalnego Registry. Stan:
-  `DONE / DONE`; exact HEAD `771da39...` scalony do `main`, testy i governance
-  przeszły.
-
-- [x] Dostarczyć [ticket-021](project/ticket-021/README.md): ustabilizować
-  launcher CLI w testach e2e przez preferowanie executable aktywnego
-  interpretera. Stan: `DONE / DONE`; exact HEAD `ded18b7...` scalony do
-  `main`, pełny suite przeszedł.
-
-- [x] Dostarczyć [ticket-019](project/ticket-019/README.md): wychwytywanie
-  literówek w poleceniach CLI (np. `cleanuo` -> `cleanup`), poprawa routingu
-  języka naturalnego, doprecyzowanie heurystyk i zabezpieczenie wykonania
-  poleceń LLM (`is_dangerous`, potwierdzenie interaktywne). Stan: `DONE / DONE`;
-  dokładny HEAD `2d1faa5...` przeszedł pomyślnie wszystkie testy CI (Python 3.10/3.11/3.12,
-  Multi-System Docker i governance), scalił PR #37 jako `f0a3d1c...`
-  i usunął zdalną gałąź ticketu.
-
-- [x] Dostarczyć [ticket-017](project/ticket-017/README.md): zachować logikę
-  diagnostyczną przez stabilne aliasy ścieżek, adresów i identyfikatorów,
-  utrzymując surową mapę wyłącznie lokalnie oraz weryfikując brak regresji na
-  granicy LLM. Stan: `DONE / DONE`; chroniony Validator zatwierdził dokładny
-  HEAD `610bcb1...` w review `5084141876`, scalił PR #35 jako `31f3e6e...`
-  i usunął zdalną gałąź ticketu.
-
-- [x] Dostarczyć [ticket-016](project/ticket-016/README.md): zwiększyć limit
-  pełnej tury HITL do 50 000, ustawić niski reasoning GLM 5.3, przełączać model
-  po pustej odpowiedzi i rozpoznawać ograniczone literówki intencji cleanup bez
-  wykonywania komend. Stan: `DONE / DONE`; chroniony Validator zatwierdził
-  dokładny HEAD `a14a23b...` w review `5080349022`, scalił PR #33 jako
-  `9d7ce89...` i usunął zdalną gałąź ticketu.
-
-- [x] Dostarczyć [ticket-015](project/ticket-015/README.md): przed każdym
-  wyborem remediacji pokazywać dokładne cele/ścieżki, skutek, komendy i
-  weryfikację, odrzucać fałszywe akcje z numerów w logach oraz preferować
-  oficjalny model OpenRouter `z-ai/glm-5.3`. Stan: `DONE / DONE`; chroniony
-  Validator zatwierdził dokładny HEAD `f561b09...` w review `5079926802`,
-  scalił PR #31 jako `6028dd1...` i usunął zdalną gałąź ticketu.
-
-- [x] Dostarczyć [ticket-014](project/ticket-014/README.md): potwierdzić na
-  rzeczywistym PR FixOS, że wdrożony profil manifestu automatycznie wykonuje
-  lokalną walidację dokładnego HEAD, przekazuje go do Validator Agent i scala
-  dopiero po zaufanym review. Stan: `DONE / DONE`; automatyczny OneDev zaliczył
-  5/5 bramek dla HEAD `03df094...`, a zaplanowany Validator zatwierdził go w
-  review `5078899687` i scalił PR #29 jako `67fde329...`.
-
-- [x] Dostarczyć [ticket-013](project/ticket-013/README.md): zachować przyjęty
-  wybór optymalizacji HITL po wolnej odpowiedzi modelu, licząc timeout osobno
-  dla każdej tury LLM i pokazując aktualny pozostały czas. Stan:
-  `DONE / DONE`; PR #27 zatwierdzono dla dokładnego HEAD `5cd7227...` i scalono
-  jako `4cc84ab...`.
-
-- [x] Dostarczyć [ticket-012](project/ticket-012/README.md): dodać numerowane
-  wybieranie pojedynczych problemów także dla odpowiedzi zawierających samą
-  diagnozę oraz po każdym sukcesie odświeżać listę pozostałych optymalizacji.
-  Stan: `DONE / DONE`; PR #25 zatwierdzono dla dokładnego HEAD `8d7ae075...`
-  i scalono jako `94d557e...`.
-
-- [x] Dostarczyć [ticket-011](project/ticket-011/README.md): zastąpić płaską
-  listę poleceń HITL standaryzowanymi findingami, wariantami remediacji,
-  zestawami komend i weryfikacją zgodną z rozdzieleniem odpowiedzialności
-  `wellmanifest/logs`. Stan: `DONE / DONE`; PR #23 zatwierdzono dla dokładnego
-  HEAD `ebce3b2...` i scalono jako `19c0ef6...`.
-
-- [x] Dostarczyć [ticket-010](project/ticket-010/README.md): poprawić wykrywanie
-  głównej JVM JetBrains i dodać bezpieczne sterowanie dokładnymi wtyczkami AI
-  oraz helperami Qoder bez zamykania okien IDE. Stan: `DONE / DONE`; PR #20
-  zatwierdzono dla dokładnego HEAD `d500e3f...` i scalono jako `f38c473...`.
-
-- [x] Dostarczyć [ticket-009](project/ticket-009/README.md): dodać trwałe,
-  zarządzalne przypięcia katalogów projektów Compose, które pozostają widoczne
-  w diagnostyce, ale są chronione przed czyszczeniem osieroconych obciążeń.
-  Stan: `DONE / DONE`; PR #18 zatwierdzono dla dokładnego HEAD `6643838...`
-  i scalono jako `942fa1d...`.
-
-- [x] Dostarczyć [ticket-008](project/ticket-008/README.md): udostępnić
-  `fixos jetbrains doctor` z diagnostyką JVM, EDT i logów oraz opcjonalnym,
-  ściśle uzasadnionym GC bez zamykania okien IDE. Stan: `DONE / DONE`; PR #16
-  został zatwierdzony przez Validator App dla HEAD `98fd63d...` i scalony jako
-  `d3c76d9...`.
-
-- [x] Dostarczyć [ticket-006](project/ticket-006/README.md): opisać użycie,
-  kryteria, potwierdzenia i rezultat funkcji
-  `fixos cleanup --orphaned-projects`. Stan: `DONE / DONE`; PR #12 został
-  zatwierdzony przez Validator App i scalony jako `db81ef8...`.
-
-- [x] Dostarczyć [ticket-005](project/ticket-005/README.md): zawsze pokazywać
-  próbkowane procesy najbardziej obciążające CPU lub RAM w `fixos quick` oraz
-  zweryfikować konserwatywny przegląd usług Docker nieaktywnych od ponad trzech
-  dni. Stan: `DONE / DONE`; PR #8 został zatwierdzony przez Validator App i
-  scalony jako `715f961...`, a testy po merge przeszły.
-
-- [x] Dostarczyć [ticket-004](project/ticket-004/README.md): wykrywać i jawnie
-  czyścić kontenery Compose z brakującym katalogiem projektu oraz stare drzewa
-  agentów IDE i serwerów developerskich, z ochroną bieżącego IDE/Codex i bez
-  usuwania danych. Stan: `DONE / DONE`; PR #9 został zatwierdzony przez
-  Validator App i scalony jako `6af598a...`.
-
-- [x] Dostarczyć [ticket-002](project/ticket-002/README.md): wykrywanie świeżych
-  łańcuchów procesów blokujących starsze aplikacje oraz bezpieczne, jawnie
-  wybrane zamykanie drzewa z weryfikacją po wykonaniu, wraz z odzyskiwaniem
-  responsywności współdzielonej JVM JetBrains bez zamykania okien. Stan:
-  `DONE / DONE`; PR #6 został zatwierdzony przez Validator App i scalony jako
-  `10c550c...`.
-
-- [x] Dostarczyć [ticket-003](project/ticket-003/README.md): konserwatywnie
-  wykrywać stare kontenery Docker uruchamiane automatycznie, wiązać je z
-  nieaktywnymi repozytoriami Git i wyłączać autostart wyłącznie po jawnym
-  wyborze, bez usuwania danych Dockera oraz udostępnić ten przepływ w menu
-  `fixos cleanup`. Stan: `DONE / DONE`; PR #4 został zatwierdzony przez
-  Validator App i scalony jako `085c636...`, a testy po merge przeszły.
-
-- [x] Dostarczyć [ticket-001](project/ticket-001/README.md): przypiąć pełny
-  standard `wellmanifest/new-project` v0.16.1, skonfigurować ścieżki FixOS,
-  istniejący Docker i chroniony delivery Goal, a następnie potwierdzić drift,
-  governance, testy oraz kontenery. Stan: `DONE / DONE`; PR #1 został scalony
-  bez zmiany zatwierdzonego drzewa jako `647dd4b...`, a testy po merge przeszły.
-
-- [x] Dostarczyć [ticket-007](project/ticket-007/README.md): wykluczyć procesy
-  kontenerowe z czyszczenia procesów hosta i uzupełnić semantykę wyboru
-  `critical`. Stan: `DONE / DONE`; PR #14 został zatwierdzony przez Validator
-  App dla dokładnego HEAD `c525f3b...` i scalony jako `cb10227...`.
-- [x] Zregenerowano dokumentację API (`docs/api.md`, `docs/modules.md`,
-  `docs/coverage.md` i `docs/dependency-graph.md`) po aktualnym przebiegu
-  generatora `code2docs`.
-- [ ] Dodać testy integracyjne szybkiego skanu i klasyfikacji cache na Windows
-  oraz macOS. Obecne testy jednostkowe dobrze pokrywają Linux, ale nie wykonują
-  prawdziwych menedżerów usług na pozostałych platformach.
+- [ ] Uzgodnić zachowany historyczny backup `refs/heads/ticket/110-sync-standard-requirements-backup`
+  oraz kwarantannę `ticket-109` (`#174` / `PLF-21812`). Stan: `BLOCKED` — `wellmanifest/new-project#576`
+  scalono (`de22d44`), nadal wymagane domknięcie `wellmanifest/new-project#575`, jawna decyzja
+  właściciela (`archive-and-retire`) oraz dzierżawa `STARTER-029` przed dotknięciem
+  `.subactor/leases/` lub `.governance/standard-requirements.json`.
+- [ ] Potwierdzić end-to-end pobranie zadania `semcod/fixos` przez centralny indeks Heyasa
+  (`#171` / `PLF-21822`). Stan: `BLOCKED` na zewnętrznym właścicielu `heyasa/heyasa#891`
+  (skaner `fleet_backlog` czyta wyłącznie `current.yaml` z pominięciem `backlog.yaml`,
+  a endpoint `127.0.0.1:18769/tickets/discovery` zwraca `HTTP 503 ticket_index_stale`).
+- [ ] Dodać testy integracyjne szybkiego skanu i klasyfikacji cache na natywnych
+  środowiskach Windows oraz macOS (obecna macierz CI weryfikuje Python 3.10–3.12
+  oraz 5 dystrybucji Linux w kontenerach).
 - [ ] Ujednolicić formatowanie i typowanie starszych komend CLI (`scan`,
   `features`, `provider`) bez zmiany ich publicznych opcji.
-- [ ] Zastąpić hardkodowany `config/direct-pr-registry.json` lokalnym,
-  checkpointowanym snapshotem Registry (SQLite) oraz podpisaną attestacją.
-  Pozostawić JSON jako fail-closed fallback do czasu migracji.
-- [ ] Skonfigurować chroniony Validator App do pobierania artefaktów i
-  attestacji oraz weryfikować podpis, issuer, predicate type, repozytorium i
-  digest SQLite przed nadaniem uprawnień review/merge.
-- [ ] Dodać lokalną usługę Registry i adaptery synchronizacji (GitHub, PyPI,
-  npm) w `subactor/registry/packages/*`; zapewnić API/CLI do publikacji,
-  pobierania i zarządzania artefaktami bez zależności od sieci.
 - [ ] Utrzymywać kontekst anonimizacji przez wiele tur HITL oraz dodać testy
   integracyjne cyklu życia snapshotu, podpisu i odtworzenia po awarii.
 
 ## Zasady utrzymania
 
-- Dodawaj tylko zadania, które zostały potwierdzone w aktualnym kodzie.
+- Dodawaj tylko zadania, które zostały potwierdzone w aktualnym kodzie lub aktywnym rejestrze zgłoszeń.
 - Nie wpisuj tu automatycznie każdego ostrzeżenia lintera. Import względny,
   blok `if __name__ == "__main__"` albo stała liczbowa nie są same w sobie
   defektem.
 - Po wykonaniu zadania usuń je z tego pliku i opisz efekt w `CHANGELOG.md`.
-- Raporty narzędzi statycznych przechowuj jako artefakty CI, nie jako trwałą
-  listę z numerami linii.
+- Zadania należące do zewnętrznych repozytoriów (`subactor/registry`, `heyasa/heyasa`,
+  `semcod/planfile`) śledź w ich repozytoriach właścicielskich.
 
 ## Archiwum
 

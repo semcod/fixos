@@ -1,0 +1,90 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-158",
+  "summary": "Pin PLF-033 Wellmanifest standards in standards-lock and reconcile TODO/CHANGELOG",
+  "workstream": "governance",
+  "classification": {
+    "kind": "FEATURE",
+    "priority": "P2",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-158/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    ".governance/standards-lock.json",
+    "CHANGELOG.md"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [
+    "ticket-155"
+  ],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "f2181ef288f9526207686430b3a79aa18b585219",
+    "targetBranch": "main",
+    "outcome": "Pin immutable 40-hex commit revisions and SHA-256 contract digests for `wellmanifest/docs`, `wellmanifest/logs`, `wellmanifest/worktrees`, `wellmanifest/license`, and `wellmanifest/report` in `.governance/standards-lock.json` (`PLF-033`), clean completed Sept 2026 items out of `TODO.md`, and record `2.7.0`/`2.7.1` summaries in `CHANGELOG.md`.",
+    "nonGoals": [
+      "Modifying `.governance/standard-requirements.json` (fenced by preserved `refs/heads/ticket/110-sync-standard-requirements-backup` in #174).",
+      "Updating `docs/**`, `VERSION`, and `pyproject.toml` (delivered in the integration ticket)."
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 20,
+    "budgets": {
+      "maxImplementationFiles": 5,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Extend `.governance/standards-lock.json` (`wellmanifest.standards-lock/v1`) with verified upstream contract digests for `docs`, `logs`, `worktrees`, `license`, and `report` (`PLF-033`) and reconcile `TODO.md` + `CHANGELOG.md` against merged `main` history.",
+      "components": [
+        {
+          "name": "governance-contracts",
+          "paths": [
+            ".governance/standards-lock.json"
+          ]
+        },
+        {
+          "name": "project-ledger",
+          "paths": [
+            "TODO.md",
+            "CHANGELOG.md"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert ticket-158 commit."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python3 .governance/standard_pack_check.py --root .",
+          "wellman check --root . -s wellmanifest/ssot"
+        ],
+        "evidence": "All 9 entries in `.governance/standards-lock.json` pass `wellman check` and `standard_pack_check.py` with 0 errors."
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "./project/governance-check.sh"
+        ],
+        "evidence": "Governance gate passes with 0 errors and reconciled `TODO.md` / `CHANGELOG.md`."
+      }
+    ]
+  }
+}
