@@ -26,10 +26,24 @@ _COLORS = {
     help="Przeskanuj lokalną sieć /24, by odnaleźć drukarkę po adresie MAC",
 )
 @click.option(
+    "--mesh",
+    "run_mesh",
+    is_flag=True,
+    help="Przetestuj osiągalność drukarki z każdego interfejsu i węzła w sieci mesh",
+)
+@click.option(
+    "--node",
+    "mesh_nodes",
+    multiple=True,
+    help="Dodatkowy węzeł SSH dla --mesh (np. user@host, maskfleet)",
+)
+@click.option(
     "--test-print", "test_queue", default=None, help="Wydrukuj stronę testową"
 )
 @click.option("--json", "as_json", is_flag=True, help="Wynik w formacie JSON")
-def printers(apply_fix, yes, scan, test_queue, as_json) -> None:
+def printers(
+    apply_fix, yes, scan, run_mesh, mesh_nodes, test_queue, as_json
+) -> None:
     """
     Diagnostyka i naprawa drukarek (Linux/macOS: CUPS, Windows: Spooler).
 
@@ -42,6 +56,7 @@ def printers(apply_fix, yes, scan, test_queue, as_json) -> None:
     Przykłady:
       fixos printers                       # diagnoza
       fixos printers --scan                # szukaj drukarki w sieci po MAC
+      fixos printers --mesh                # test z każdego interfejsu i węzła mesh
       fixos printers --fix                 # napraw (z potwierdzeniem)
       fixos printers --test-print NAZWA    # strona testowa
     """
@@ -49,11 +64,40 @@ def printers(apply_fix, yes, scan, test_queue, as_json) -> None:
 
     plugin = Plugin(sweep=scan)
     result = plugin.diagnose()
+    mesh_result = None
+
+    if run_mesh or mesh_nodes:
+        from fixos.plugins.builtin.mesh import Plugin as MeshPlugin
+
+        printer_targets: list[str] = []
+        for queue in result.raw_data.get("queues", []):
+            candidate = (
+                queue.get("address")
+                or queue.get("located_address")
+                or queue.get("uri", "").split("://")[-1].split("/")[0].split(":")[0]
+            )
+            if candidate and candidate not in printer_targets:
+                printer_targets.append(candidate)
+        mesh_plugin = MeshPlugin(
+            targets=printer_targets or None,
+            nodes=list(mesh_nodes),
+            discover_peers=True,
+            probe_ssh=True,
+        )
+        mesh_result = mesh_plugin.diagnose()
 
     if as_json:
-        click.echo(json.dumps(result.to_dict(), ensure_ascii=False, indent=2))
+        payload = result.to_dict()
+        if mesh_result is not None:
+            payload["mesh"] = mesh_result.to_dict()
+        click.echo(json.dumps(payload, ensure_ascii=False, indent=2))
     else:
         _render(result)
+        if mesh_result is not None:
+            from fixos.cli.mesh_cmd import render_mesh_result
+
+            click.echo()
+            render_mesh_result(mesh_result)
 
     failed = 0
     if apply_fix:
