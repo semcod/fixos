@@ -48,6 +48,61 @@
           "digest": "sha256:9f0d56677f2c1121ea9f4e100d7c6697ca8b5cc28c521d6d349cab7ad40359b9"
         }
       ]
+    },
+    {
+      "id": "wellmanifest/docs",
+      "version": "0.6.0",
+      "revision": "b536d012cde20a27fbc9ff2b3dfc8c80bfc075a0",
+      "contracts": [
+        {
+          "path": "docs/standard/policy.json",
+          "digest": "sha256:fac05e720ec49370ba393e817a4a03b895d7ed33828e09b3420f9fcfb09264b0"
+        }
+      ]
+    },
+    {
+      "id": "wellmanifest/logs",
+      "version": "0.5.0",
+      "revision": "b5c8790cdf3c25142264727a6b57ff6780279af7",
+      "contracts": [
+        {
+          "path": "contracts/logs.contract.v0.5.json",
+          "digest": "sha256:72e16ac823359879e01722e1e3e7017f50524c8cdf54e8eaec9d8802bc804e36"
+        }
+      ]
+    },
+    {
+      "id": "wellmanifest/worktrees",
+      "version": "0.5.4",
+      "revision": "31461195d5e567cd9be77c8c1f4745911ea72eda",
+      "contracts": [
+        {
+          "path": "docs/information/worktree-layout.md",
+          "digest": "sha256:6554dcc23a29c9ff5810af3b998cd82f780995c214f67bc09a04f7fc9398adc3"
+        }
+      ]
+    },
+    {
+      "id": "wellmanifest/license",
+      "version": "1.0.0",
+      "revision": "313ab4a3931f5986196533e7f5ada80f2c118732",
+      "contracts": [
+        {
+          "path": "matrix.json",
+          "digest": "sha256:8e19ac5a46291699a945dc7b3e5b440642031f03a1fcf44fef818a42905145ff"
+        }
+      ]
+    },
+    {
+      "id": "wellmanifest/report",
+      "version": "0.1.0",
+      "revision": "370f5328080e3da6ffe9c1cef97f22f815ee98da",
+      "contracts": [
+        {
+          "path": "models/report-manifest.schema.json",
+          "digest": "sha256:fc9d225b5e8641f2428cc2d6d2b9c9be755323b65babb1fa34f043d33982bf34"
+        }
+      ]
     }
   ]
 }
