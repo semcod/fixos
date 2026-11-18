@@ -1,0 +1,107 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-142",
+  "summary": "Mesh host diagnostics across local interfaces and LAN/SSH peers",
+  "workstream": "application",
+  "classification": {
+    "kind": "FEATURE",
+    "priority": "P2",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-142/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/cli/main.py",
+    "fixos/cli/mesh_cmd.py",
+    "fixos/cli/printers_cmd.py",
+    "fixos/plugins/builtin/mesh.py",
+    "fixos/plugins/registry.py",
+    "tests/unit/test_mesh_plugin.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "1da8e0ae9981cb61e20ab7d432654eb715d59fe7",
+    "targetBranch": "main",
+    "outcome": "`fixos mesh` and `fixos printers --mesh` test target host reachability, ports, name resolution, unicast vs multicast mDNS, and SNMP default-gateway routing from every local source interface and reachable LAN/SSH mesh device.",
+    "nonGoals": [
+      "No interactive password prompts or SSH agent/credential harvesting (strictly BatchMode=yes).",
+      "No unbounded subnet scanning or destructive remote commands.",
+      "No external runtime dependencies added."
+    ],
+    "complexity": "M",
+    "estimatedMinutes": 60,
+    "budgets": {
+      "maxImplementationFiles": 6,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 2,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Add built-in DiagnosticPlugin 'mesh' with injectable command runner, socket probes, mDNS/SNMP inspectors, and bounded BatchMode SSH remote probe runner; expose via `fixos mesh` CLI command and `fixos printers --mesh`.",
+      "components": [
+        {
+          "name": "plugins",
+          "paths": [
+            "fixos/plugins/builtin/mesh.py",
+            "fixos/plugins/registry.py",
+            "tests/unit/test_mesh_plugin.py"
+          ]
+        },
+        {
+          "name": "cli",
+          "paths": [
+            "fixos/cli/mesh_cmd.py",
+            "fixos/cli/printers_cmd.py",
+            "fixos/cli/main.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [
+        "new CLI command `fixos mesh [TARGETS...] [--node NODE] [--ports PORTS] [--no-discover] [--all-interfaces] [--json]`",
+        "extend `fixos printers` with `--mesh` and `--node NODE`"
+      ],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the commit."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python -m pytest tests/unit/test_mesh_plugin.py tests/unit/test_printers_plugin.py -q"
+        ],
+        "evidence": "unit tests with mocked local interfaces, SSH nodes, mDNS and SNMP responses"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "fixos mesh 192.168.188.158",
+          "fixos printers --mesh"
+        ],
+        "evidence": "live execution against LAN printer across multi-homed local interfaces and LAN peers"
+      },
+      {
+        "criterion": "AC-03",
+        "commands": [
+          "./project/governance-check.sh",
+          "wellman check"
+        ],
+        "evidence": "governance-check and wellman check outputs"
+      }
+    ]
+  }
+}

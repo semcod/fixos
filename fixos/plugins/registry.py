@@ -38,6 +38,7 @@ class PluginRegistry:
             audio,
             disk,
             hardware,
+            mesh,
             printers,
             resources,
             security,
@@ -52,6 +53,7 @@ class PluginRegistry:
             disk,
             thumbnails,
             printers,
+            mesh,
         ]:
             plugin = module.Plugin()
             self._plugins[plugin.name] = plugin
