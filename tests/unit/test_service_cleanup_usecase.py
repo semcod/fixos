@@ -197,9 +197,12 @@ def test_usecase_success_partial_declined_consent_and_readback():
     assert exec_exc.space_freed_gb == 1.5
     assert "access denied" in exec_exc.results[1]["error"]
 
+    def non_mapping_runner(_svc, _dry):
+        return None
+
     exec_non_map = execute_service_cleanup(
         plan_exc,
-        runner=lambda _svc, _dry: None,  # type: ignore[return-value]
+        runner=non_mapping_runner,
         consent_granted=True,
         dry_run=False,
     )
