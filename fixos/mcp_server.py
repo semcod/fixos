@@ -4,8 +4,8 @@ Conforms to wellmanifest/mcp (MCP URI Reuse & Operation Contract) and
 wellmanifest/nl-dsl-llm (Tripartite NL -> Canonical URI/DSL -> Execution).
 
 Separates pure read diagnostics from effectful cleanup operations, binds
-mutating executions to catalog digests and durable request receipts, and
-supports both stdlib JSON-RPC 2.0 over stdio and optional FastMCP.
+mutating executions to catalog digests, POA capability grants, and durable
+request receipts, and exposes stdlib JSON-RPC 2.0 over stdio (tools + URN resources).
 """
 
 from __future__ import annotations
@@ -30,11 +30,20 @@ from fixos.mcp_receipts import (
     read_durable_receipt,
     validated_request_id,
 )
+from fixos.mcp_resources import (
+    mcp_resource_templates_list,
+    mcp_resources_list,
+    mcp_resources_read,
+)
+from fixos.nl_router import NL_PLAN_SCHEMA, route_nl_to_uri
 from fixos.poa_grants import (
     cleanup_poa_input,
     cleanup_poa_target,
     jcs_sha256,
     verify_and_consume_poa_grant,
+)
+from fixos.poa_grants import (
+    grants_dir as resolve_grants_dir,
 )
 from fixos.poa_registry import (
     DEFAULT_REGISTRY_TTL_SECONDS,
@@ -47,7 +56,7 @@ from fixos.poa_registry import (
 )
 
 CATALOG_SCHEMA = LEGACY_CATALOG_SCHEMA
-PLAN_SCHEMA = "wellmanifest.nl-dsl-llm/task-plan/v1"
+PLAN_SCHEMA = NL_PLAN_SCHEMA
 _REQUEST_ID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 
 OPERATIONS_CATALOG: tuple[dict[str, Any], ...] = operations_catalog_projection()
@@ -166,33 +175,7 @@ def registry_search(
 
 def task_plan(task: str) -> dict[str, Any]:
     """Deterministically map natural language intent to a FixOS URI operation without executing it."""
-    text = (task or "").strip()
-    lower = text.lower()
-    selected = OPERATIONS_CATALOG[0]
-    confidence = 0.75
-
-    if any(k in lower for k in ("wyczysc", "zwolnij", "cleanup", "clean", "prune", "auto", "usun")):
-        selected = next(op for op in OPERATIONS_CATALOG if op["operation_id"] == "fixos://cleanup/auto")
-        confidence = 0.92
-    elif any(k in lower for k in ("projekt", "project", "venv", "node_modules", "tygodn", "7d", "state")):
-        selected = next(op for op in OPERATIONS_CATALOG if op["operation_id"] == "fixos://diagnostics/projects")
-        confidence = 0.90
-    elif any(k in lower for k in ("dysk", "disk", "miejsce", "space", "cache", "rozmiar")):
-        selected = next(op for op in OPERATIONS_CATALOG if op["operation_id"] == "fixos://diagnostics/disk")
-        confidence = 0.88
-
-    return {
-        "schema": PLAN_SCHEMA,
-        "task": text,
-        "advisory": True,
-        "grants_authority": False,
-        "executable": False,
-        "operation_id": selected["operation_id"],
-        "tool_name": selected["tool_name"],
-        "effect": selected["effect"],
-        "confidence": confidence,
-        "registry_digest": catalog_digest(),
-    }
+    return route_nl_to_uri(task, registry_digest=catalog_digest())
 
 
 def run_fixos_quick() -> dict[str, Any]:
@@ -854,12 +837,70 @@ def handle_jsonrpc_message(
             "id": msg_id,
             "result": {
                 "protocolVersion": "2024-11-05",
-                "capabilities": {"tools": {"listChanged": False}},
+                "capabilities": {
+                    "tools": {"listChanged": False},
+                    "resources": {"subscribe": False, "listChanged": False},
+                },
                 "serverInfo": {"name": "fixos-mcp", "version": __version__},
             },
         }
     if method == "ping":
         return {"jsonrpc": "2.0", "id": msg_id, "result": {}}
+    if method == "resources/templates/list":
+        return {
+            "jsonrpc": "2.0",
+            "id": msg_id,
+            "result": mcp_resource_templates_list(),
+        }
+    if method == "resources/list":
+        try:
+            cursor_val = params.get("cursor")
+            if cursor_val is not None and not isinstance(cursor_val, str):
+                raise ValueError("INVALID_CURSOR")
+            with redirect_stdout(sys.stderr):
+                listed = mcp_resources_list(
+                    cursor=cursor_val,
+                    receipts_dir=_receipts_dir(receipts_dir),
+                    grants_dir=resolve_grants_dir(grants_dir),
+                )
+            return {"jsonrpc": "2.0", "id": msg_id, "result": listed}
+        except Exception as exc:  # noqa: BLE001
+            return {
+                "jsonrpc": "2.0",
+                "id": msg_id,
+                "error": {"code": -32602, "message": str(exc)},
+            }
+    if method == "resources/read":
+        try:
+            uri_val = params.get("uri", "")
+            with redirect_stdout(sys.stderr):
+                from fixos.diagnostics.quick_snapshot import collect_quick_snapshot
+
+                read_res = mcp_resources_read(
+                    uri_val,
+                    receipts_dir=_receipts_dir(receipts_dir),
+                    grants_dir=resolve_grants_dir(grants_dir),
+                    quick_snapshot_loader=collect_quick_snapshot,
+                )
+            return {"jsonrpc": "2.0", "id": msg_id, "result": read_res}
+        except KeyError as exc:
+            return {
+                "jsonrpc": "2.0",
+                "id": msg_id,
+                "error": {"code": -32002, "message": str(exc)},
+            }
+        except PermissionError as exc:
+            return {
+                "jsonrpc": "2.0",
+                "id": msg_id,
+                "error": {"code": -32003, "message": str(exc)},
+            }
+        except Exception as exc:  # noqa: BLE001
+            return {
+                "jsonrpc": "2.0",
+                "id": msg_id,
+                "error": {"code": -32602, "message": str(exc)},
+            }
     if method == "tools/list":
         return {"jsonrpc": "2.0", "id": msg_id, "result": {"tools": mcp_tools_list()}}
     if method == "tools/call":

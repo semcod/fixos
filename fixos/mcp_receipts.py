@@ -108,8 +108,24 @@ def _single_flight_lock(base_dir: Path, req_id: str, *, non_blocking: bool = Fal
         tlock.release()
 
 
+def _fsync_parent_dir(path: Path) -> None:
+    dir_fd = os.open(str(path.parent), os.O_RDONLY)
+    try:
+        os.fsync(dir_fd)
+    finally:
+        os.close(dir_fd)
+
+
+def _contained_path(base_dir: Path, filename: str) -> Path:
+    resolved_base = base_dir.resolve()
+    candidate = (resolved_base / filename).resolve()
+    if not candidate.is_relative_to(resolved_base):
+        raise ValueError("invalid_request_id")
+    return candidate
+
+
 def atomic_write_json(target_path: Path, payload: Mapping[str, Any]) -> None:
-    """Atomically write JSON via temp file + flush + fsync + os.replace."""
+    """Atomically write JSON via temp file + flush + fsync + os.replace + parent dir fsync."""
     target_path.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = target_path.parent / f".{target_path.name}.{uuid.uuid4().hex}.tmp"
     serialized = json.dumps(payload, indent=2, ensure_ascii=False) + "\n"
@@ -119,6 +135,7 @@ def atomic_write_json(target_path: Path, payload: Mapping[str, Any]) -> None:
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(tmp_path, target_path)
+        _fsync_parent_dir(target_path)
     except OSError as exc:
         with contextlib.suppress(OSError):
             if tmp_path.exists():
@@ -196,8 +213,10 @@ def read_durable_receipt(
     base_dir: Path,
 ) -> dict[str, Any]:
     """Read back a receipt or transition an orphaned journal to uncertain without side effects."""
-    receipt_path = base_dir / f"{request_id}.json"
-    journal_path = base_dir / f"{request_id}.journal.json"
+    clean_id = validated_request_id(request_id)
+    base_dir.mkdir(parents=True, exist_ok=True)
+    receipt_path = _contained_path(base_dir, f"{clean_id}.json")
+    journal_path = _contained_path(base_dir, f"{clean_id}.journal.json")
 
     if receipt_path.is_file():
         try:
@@ -264,8 +283,11 @@ def execute_with_durable_journal(
     runner: Callable[[str], tuple[dict[str, Any], Exception | None]],
 ) -> dict[str, Any]:
     """Run an operation single-flight with input-bound idempotency, pre-effect journal, and atomic receipt."""
-    receipt_path = base_dir / f"{request_id}.json"
-    journal_path = base_dir / f"{request_id}.journal.json"
+    clean_id = validated_request_id(request_id)
+    base_dir.mkdir(parents=True, exist_ok=True)
+    receipt_path = _contained_path(base_dir, f"{clean_id}.json")
+    journal_path = _contained_path(base_dir, f"{clean_id}.journal.json")
+    request_id = clean_id
 
     with _single_flight_lock(base_dir, request_id, non_blocking=False):
         if receipt_path.is_file():
