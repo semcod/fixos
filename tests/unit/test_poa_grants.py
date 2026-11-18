@@ -30,8 +30,12 @@ def test_rfc8785_utf16_key_order_and_non_finite_rejection():
     canonical_str = jcs_canonical_bytes(obj).decode("utf-8")
     assert canonical_str.index("\U00010000") < canonical_str.index("\ue000")
 
-    # -0.0 and integer-valued float canonicalize cleanly
+    # -0.0, integer-valued float, and ECMA-262 / RFC 8785 exponent boundary vectors
     assert jcs_canonical_bytes({"n": -0.0, "days": 7.0}) == b'{"days":7,"n":0}'
+    assert jcs_canonical_bytes({"a": 1e-6, "b": 1e-7}) == b'{"a":0.000001,"b":1e-7}'
+    assert jcs_canonical_bytes({"c": 1e20, "d": 1e21}) == (
+        b'{"c":100000000000000000000,"d":1e+21}'
+    )
 
     for bad in (float("nan"), float("inf"), float("-inf")):
         with pytest.raises(ValueError, match="NON_FINITE_JSON_NUMBER"):

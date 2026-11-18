@@ -10,6 +10,18 @@ import click
 import yaml
 
 from fixos.agent.session_core import package_cleanup_guard
+from fixos.nl_router import has_mutation_negation, normalize_nl_text, route_nl_to_uri
+
+_READ_URI_CLI_PROJECTION: dict[str, tuple[str, list[str]]] = {
+    "fixos://diagnostics/quick": ("fixos", ["quick"]),
+    "fixos://diagnostics/disk": ("fixos", ["scan", "--disc"]),
+    "fixos://diagnostics/projects": ("fixos", ["projects"]),
+    "fixos://diagnostics/printers": ("fixos", ["printers"]),
+    "fixos://diagnostics/mesh": ("fixos", ["mesh"]),
+    "fixos://diagnostics/anomalies": ("fixos", ["anomalies"]),
+    "fixos://diagnostics/storage": ("fixos", ["storage"]),
+    "fixos://jetbrains/doctor": ("fixos", ["jetbrains", "doctor"]),
+}
 
 _PACKAGE_TERMS = (
     "pakiet",
@@ -66,6 +78,8 @@ def _match_heuristic_command(prompt_lower: str) -> object | None:
         - tuple: (program, args) for subprocess
         - None: No match found
     """
+    if has_mutation_negation(normalize_nl_text(prompt_lower)):
+        return None
     if re.fullmatch(
         r"(?:wyczysc|wyczyść|posprzataj|posprzątaj|clean|cleanup|clear)"
         r"(?:\s+(?:katalog|directory))?\s+/tmp/?",
@@ -436,14 +450,28 @@ Przykłady:
 
 def _handle_natural_command(prompt: str, dry_run: bool = False) -> None:
     """
-    Handle natural language commands with heuristic matching and LLM fallback.
+    Handle natural language commands with shared NL-to-URI routing, heuristics, and LLM fallback.
     """
     from fixos.config import FixOsConfig
 
+    nl_plan = route_nl_to_uri(prompt)
+    if nl_plan["status"] == "clarify":
+        output = {
+            "status": "clarify",
+            "prompt": prompt,
+            "source": "nl_router",
+            "reason": nl_plan.get("reason", "clarify"),
+            "nl_plan": nl_plan,
+        }
+        click.echo(yaml.dump(output, default_flow_style=False, allow_unicode=True))
+        return
+
     prompt_lower = prompt.lower()
 
-    # Stage 1: Try heuristic matching
+    # Stage 1: Try heuristic matching or read-only canonical URI projection
     matched_cmd = _match_heuristic_command(prompt_lower)
+    if matched_cmd is None and nl_plan["status"] == "ok" and nl_plan["effect"] == "read":
+        matched_cmd = _READ_URI_CLI_PROJECTION.get(str(nl_plan.get("operation_id") or ""))
 
     if matched_cmd == _TMP_CLEANUP_COMMAND:
         command = _format_command(matched_cmd)

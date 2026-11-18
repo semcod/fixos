@@ -317,6 +317,11 @@ def test_status_rejects_unsafe_ids_without_accessing_receipts(
     assert result["error"] == "invalid_request_id"
     assert list(tmp_path.iterdir()) == []
 
+    from fixos.mcp_receipts import read_durable_receipt
+
+    with pytest.raises(ValueError, match="invalid_request_id"):
+        read_durable_receipt(request_id, base_dir=tmp_path / "receipts")
+
 
 def test_generated_receipt_id_remains_replayable(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr("fixos.mcp_server.scan_user_cache_dirs", list)

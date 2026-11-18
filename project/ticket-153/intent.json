@@ -1,0 +1,115 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-153",
+  "summary": "MCP URN resources endpoints and shared NL-to-URI router with negation and abstention",
+  "workstream": "application",
+  "classification": {
+    "kind": "FEATURE",
+    "priority": "P2",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-153/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/cli/ask_cmd.py",
+    "fixos/mcp_receipts.py",
+    "fixos/mcp_resources.py",
+    "fixos/mcp_server.py",
+    "fixos/nl_router.py",
+    "fixos/poa_grants.py",
+    "tests/unit/test_mcp_resources.py",
+    "tests/unit/test_mcp_server.py",
+    "tests/unit/test_nl_router.py",
+    "tests/unit/test_poa_grants.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [
+    "ticket-151",
+    "ticket-152"
+  ],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "57454fd9dfb798895fa516558fc844edbd325cf9",
+    "targetBranch": "main",
+    "outcome": "FixOS MCP exposes side-effect-free `urn:uuid:<uuid>` resources via `resources/list`, `resources/templates/list`, and `resources/read`, and unifies `ask`/shell/MCP natural-language routing on `wellmanifest.nl-plan/v1` with PL/EN diacritic normalization, negation blocking, and abstention (closing #165 and #167).",
+    "nonGoals": [
+      "Extracting `cleanup_services` use cases is delivered separately in #169.",
+      "Governance manifest and Wellman standard-adoption updates are delivered in #168."
+    ],
+    "complexity": "L",
+    "estimatedMinutes": 50,
+    "budgets": {
+      "maxImplementationFiles": 10,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 2,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Introduce `fixos/mcp_resources.py` for `urn:uuid:` resource listing/reading with retention and output-schema checks, and `fixos/nl_router.py` for deterministic `wellmanifest.nl-plan/v1` compilation wired into both `fixos/mcp_server.py` and `fixos/cli/ask_cmd.py`.",
+      "components": [
+        {
+          "name": "mcp",
+          "paths": [
+            "fixos/mcp_resources.py",
+            "fixos/nl_router.py",
+            "fixos/mcp_server.py",
+            "fixos/mcp_receipts.py",
+            "fixos/poa_grants.py",
+            "tests/unit/test_mcp_resources.py",
+            "tests/unit/test_nl_router.py",
+            "tests/unit/test_mcp_server.py",
+            "tests/unit/test_poa_grants.py"
+          ]
+        },
+        {
+          "name": "cli",
+          "paths": [
+            "fixos/cli/ask_cmd.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [
+        "MCP JSON-RPC advertises `resources` and handles `resources/list`, `resources/templates/list`, and `resources/read`.",
+        "`task_plan` emits `wellmanifest.nl-plan/v1` with `status` in `{ok, clarify, unsupported}`."
+      ],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert ticket-153 commit."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python -m pytest tests/unit/test_mcp_resources.py -q"
+        ],
+        "evidence": "URN resources list/pagination/templates/read and stdio safety pass."
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "python -m pytest tests/unit/test_nl_router.py tests/unit/test_ask_and_nl_group.py tests/unit/test_mcp_server.py tests/unit/test_poa_grants.py -q"
+        ],
+        "evidence": "Shared NL-to-URI router, negation, abstention, and RFC 8785 boundary vectors pass."
+      },
+      {
+        "criterion": "AC-03",
+        "commands": [
+          "./project/governance-check.sh"
+        ],
+        "evidence": "Governance, ruff, and scope checks pass."
+      }
+    ]
+  }
+}

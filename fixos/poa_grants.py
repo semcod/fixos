@@ -54,6 +54,34 @@ def _utf16_sort_key(key: str) -> bytes:
     return key.encode("utf-16-be")
 
 
+def _format_jcs_float(value: float) -> str:
+    """Format an IEEE-754 binary64 number per RFC 8785 Section 3.2.2.3 / ECMA-262 Number::toString."""
+    from decimal import Decimal
+
+    if not math.isfinite(value):
+        raise ValueError("NON_FINITE_JSON_NUMBER")
+    if value == 0.0:
+        return "0"
+    sign = "-" if value < 0 else ""
+    abs_dec = abs(Decimal(repr(value))).normalize()
+    digits_tuple = abs_dec.as_tuple()
+    digits_str = "".join(str(d) for d in digits_tuple.digits).rstrip("0") or "0"
+    k = len(digits_str)
+    exp = abs_dec.adjusted()
+    n = exp + 1
+    if k <= n <= 21:
+        body = digits_str + ("0" * (n - k))
+    elif 0 < n < k and n <= 21:
+        body = f"{digits_str[:n]}.{digits_str[n:]}"
+    elif -6 < n <= 0:
+        body = f"0.{'0' * (-n)}{digits_str}"
+    else:
+        mantissa = digits_str[0] if k == 1 else f"{digits_str[0]}.{digits_str[1:]}"
+        exp_sign = "+" if exp >= 0 else "-"
+        body = f"{mantissa}e{exp_sign}{abs(exp)}"
+    return f"{sign}{body}"
+
+
 def _jcs_serialize(value: Any) -> str:
     """Serialize JSON value under pinned RFC 8785 (JCS) subset, rejecting non-finite numbers."""
     if value is None:
@@ -65,13 +93,7 @@ def _jcs_serialize(value: Any) -> str:
     if type(value) is int:
         return str(value)
     if type(value) is float:
-        if not math.isfinite(value):
-            raise ValueError("NON_FINITE_JSON_NUMBER")
-        if value == 0.0:
-            return "0"
-        if value.is_integer() and abs(value) < (1 << 53):
-            return str(int(value))
-        return repr(value)
+        return _format_jcs_float(value)
     if isinstance(value, str):
         return json.dumps(value, ensure_ascii=False)
     if isinstance(value, (list, tuple)):
@@ -271,6 +293,11 @@ def _atomic_write(path: Path, data: Mapping[str, Any]) -> None:
         handle.flush()
         os.fsync(handle.fileno())
     os.replace(tmp, path)
+    dir_fd = os.open(str(path.parent), os.O_RDONLY)
+    try:
+        os.fsync(dir_fd)
+    finally:
+        os.close(dir_fd)
 
 
 def issue_poa_grant(
