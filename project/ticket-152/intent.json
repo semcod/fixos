@@ -1,0 +1,102 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-152",
+  "summary": "Input-bound MCP receipts with read-back and POA plan-hash capability grants",
+  "workstream": "application",
+  "classification": {
+    "kind": "FEATURE",
+    "priority": "P1",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-152/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/mcp_receipts.py",
+    "fixos/mcp_server.py",
+    "fixos/poa_grants.py",
+    "fixos/poa_registry.py",
+    "tests/unit/test_mcp_receipts.py",
+    "tests/unit/test_mcp_server.py",
+    "tests/unit/test_poa_grants.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [
+    "ticket-151"
+  ],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "909b5d767a7525b6f433b550d91e96e1464dfe4e",
+    "targetBranch": "main",
+    "outcome": "FixOS MCP enforces input-bound single-flight idempotency, pre-effect atomic journals with `uncertain` crash recovery, verified post-cleanup read-back (`succeeded`/`partial`/`failed`/`uncertain`), and mandatory RFC 8785 POA `plan_hash` + bounded single-use capability grants before mutating execution (closing #163 and #166).",
+    "nonGoals": [
+      "MCP resources/list and resources/read endpoints are delivered in the next slice (#165).",
+      "NL-to-URI router normalization and negation are delivered in the next slice (#167)."
+    ],
+    "complexity": "M",
+    "estimatedMinutes": 45,
+    "budgets": {
+      "maxImplementationFiles": 7,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 1,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Introduce `fixos/mcp_receipts.py` for single-flight locked pre-effect journals and atomic fsync+replace URN receipts, and `fixos/poa_grants.py` for RFC 8785 JCS plan hashing and single-use capability grants enforced in `fixos/mcp_server.py` prior to mutating cleanup helpers.",
+      "components": [
+        {
+          "name": "mcp",
+          "paths": [
+            "fixos/mcp_receipts.py",
+            "fixos/poa_grants.py",
+            "fixos/poa_registry.py",
+            "fixos/mcp_server.py",
+            "tests/unit/test_mcp_receipts.py",
+            "tests/unit/test_poa_grants.py",
+            "tests/unit/test_mcp_server.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [
+        "Mutating `fixos://cleanup/auto` (`dry_run=False`) requires `registry_digest`, `plan_hash`, and single-use `grant_id`."
+      ],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert ticket-152 commit."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python -m pytest tests/unit/test_mcp_receipts.py -q"
+        ],
+        "evidence": "Single-flight, crash uncertain recovery, corruption, write failure, and post-cleanup read-back states verified."
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "python -m pytest tests/unit/test_poa_grants.py tests/unit/test_mcp_server.py tests/unit/test_poa_registry.py -q"
+        ],
+        "evidence": "RFC 8785 hashing, bounded single-use POA grants, and MCP protocol tests pass."
+      },
+      {
+        "criterion": "AC-03",
+        "commands": [
+          "./project/governance-check.sh"
+        ],
+        "evidence": "Governance, lint, and scope gates pass."
+      }
+    ]
+  }
+}

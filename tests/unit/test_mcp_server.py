@@ -29,7 +29,8 @@ from fixos.mcp_server import (
 
 def test_registry_search_and_catalog_digest():
     result = registry_search()
-    assert result["schema"] == CATALOG_SCHEMA == "wellmanifest.mcp/registry/v1"
+    assert result["schema"] == CATALOG_SCHEMA == "wellmanifest.mcp/operation-catalog/v1"
+    assert registry_search(strict_v1=True)["schema"] == "wellmanifest.mcp/registry/v1"
     assert result["registry_digest"] == catalog_digest()
     assert len(result["registry_digest"]) == 64
     assert result["expiresAt"].endswith("Z")
@@ -97,16 +98,27 @@ def test_task_execute_and_receipt_replay(tmp_path: Path, monkeypatch: pytest.Mon
     assert first["planned_reclaimable_bytes"] == 4096
     assert first["replayed"] is False
 
-    # Replay with same request_id returns stored receipt without re-running
+    # Replay with identical input and request_id returns stored receipt without re-running
     second = task_execute(
         "fixos://cleanup/auto",
-        {"dry_run": False},
+        {"dry_run": True, "min_age_days": 7.0},
+        registry_digest=catalog_digest(),
         request_id="req-test-001",
         receipts_dir=receipts_dir,
     )
     assert second["replayed"] is True
     assert second["state"] == "planned"
     assert second["receipt_hash"] == first["receipt_hash"]
+
+    # Reusing same request_id with altered payload fails closed with IDEMPOTENCY_CONFLICT
+    with pytest.raises(ValueError, match="IDEMPOTENCY_CONFLICT"):
+        task_execute(
+            "fixos://cleanup/auto",
+            {"dry_run": False, "min_age_days": 7.0},
+            registry_digest=catalog_digest(),
+            request_id="req-test-001",
+            receipts_dir=receipts_dir,
+        )
 
     status = task_status("req-test-001", receipts_dir=receipts_dir)
     assert status["found"] is True
@@ -379,9 +391,12 @@ def test_cli_mcp_subcommand():
 def test_cleanup_keeps_stdio_jsonrpc_parseable(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys, cleanup_fails: bool
 ):
+    from fixos.poa_grants import issue_poa_grant, plan_cleanup_poa
+
+    live_caches = [{"safe": True, "path": str(tmp_path / "cache-a"), "size_bytes": 4096}]
     monkeypatch.setattr(
         "fixos.mcp_server.scan_user_cache_dirs",
-        lambda: [{"safe": True, "size_bytes": 4096}],
+        lambda: list(live_caches),
     )
     monkeypatch.setattr("fixos.mcp_server.scan_additional_safe_caches", list)
     monkeypatch.setattr("fixos.mcp_server.scan_build_and_package_caches", list)
@@ -393,8 +408,18 @@ def test_cleanup_keeps_stdio_jsonrpc_parseable(
         click.echo("Cleaning cache")
         if cleanup_fails:
             raise RuntimeError("cleanup failed")
+        live_caches.clear()
 
     monkeypatch.setattr("fixos.cli._cleanup_space._cleanup_user_cache", cleanup)
+    receipts_dir = tmp_path / "receipts"
+    grants_dir = tmp_path / "grants"
+    digest = catalog_digest()
+    poa_plan = plan_cleanup_poa(
+        registry_digest=digest,
+        min_age_days=7.0,
+        include_projects=False,
+    )
+    grant = issue_poa_grant(poa_plan, store_dir=grants_dir)
     requests = [
         {
             "jsonrpc": "2.0",
@@ -406,6 +431,9 @@ def test_cleanup_keeps_stdio_jsonrpc_parseable(
                     "dry_run": False,
                     "include_projects": False,
                     "request_id": "stdio-cleanup",
+                    "registry_digest": digest,
+                    "plan_hash": poa_plan["plan_hash"],
+                    "grant_id": grant["grantId"],
                 },
             },
         },
@@ -418,7 +446,7 @@ def test_cleanup_keeps_stdio_jsonrpc_parseable(
         "sys.stdin", io.StringIO("".join(json.dumps(req) + "\n" for req in requests))
     )
 
-    assert serve_stdio(receipts_dir=tmp_path) == 0
+    assert serve_stdio(receipts_dir=receipts_dir, grants_dir=grants_dir) == 0
 
     output = capsys.readouterr()
     responses = [json.loads(line) for line in output.out.splitlines()]
@@ -430,9 +458,12 @@ def test_cleanup_keeps_stdio_jsonrpc_parseable(
     assert len(cleanup_calls) == 1
     if cleanup_fails:
         assert responses[0]["result"]["structuredContent"]["error"] == "cleanup failed"
+        failed_status = task_status("stdio-cleanup", receipts_dir=receipts_dir)
+        assert failed_status["found"] is True
+        assert failed_status["state"] == "failed"
     else:
         assert responses[0]["result"]["structuredContent"]["state"] == "succeeded"
         replay = responses[2]["result"]["structuredContent"]
         assert replay["replayed"] is True
         assert replay["receipt_hash"] == responses[0]["result"]["structuredContent"]["receipt_hash"]
-        assert task_status("stdio-cleanup", receipts_dir=tmp_path)["found"] is True
+        assert task_status("stdio-cleanup", receipts_dir=receipts_dir)["found"] is True
