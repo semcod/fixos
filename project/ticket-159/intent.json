@@ -1,0 +1,98 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-159",
+  "summary": "Publish Planfile-GitHub sync audit, update Wellmanifest docs to v5, and bump FixOS to 2.7.1",
+  "workstream": "integration",
+  "classification": {
+    "kind": "FEATURE",
+    "priority": "P2",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-159/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "VERSION",
+    "pyproject.toml",
+    "docs/ANALYSIS/PLANFILE_GITHUB_SYNC_AUDIT.md",
+    "docs/INFORMATION/WELLMANIFEST_STANDARDS.md",
+    "docs/README.md"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [
+    "ticket-157",
+    "ticket-158"
+  ],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "f989c7103ae2d3870639d9bfb4fc18a1e4d29605",
+    "targetBranch": "main",
+    "outcome": "Publish governed v2 audit report `docs/ANALYSIS/PLANFILE_GITHUB_SYNC_AUDIT.md` closing #170 (`PLF-21821`) and documenting external owner blockers for #171 (`heyasa/heyasa#891`) and #174 (`wellmanifest/new-project#575`), update `docs/INFORMATION/WELLMANIFEST_STANDARDS.md` to v5 with `PLF-033` `docs`/`logs`/`worktrees`/`license`/`report` applicability and pins, link the audit in `docs/README.md`, and advance `VERSION` and `pyproject.toml` to `2.7.1`.",
+    "nonGoals": [
+      "No runtime source or `.governance/**` changes (delivered in `ticket-157` and `ticket-158`)."
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 20,
+    "budgets": {
+      "maxImplementationFiles": 5,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Add `docs/ANALYSIS/PLANFILE_GITHUB_SYNC_AUDIT.md` (`wellmanifest.docs/document/v2`), advance `docs/INFORMATION/WELLMANIFEST_STANDARDS.md` to v5, index both in `docs/README.md`, and align `VERSION` and `pyproject.toml` on `2.7.1`.",
+      "components": [
+        {
+          "name": "release-and-docs",
+          "paths": [
+            "VERSION",
+            "pyproject.toml",
+            "docs/ANALYSIS/PLANFILE_GITHUB_SYNC_AUDIT.md",
+            "docs/INFORMATION/WELLMANIFEST_STANDARDS.md",
+            "docs/README.md"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert ticket-159 commit."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python -m pytest tests/unit/test_version_parity.py -q"
+        ],
+        "evidence": "Version carriers agree on `2.7.1`."
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "python3 <wellmanifest/docs@19efafb>/docs/standard/check.py --root . --standard-revision 19efafbeb18923cfd51cc69bd519330488500137 --base f989c7103ae2d3870639d9bfb4fc18a1e4d29605 --deliverable docs/ANALYSIS/PLANFILE_GITHUB_SYNC_AUDIT.md",
+          "python3 <wellmanifest/docs@19efafb>/docs/standard/check.py --root . --standard-revision 19efafbeb18923cfd51cc69bd519330488500137 --base f989c7103ae2d3870639d9bfb4fc18a1e4d29605 --deliverable docs/INFORMATION/WELLMANIFEST_STANDARDS.md"
+        ],
+        "evidence": "`PLANFILE_GITHUB_SYNC_AUDIT.md` and `WELLMANIFEST_STANDARDS.md` report 0 deliverable findings."
+      },
+      {
+        "criterion": "AC-03",
+        "commands": [
+          "./project/governance-check.sh",
+          "wellman check --root ."
+        ],
+        "evidence": "Governance gate and `wellman check` pass with 0 errors."
+      }
+    ]
+  }
+}

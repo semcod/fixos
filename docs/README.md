@@ -31,12 +31,15 @@ Ta dokumentacja dotyczy narzędzia do diagnostyki i naprawy systemu fixOS.
 
 ## Standardy i diagnostyka
 
+- [Audyt synchronizacji Planfile–GitHub](ANALYSIS/PLANFILE_GITHUB_SYNC_AUDIT.md)
+  — dwukierunkowy worker systemd (`#170`), kanarek `PLF-21826` (`#202`), uzgodnienie
+  23 historycznych zadań `done` oraz zewnętrzne blokady `#171` i `#174`.
 - [Uzgodnienie starego workspace](analysis/legacy-workspace-reconciliation.md)
   — backup ticket-110, kwarantanna ticket-109, dowody i blokada własności.
 - [Analiza diagnostyki miejsca](analysis/storage-diagnostics.md) — dostarczone
   reguły, dowody, ograniczenia i priorytety dalszego rozwoju.
 - [Standardy Wellmanifest w fixos](INFORMATION/WELLMANIFEST_STANDARDS.md)
-  — wellman, ssot, nohardcode, reuse, semver, uriprocess.
+  — wellman, poa, mcp, nl-uri-dsl-llm, docs, logs, worktrees, license, report, ssot, semver.
 - [Decyzje SSOT](ssot/) — wersja pakietu i adres Ollamy.
 - [Rozwiązywanie problemów](SERVICE/TROUBLESHOOTING.md) — runbook.
 
