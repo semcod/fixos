@@ -1,0 +1,92 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-149",
+  "summary": "Keep Fixos cleanup target JSON parseable",
+  "workstream": "application",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P2",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-149/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/cli/_cleanup_free_target.py",
+    "fixos/cli/_cleanup_space.py",
+    "fixos/cli/cleanup_cmd.py",
+    "tests/unit/test_cleanup_free_target.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "804c432527312182e959fd2813b76bfe9131ba34",
+    "targetBranch": "main",
+    "outcome": "Target-driven cleanup returns one parseable JSON document on stdout.",
+    "nonGoals": [
+      "Do not expand cleanup effects or alter tier order.",
+      "Keep the current report schema."
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 25,
+    "budgets": {
+      "maxImplementationFiles": 2,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 1,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Route target-driven CLI tier diagnostics to stderr for JSON requests.",
+      "components": [
+        {
+          "name": "cleanup-cli",
+          "paths": [
+            "fixos/cli/cleanup_cmd.py",
+            "tests/unit/test_cleanup_free_target.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [
+        "Reserve stdout for the final JSON cleanup report when --json is used."
+      ],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the source change to restore prior output."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python -m pytest tests/unit/test_cleanup_free_target.py -k json_stdout"
+        ],
+        "evidence": "Both paths have exactly one parseable report on stdout."
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "python -m pytest tests/unit/test_cleanup_free_target.py tests/unit/test_cleanup_safety.py"
+        ],
+        "evidence": "Diagnostics remain available and mocked deletion paths keep their previous behavior."
+      },
+      {
+        "criterion": "AC-03",
+        "commands": [
+          "./project/governance-check.sh"
+        ],
+        "evidence": "Repository governance and related cleanup checks pass."
+      }
+    ]
+  }
+}
