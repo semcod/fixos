@@ -3,15 +3,23 @@
   "schema": "wellmanifest.docs/document/v2",
   "id": "wellmanifest-standards",
   "kind": "information",
-  "version": 3,
+  "version": 4,
   "title": "Which Wellmanifest standards fixos applies and how",
   "status": "accepted",
   "owner": "semcod/fixos",
   "scope": "repository",
-  "updated": "2026-10-13",
-  "source_revision": "ac96e51c3e119a074e19dd9f80f9663f8f7129c5",
+  "updated": "2026-11-18",
+  "source_revision": "e648537b2d87000f32333e97693c6b39249481c7",
   "priority": "P2",
-  "evidence": ["https://github.com/semcod/fixos/pull/100", "https://github.com/semcod/fixos/pull/103"]
+  "evidence": [
+    "https://github.com/semcod/fixos/pull/100",
+    "https://github.com/semcod/fixos/pull/103",
+    "https://github.com/semcod/fixos/pull/196",
+    "https://github.com/semcod/fixos/pull/197",
+    "https://github.com/semcod/fixos/pull/198",
+    "https://github.com/semcod/fixos/pull/199",
+    "https://github.com/semcod/fixos/pull/200"
+  ]
 }
 ---
 
@@ -20,54 +28,32 @@
 <!-- docs:section summary -->
 ## Cel i rezultat
 
-fixos is one Python CLI package. This page records, per standard, the pinned
-revision, what applies here and the evidence, so an adopter does not have to
-re-derive it. Registration lives in `.governance/standard-requirements.json`
-(`wellman adopt auto`); this page is the human index.
+`fixos` is a single Python CLI and stdio MCP package (`2.7.0`). This index records each pinned Wellmanifest standard revision, selected profile, non-applicable packs, and separate static vs runtime verification evidence. Immutable upstream pins live in `.governance/standards-lock.json` and `.governance/standard-adoption.json`.
 
 <!-- docs:section details -->
 ## Zakres i rozwiązanie
 
-| Standard (revision) | Applies as | Evidence in fixos |
+| Standard (revision) | Profile / role | Evidence in fixos |
 |---|---|---|
-| wellman 0.20.38 | registry + `wellman check` | `.governance/standard-requirements.json` |
-| ssot `91c894b` | three propose-only decisions | [docs/ssot](../ssot/) version, ollama-endpoint, diagnostic-command-tables |
-| nohardcode `922cc51` | balanced audit; fix real defects first | ticket-074 (NOHARDCODE-006) |
-| reuse `4c7dba2` | docs index + runbook; scan receipt open | [TROUBLESHOOTING](../SERVICE/TROUBLESHOOTING.md) |
-| semver `432b6f9` | host package only: SemVer in `VERSION` | `tests/unit/test_version_parity.py` |
-| uriprocess `fa7b715` | not applicable | fixos ships no URI process package |
+| wellman `0.23.1` | pack & profile runner | `.governance/standard-requirements.json`, `.governance/authority-lifecycle.json` |
+| poa `0.1.0` (`b0432f3`) | `minimal-plan/v1` + single-use grant | `.governance/poa.json`, `fixos/poa_grants.py`, `fixos/poa_registry.py` |
+| mcp `0.1.0` (`91f0271`) | `registry/v1` + `urn:uuid:` resources + durable receipts | `fixos/mcp_server.py`, `fixos/mcp_resources.py`, `fixos/mcp_receipts.py` |
+| nl-uri-dsl-llm `1.5.0` (`adc0056`) | `semantic-v1` (`wellmanifest.nl-plan/v1`) | `.governance/nl-uri-profile.json`, `fixos/nl_router.py` |
+| uriprocess `0.3.0` (`0a81334`) | canonical `fixos://` URI identity only | `fixos/poa_registry.py` (no standalone `uriprocess.json` capsule) |
+| ssot `91c894b` | propose-only decisions + `standards-lock/v1` | `.governance/standards-lock.json`, [docs/ssot](../ssot/) |
+| semver `432b6f9` | host SemVer in `VERSION` + `pyproject.toml` | `tests/unit/test_version_parity.py` |
+| reuse `4c7dba2` / nohardcode `922cc51` | docs index + runbook; balanced audit | [TROUBLESHOOTING](../SERVICE/TROUBLESHOOTING.md), `ticket-074` |
 
-- **ssot**: `VERSION` is canonical; `pyproject.toml` must stay identical
-  (parity test) and `setup.py` reads `VERSION`. The default Ollama
-  address comes only from `OLLAMA_HOST` via `fixos.config.ollama_host_url()`
-  (LLM provider and model cleanup); `OLLAMA_BASE_URL` is an explicit,
-  LLM-only override layered on top.
-- **nohardcode** (2026-10-13 audit, 195 findings): 145 are NOHARDCODE-007
-  `print()` in interactive CLI modules, which is terminal UI, not logging;
-  33 NOHARDCODE-001 lists are CLI choices and service tables. Real defects are
-  fixed per ticket; the rest needs a repo policy before it can gate CI.
-- **semver**: rules SEMVER-002 and 012–016 address firmware images and OTA;
-  fixos has none. Releases bump `VERSION` (patch for fixes) through a ticket
-  and publish after merge with `goal -a --delivery-mode publish-only`.
-- **uriprocess** is published only on `bootstrap/uriprocess-standard`; no
-  fixos component is distributed as a URI process package.
+- **Evidence tier separation**: (1) declared manifests (`proves_runtime_s5=False`), (2) deterministic static checkers (`wellman check`, `standard_pack_check.py`, capability parity, FastMCP AST hygiene), and (3) observed runtime canary (`fixos/poa_canary.py`) are reported separately; a manifest never proves S5 runtime execution.
+- **uriprocess & excluded packs**: `wellmanifest/uriprocess` is published on `main` (`0.3.0@0a81334`, superseding older `bootstrap/uriprocess-standard` prose); `fixos` adopts its canonical action-URI / resource-URN split without shipping a separate `uriprocess.json` artifact bundle. `wellmanifest/nl-api-llm` (multi-protocol HTTP/frontend menu trees) and `FastMCP` are not used or declared.
 
 <!-- docs:section validation -->
 ## Weryfikacja
 
-`wellman check --root .`; `PYTHONPATH=src python3 -m ssot validate
-docs/ssot/<id>.ssot.json` (in wellmanifest/ssot); `python3
-standard/conformance.py --project <fixos>` (wellmanifest/reuse) reports
-REUSE-004 and REUSE-006A passing; REUSE-006B only finds `docs/TROUBLESHOOTING.md`
-or `errors/*.md` (fix: wellmanifest/reuse#10). redup 0.4.48 reports two clone
-groups in `fixos/diagnostics/checks/` (same `{name: _cmd(probe)}` shape,
-different probes); the ssot decision `diagnostic-command-tables` classifies
-them as allowed divergence, which REUSE-002 cannot read yet (reuse#13).
+- Static conformance: `wellman check --root .` (`0` errors), `wellman check --root . -s wellmanifest/poa -s wellmanifest/mcp -s wellmanifest/nl-uri-dsl-llm -s wellmanifest/ssot -s wellmanifest/uriprocess`, and `python3 .governance/standard_pack_check.py --root .`.
+- Runtime canary (CI): `pytest tests/unit/test_wellman_canary.py` executes live stdio MCP `initialize`, `resources/read` over `urn:uuid:` URNs, PL/EN NL negation and abstention guards, ungranted POA mutation rejection, receipt hash verification, and idempotency conflict checks.
 
 <!-- docs:section risks -->
 ## Ryzyka i następny krok
 
-REUSE-002 needs a revision- and digest-bound `.reuse/redup-receipt.json`;
-`.reuse/` is not owned by any workstream yet, and every scanned-file change
-makes a committed receipt stale, so it belongs in CI rather than in Git. nohardcode becomes a CI gate
-only after a reviewed `nohardcode-policy.json` baseline.
+Direct edits to `.governance/standard-requirements.json` remain fenced by preserved `refs/heads/ticket/110-sync-standard-requirements-backup` until `#174` (`NP-024` backup ancestry disposition) is closed; until then, upstream pins are enforced through `.governance/standards-lock.json` and `tests/unit/test_wellman_canary.py`. `.reuse/redup-receipt.json` stays a CI check artifact rather than a tracked Git file.

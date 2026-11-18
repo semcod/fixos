@@ -1,0 +1,97 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-156",
+  "summary": "Update Wellmanifest standards docs and release FixOS 2.7.0",
+  "workstream": "integration",
+  "classification": {
+    "kind": "FEATURE",
+    "priority": "P2",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-156/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "VERSION",
+    "pyproject.toml",
+    "docs/INFORMATION/WELLMANIFEST_STANDARDS.md"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [
+    "ticket-151",
+    "ticket-152",
+    "ticket-153",
+    "ticket-154",
+    "ticket-155"
+  ],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "e648537b2d87000f32333e97693c6b39249481c7",
+    "targetBranch": "main",
+    "outcome": "Update `docs/INFORMATION/WELLMANIFEST_STANDARDS.md` to version 4 documenting pinned POA (`b0432f3`), MCP (`91f0271`), NL-URI (`adc0056`), and URIProcess (`0a81334`) adoption, excluded packs (`nl-api-llm`, `FastMCP`, standalone `uriprocess.json`), and separate manifest vs static vs runtime canary evidence (closing #168), and bump `VERSION` and `pyproject.toml` to `2.7.0`.",
+    "nonGoals": [
+      "No runtime code or `.governance/**` changes (already merged in tickets 151-155).",
+      "CHANGELOG.md is owned by the governance workstream and is not modified here."
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 20,
+    "budgets": {
+      "maxImplementationFiles": 3,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Advance `docs/INFORMATION/WELLMANIFEST_STANDARDS.md` to v4 anchored at `e648537b2d87000f32333e97693c6b39249481c7` and align `VERSION` and `pyproject.toml` on `2.7.0`.",
+      "components": [
+        {
+          "name": "release",
+          "paths": [
+            "VERSION",
+            "pyproject.toml",
+            "docs/INFORMATION/WELLMANIFEST_STANDARDS.md"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert ticket-156 commit."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python -m pytest tests/unit/test_version_parity.py tests/unit/test_wellman_canary.py -q"
+        ],
+        "evidence": "Version carriers agree on `2.7.0` and end-to-end POA/MCP/NL runtime canary passes."
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "wellman check --root .",
+          "python3 <wellmanifest/docs@19efafb>/docs/standard/check.py --root . --standard-revision 19efafbeb18923cfd51cc69bd519330488500137 --base e648537b2d87000f32333e97693c6b39249481c7 --deliverable docs/INFORMATION/WELLMANIFEST_STANDARDS.md"
+        ],
+        "evidence": "`wellman check` reports 0 errors and `WELLMANIFEST_STANDARDS.md` has 0 docs-standard findings."
+      },
+      {
+        "criterion": "AC-03",
+        "commands": [
+          "./project/governance-check.sh"
+        ],
+        "evidence": "Governance gate passes with 0 errors."
+      }
+    ]
+  }
+}
