@@ -12,7 +12,8 @@
     "project/ticket-162/**",
     "TODO.md",
     "project/TICKETS.md",
-    ".governance/standard-adoption.json"
+    ".governance/standard-adoption.json",
+    "CHANGELOG.md"
   ],
   "forbiddenPaths": [
     "project/ticket-*/user-*.md"
@@ -32,18 +33,19 @@
     "estimatedMinutes": 10,
     "budgets": {
       "maxAffectedComponents": 1,
-      "maxImplementationFiles": 1,
+      "maxImplementationFiles": 2,
       "maxPublicInterfaceChanges": 0,
       "maxRuntimeDependencies": 0
     },
     "architecture": {
       "status": "accepted",
-      "decision": "Synchronize repository-owned .governance/standard-adoption.json with .governance/manifest.json digest 55716d09..., restore S4 external ruleset proof for baseline S4 packs, and include pinned wellmanifest/docs 0.6.0@b536d01 at S2.",
+      "decision": "Synchronize repository-owned .governance/standard-adoption.json with .governance/manifest.json digest 55716d09..., restore S4 external ruleset proof for baseline S4 packs, include pinned wellmanifest/docs 0.6.0@b536d01 at S2, and record the governance projection reconciliation in CHANGELOG.md.",
       "components": [
         {
           "name": "governance",
           "paths": [
-            ".governance/standard-adoption.json"
+            ".governance/standard-adoption.json",
+            "CHANGELOG.md"
           ]
         }
       ],

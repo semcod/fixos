@@ -37,6 +37,9 @@
 
 ### Changed
 
+- Zrekoncyliowano projekcję `.governance/standard-adoption.json` po aktualizacji
+  pakietu `wellmanifest/new-project` do `0.20.162` (skrót `manifest.json`,
+  poziomy S4 i wpis `wellmanifest/docs@0.6.0`).
 - Dokumentacja README / getting-started / architecture opisuje model trzech
   poziomów ryzyka z nowymi flagami `--docker-old` / `--ollama-old` i różnicą
   między reclaimable a filtrem wieku.
