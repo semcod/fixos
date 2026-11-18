@@ -25,6 +25,7 @@ import click
 from fixos import __version__
 
 MCP_REGISTRY_SCHEMA = "wellmanifest.mcp/registry/v1"
+LEGACY_CATALOG_SCHEMA = "wellmanifest.mcp/operation-catalog/v1"
 OWNER_REPOSITORY = "semcod/fixos"
 DEFAULT_REGISTRY_TTL_SECONDS = 86400
 
@@ -275,6 +276,10 @@ CANONICAL_OPERATIONS: tuple[OperationSpec, ...] = (
                     "maxLength": 128,
                     "description": "Opaque ID starting with a letter/digit, using letters, digits, dots, underscores or hyphens; no '..'. Empty generates an ID.",
                 },
+                "registry_digest": {"type": "string", "default": "", "maxLength": 64},
+                "plan_hash": {"type": "string", "default": "", "maxLength": 64},
+                "grant_id": {"type": "string", "default": "", "maxLength": 128},
+                "correlation_id": {"type": "string", "default": "", "maxLength": 128},
             },
             "additionalProperties": False,
         },
@@ -370,8 +375,11 @@ CANONICAL_OPERATIONS: tuple[OperationSpec, ...] = (
             "properties": {
                 "operation_id": {"type": "string", "minLength": 1},
                 "payload": {"type": "object"},
-                "registry_digest": {"type": "string", "default": ""},
-                "request_id": {"type": "string", "default": ""},
+                "registry_digest": {"type": "string", "default": "", "maxLength": 64},
+                "request_id": {"type": "string", "default": "", "maxLength": 128},
+                "plan_hash": {"type": "string", "default": "", "maxLength": 64},
+                "grant_id": {"type": "string", "default": "", "maxLength": 128},
+                "correlation_id": {"type": "string", "default": "", "maxLength": 128},
             },
             "required": ["operation_id"],
             "additionalProperties": False,

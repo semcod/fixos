@@ -19,14 +19,26 @@ import sys
 import uuid
 from collections.abc import Mapping
 from contextlib import redirect_stdout
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from fixos import __version__
+from fixos.mcp_receipts import (
+    RECEIPT_SCHEMA,
+    execute_with_durable_journal,
+    read_durable_receipt,
+    validated_request_id,
+)
+from fixos.poa_grants import (
+    cleanup_poa_input,
+    cleanup_poa_target,
+    jcs_sha256,
+    verify_and_consume_poa_grant,
+)
 from fixos.poa_registry import (
     DEFAULT_REGISTRY_TTL_SECONDS,
-    MCP_REGISTRY_SCHEMA,
+    LEGACY_CATALOG_SCHEMA,
     catalog_static_digest,
     deployment_revision,
     export_mcp_registry_v1,
@@ -34,8 +46,7 @@ from fixos.poa_registry import (
     validate_timestamp_freshness,
 )
 
-CATALOG_SCHEMA = MCP_REGISTRY_SCHEMA
-RECEIPT_SCHEMA = "wellmanifest.mcp/task-receipt/v1"
+CATALOG_SCHEMA = LEGACY_CATALOG_SCHEMA
 PLAN_SCHEMA = "wellmanifest.nl-dsl-llm/task-plan/v1"
 _REQUEST_ID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 
@@ -395,10 +406,7 @@ def run_fixos_scan_projects(min_age_days: float = 7.0) -> dict[str, Any]:
 
 def _validated_request_id(request_id: str) -> str:
     """Return a bounded portable receipt name, never a filesystem path."""
-    clean_id = (request_id or "").strip()
-    if not _REQUEST_ID_RE.fullmatch(clean_id) or ".." in clean_id:
-        raise ValueError("invalid_request_id")
-    return clean_id
+    return validated_request_id(request_id)
 
 
 def task_status(request_id: str, *, receipts_dir: str | Path | None = None) -> dict[str, Any]:
@@ -413,15 +421,25 @@ def task_status(request_id: str, *, receipts_dir: str | Path | None = None) -> d
             "request_id": clean_id,
             "error": "invalid_request_id",
         }
-    rpath = _receipts_dir(receipts_dir) / f"{clean_id}.json"
-    if not rpath.is_file():
-        return {
-            "schema": RECEIPT_SCHEMA,
-            "found": False,
-            "request_id": clean_id,
-        }
-    data = json.loads(rpath.read_text(encoding="utf-8"))
-    return {**data, "found": True, "replayed": True}
+    return read_durable_receipt(clean_id, base_dir=_receipts_dir(receipts_dir))
+
+
+def _scan_cleanup_candidates(*, min_age_days: float, include_projects: bool) -> dict[str, list[dict[str, Any]]]:
+    return {
+        "user_caches": [c for c in scan_user_cache_dirs() if c.get("safe")],
+        "add_caches": scan_additional_safe_caches(),
+        "build_caches": scan_build_and_package_caches(),
+        "proj_items": (
+            scan_unused_recent_project_artifacts(min_age_days=float(min_age_days))
+            if include_projects
+            else []
+        ),
+        "part_items": (
+            scan_stale_app_state_partitions(min_age_days=float(min_age_days))
+            if include_projects
+            else []
+        ),
+    }
 
 
 def run_fixos_auto_cleanup(
@@ -430,9 +448,14 @@ def run_fixos_auto_cleanup(
     min_age_days: float = 7.0,
     include_projects: bool = True,
     request_id: str = "",
+    registry_digest: str = "",
+    plan_hash: str = "",
+    grant_id: str = "",
+    correlation_id: str = "",
     receipts_dir: str | Path | None = None,
+    grants_dir: str | Path | None = None,
 ) -> dict[str, Any]:
-    """Execute bounded deterministic cleanup or dry-run preview with durable receipt persistence."""
+    """Execute bounded deterministic cleanup or dry-run preview with verified read-back and POA grant."""
     import shutil
 
     from fixos.cli._auto_cleanup import cleanup_additional_caches
@@ -446,97 +469,194 @@ def run_fixos_auto_cleanup(
     req_id = _validated_request_id(
         (request_id or "").strip() or f"fixos-mcp-{uuid.uuid4().hex[:12]}"
     )
-    existing = task_status(req_id, receipts_dir=receipts_dir)
-    if existing.get("found"):
-        return existing
+    current_digest = catalog_digest()
+    if dry_run and registry_digest and registry_digest != current_digest:
+        raise ValueError("CATALOG_DIGEST_MISMATCH")
 
-    started_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-    before_free = shutil.disk_usage("/").free
-
-    user_caches = [c for c in scan_user_cache_dirs() if c.get("safe")]
-    add_caches = scan_additional_safe_caches()
-    build_caches = scan_build_and_package_caches()
-    proj_items = scan_unused_recent_project_artifacts(min_age_days=float(min_age_days)) if include_projects else []
-    part_items = scan_stale_app_state_partitions(min_age_days=float(min_age_days)) if include_projects else []
-
-    planned_bytes = (
-        sum(int(c.get("size_bytes", 0)) for c in user_caches)
-        + sum(int(c.get("size_bytes", 0)) for c in add_caches)
-        + sum(int(c.get("size_bytes", 0)) for c in build_caches)
-        + sum(int(c.get("size_bytes", 0)) for c in proj_items)
-        + sum(int(c.get("size_bytes", 0)) for c in part_items)
+    norm_input = cleanup_poa_input(
+        dry_run=bool(dry_run),
+        min_age_days=float(min_age_days),
+        include_projects=bool(include_projects),
     )
+    input_digest = jcs_sha256(norm_input)
+    target_desc = cleanup_poa_target(
+        include_projects=bool(include_projects),
+        min_age_days=float(min_age_days),
+    )
+    base_receipts = _receipts_dir(receipts_dir)
 
-    actions_taken: list[str] = []
-    days_int = max(1, int(min_age_days))
-    if not dry_run:
-        if user_caches:
-            _cleanup_user_cache(json_output=False, dry_run=False, list_only=False, yes=True)
-            actions_taken.append(f"user_caches:{len(user_caches)}")
-        if add_caches:
-            cleanup_additional_caches(dry_run=False, yes=True)
-            actions_taken.append(f"additional_caches:{len(add_caches)}")
-        if build_caches:
-            _cleanup_build_caches(
-                json_output=False,
-                dry_run=False,
-                list_only=False,
-                yes=True,
-                include_build_cache=True,
-                clean_state_old=False,
-                clean_projects_old=False,
-            )
-            actions_taken.append(f"build_caches:{len(build_caches)}")
-        if proj_items:
-            _cleanup_projects_old(
-                json_output=False,
-                dry_run=False,
-                list_only=False,
-                yes=True,
-                days=days_int,
-            )
-            actions_taken.append(f"project_artifacts:{len(proj_items)}")
-        if part_items:
-            _cleanup_state_old(
-                json_output=False,
-                dry_run=False,
-                list_only=False,
-                yes=True,
-                days=days_int,
-            )
-            actions_taken.append(f"state_partitions:{len(part_items)}")
+    def _authorize_mutation() -> dict[str, Any] | None:
+        if dry_run:
+            return None
+        return verify_and_consume_poa_grant(
+            grant_id=grant_id,
+            plan_hash=plan_hash,
+            operation_id="fixos://cleanup/auto",
+            caller_registry_digest=registry_digest,
+            current_registry_digest=current_digest,
+            normalized_input=norm_input,
+            target=target_desc,
+            store_dir=grants_dir,
+        )
 
-    after_free = shutil.disk_usage("/").free
-    reclaimed_bytes = max(0, after_free - before_free) if not dry_run else 0
-    completed_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    def _execute_cleanup(_started_at: str) -> tuple[dict[str, Any], Exception | None]:
+        before_free = shutil.disk_usage("/").free
+        before_scan = _scan_cleanup_candidates(
+            min_age_days=float(min_age_days),
+            include_projects=bool(include_projects),
+        )
+        user_caches = before_scan["user_caches"]
+        add_caches = before_scan["add_caches"]
+        build_caches = before_scan["build_caches"]
+        proj_items = before_scan["proj_items"]
+        part_items = before_scan["part_items"]
 
-    receipt: dict[str, Any] = {
-        "schema": RECEIPT_SCHEMA,
-        "request_id": req_id,
-        "operation_id": "fixos://cleanup/auto",
-        "effect": "read" if dry_run else "mutate",
-        "dry_run": bool(dry_run),
-        "state": "planned" if dry_run else "succeeded",
-        "started_at": started_at,
-        "completed_at": completed_at,
-        "registry_digest": catalog_digest(),
-        "planned_reclaimable_bytes": planned_bytes,
-        "reclaimed_bytes": reclaimed_bytes,
-        "free_bytes_before": before_free,
-        "free_bytes_after": after_free,
-        "actions": actions_taken,
-        "counts": {
-            "safe_user_caches": len(user_caches),
-            "additional_caches": len(add_caches),
-            "build_caches": len(build_caches),
-            "project_artifacts": len(proj_items),
-            "state_partitions": len(part_items),
-        },
-    }
-    receipt["receipt_hash"] = _canonical_digest(receipt)
-    rpath = _receipts_dir(receipts_dir) / f"{req_id}.json"
-    rpath.write_text(json.dumps(receipt, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    return {**receipt, "found": True, "replayed": False}
+        planned_bytes = sum(
+            int(item.get("size_bytes", 0))
+            for group in before_scan.values()
+            for item in group
+        )
+        planned_count = sum(len(group) for group in before_scan.values())
+
+        actions_taken: list[str] = []
+        helper_errors: list[Exception] = []
+        error_messages: list[str] = []
+        days_int = max(1, int(min_age_days))
+
+        if not dry_run:
+            steps: list[tuple[str, list[dict[str, Any]], Any]] = [
+                (
+                    "user_caches",
+                    user_caches,
+                    lambda: _cleanup_user_cache(
+                        json_output=False, dry_run=False, list_only=False, yes=True
+                    ),
+                ),
+                (
+                    "additional_caches",
+                    add_caches,
+                    lambda: cleanup_additional_caches(dry_run=False, yes=True),
+                ),
+                (
+                    "build_caches",
+                    build_caches,
+                    lambda: _cleanup_build_caches(
+                        json_output=False,
+                        dry_run=False,
+                        list_only=False,
+                        yes=True,
+                        include_build_cache=True,
+                        clean_state_old=False,
+                        clean_projects_old=False,
+                    ),
+                ),
+                (
+                    "project_artifacts",
+                    proj_items,
+                    lambda: _cleanup_projects_old(
+                        json_output=False,
+                        dry_run=False,
+                        list_only=False,
+                        yes=True,
+                        days=days_int,
+                    ),
+                ),
+                (
+                    "state_partitions",
+                    part_items,
+                    lambda: _cleanup_state_old(
+                        json_output=False,
+                        dry_run=False,
+                        list_only=False,
+                        yes=True,
+                        days=days_int,
+                    ),
+                ),
+            ]
+            for label, items, invoke in steps:
+                if not items:
+                    continue
+                try:
+                    invoke()
+                    actions_taken.append(f"{label}:{len(items)}")
+                except Exception as exc:  # noqa: BLE001
+                    helper_errors.append(exc)
+                    error_messages.append(f"{label}:{exc}")
+
+        after_free = shutil.disk_usage("/").free
+        reclaimed_bytes = max(0, after_free - before_free) if not dry_run else 0
+
+        if dry_run:
+            state = "planned"
+            readback: dict[str, Any] = {
+                "verified": False,
+                "reason": "dry_run",
+                "planned_targets": planned_count,
+                "remaining_targets": planned_count,
+                "removed_targets": 0,
+            }
+        else:
+            try:
+                after_scan = _scan_cleanup_candidates(
+                    min_age_days=float(min_age_days),
+                    include_projects=bool(include_projects),
+                )
+                remaining_count = sum(len(group) for group in after_scan.values())
+                removed_count = max(0, planned_count - remaining_count)
+                readback = {
+                    "verified": True,
+                    "planned_targets": planned_count,
+                    "remaining_targets": remaining_count,
+                    "removed_targets": removed_count,
+                }
+                if (planned_count == 0 or remaining_count == 0) and not helper_errors:
+                    state = "succeeded"
+                elif removed_count > 0 and (remaining_count > 0 or helper_errors):
+                    state = "partial"
+                else:
+                    state = "failed"
+            except Exception as rb_exc:  # noqa: BLE001
+                state = "uncertain"
+                readback = {
+                    "verified": False,
+                    "reason": "readback_failed",
+                    "error": str(rb_exc),
+                    "planned_targets": planned_count,
+                }
+
+        body: dict[str, Any] = {
+            "state": state,
+            "planned_reclaimable_bytes": planned_bytes,
+            "reclaimed_bytes": reclaimed_bytes,
+            "free_bytes_before": before_free,
+            "free_bytes_after": after_free,
+            "actions": actions_taken,
+            "readback": readback,
+            "counts": {
+                "safe_user_caches": len(user_caches),
+                "additional_caches": len(add_caches),
+                "build_caches": len(build_caches),
+                "project_artifacts": len(proj_items),
+                "state_partitions": len(part_items),
+            },
+        }
+        if error_messages:
+            body["errors"] = error_messages
+        return body, (helper_errors[0] if helper_errors else None)
+
+    return execute_with_durable_journal(
+        base_dir=base_receipts,
+        request_id=req_id,
+        correlation_id=correlation_id,
+        operation_id="fixos://cleanup/auto",
+        effect="read" if dry_run else "mutate",
+        dry_run=bool(dry_run),
+        registry_digest=current_digest,
+        input_digest=input_digest,
+        target=target_desc,
+        authorizer=_authorize_mutation,
+        runner=_execute_cleanup,
+    )
 
 
 def task_execute(
@@ -545,9 +665,13 @@ def task_execute(
     *,
     registry_digest: str = "",
     request_id: str = "",
+    plan_hash: str = "",
+    grant_id: str = "",
+    correlation_id: str = "",
     receipts_dir: str | Path | None = None,
+    grants_dir: str | Path | None = None,
 ) -> dict[str, Any]:
-    """Execute a registered FixOS URI operation with optional digest verification."""
+    """Execute a registered FixOS URI operation with schema, digest, and POA verification."""
     operation = next(
         (
             op
@@ -561,6 +685,9 @@ def task_execute(
         raise ValueError("UNKNOWN_OPERATION")
     _validate_arguments({"type": "string"}, registry_digest, "registry_digest")
     _validate_arguments({"type": "string"}, request_id, "request_id")
+    _validate_arguments({"type": "string"}, plan_hash, "plan_hash")
+    _validate_arguments({"type": "string"}, grant_id, "grant_id")
+    _validate_arguments({"type": "string"}, correlation_id, "correlation_id")
     _validate_arguments(operation["input_schema"], {} if payload is None else payload)
     if operation.get("expiresAt"):
         validate_timestamp_freshness(str(operation["expiresAt"]))
@@ -569,7 +696,8 @@ def task_execute(
         raise ValueError(f"OPERATION_UNAVAILABLE: {reason}")
     params = dict(payload) if payload is not None else {}
     current_digest = catalog_digest()
-    if registry_digest and registry_digest != current_digest:
+    effective_digest_arg = registry_digest or params.get("registry_digest", "")
+    if effective_digest_arg and effective_digest_arg != current_digest:
         raise ValueError("CATALOG_DIGEST_MISMATCH")
 
     canonical_uri = operation["operation_id"]
@@ -585,7 +713,12 @@ def task_execute(
             min_age_days=float(params.get("min_age_days", 7.0)),
             include_projects=params.get("include_projects", True),
             request_id=request_id or params.get("request_id", ""),
+            registry_digest=effective_digest_arg,
+            plan_hash=plan_hash or params.get("plan_hash", ""),
+            grant_id=grant_id or params.get("grant_id", ""),
+            correlation_id=correlation_id or params.get("correlation_id", ""),
             receipts_dir=receipts_dir,
+            grants_dir=grants_dir,
         )
     raise ValueError("OPERATION_UNAVAILABLE")
 
@@ -619,14 +752,17 @@ def mcp_tools_list() -> list[dict[str, Any]]:
         },
         {
             "name": "task_execute",
-            "description": "Execute a FixOS URI operation by operation_id with optional registry_digest and request_id.",
+            "description": "Execute a FixOS URI operation by operation_id with registry_digest, request_id, and POA grant.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "operation_id": {"type": "string", "minLength": 1},
                     "payload": {"type": "object"},
-                    "registry_digest": {"type": "string", "default": ""},
-                    "request_id": {"type": "string", "default": ""},
+                    "registry_digest": {"type": "string", "default": "", "maxLength": 64},
+                    "request_id": {"type": "string", "default": "", "maxLength": 128},
+                    "plan_hash": {"type": "string", "default": "", "maxLength": 64},
+                    "grant_id": {"type": "string", "default": "", "maxLength": 128},
+                    "correlation_id": {"type": "string", "default": "", "maxLength": 128},
                 },
                 "required": ["operation_id"],
                 "additionalProperties": False,
@@ -669,6 +805,7 @@ def handle_mcp_tool_call(
     arguments: Mapping[str, Any] | None = None,
     *,
     receipts_dir: str | Path | None = None,
+    grants_dir: str | Path | None = None,
 ) -> dict[str, Any]:
     """Dispatch an MCP tools/call invocation and return structured result."""
     descriptor = next((tool for tool in mcp_tools_list() if tool["name"] == name), None)
@@ -686,17 +823,22 @@ def handle_mcp_tool_call(
             payload=args.get("payload", {}),
             registry_digest=args.get("registry_digest", ""),
             request_id=args.get("request_id", ""),
+            plan_hash=args.get("plan_hash", ""),
+            grant_id=args.get("grant_id", ""),
+            correlation_id=args.get("correlation_id", ""),
             receipts_dir=receipts_dir,
+            grants_dir=grants_dir,
         )
     if name == "fixos_task_status":
         return task_status(args["request_id"], receipts_dir=receipts_dir)
-    return task_execute(name, args, receipts_dir=receipts_dir)
+    return task_execute(name, args, receipts_dir=receipts_dir, grants_dir=grants_dir)
 
 
 def handle_jsonrpc_message(
     message: Mapping[str, Any],
     *,
     receipts_dir: str | Path | None = None,
+    grants_dir: str | Path | None = None,
 ) -> dict[str, Any] | None:
     """Process a single JSON-RPC 2.0 MCP message and return response dict (or None for notifications)."""
     method = message.get("method")
@@ -727,7 +869,12 @@ def handle_jsonrpc_message(
             # CLI helpers print progress; stdout is reserved for JSON-RPC frames.
             with redirect_stdout(sys.stderr):
                 _validate_arguments({"type": "object"}, tool_args)
-                payload = handle_mcp_tool_call(tool_name, tool_args, receipts_dir=receipts_dir)
+                payload = handle_mcp_tool_call(
+                    tool_name,
+                    tool_args,
+                    receipts_dir=receipts_dir,
+                    grants_dir=grants_dir,
+                )
             return {
                 "jsonrpc": "2.0",
                 "id": msg_id,
@@ -757,7 +904,11 @@ def handle_jsonrpc_message(
     }
 
 
-def serve_stdio(*, receipts_dir: str | Path | None = None) -> int:
+def serve_stdio(
+    *,
+    receipts_dir: str | Path | None = None,
+    grants_dir: str | Path | None = None,
+) -> int:
     """Run the JSON-RPC 2.0 MCP server over stdin/stdout."""
     for raw_line in sys.stdin:
         line = raw_line.strip()
@@ -777,7 +928,11 @@ def serve_stdio(*, receipts_dir: str | Path | None = None) -> int:
 
         if not isinstance(msg, Mapping):
             continue
-        response = handle_jsonrpc_message(msg, receipts_dir=receipts_dir)
+        response = handle_jsonrpc_message(
+            msg,
+            receipts_dir=receipts_dir,
+            grants_dir=grants_dir,
+        )
         if response is not None:
             sys.stdout.write(json.dumps(response, ensure_ascii=False) + "\n")
             sys.stdout.flush()
