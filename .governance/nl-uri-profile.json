@@ -1,0 +1,14 @@
+{
+  "schema": "wellmanifest.nl-plan/v1",
+  "profile": "semantic-v1",
+  "envelope": "wellmanifest.nl-plan/v1",
+  "status": "ok",
+  "operation": "fixos://diagnostics/quick",
+  "lexical_admission": false,
+  "compilation_executes": false,
+  "exchange": {
+    "profile": "uri-urn-exchange-v1",
+    "envelope": "wellmanifest.process-exchange/v1",
+    "authority_from_envelope": false
+  }
+}

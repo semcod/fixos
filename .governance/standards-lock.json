@@ -1,0 +1,53 @@
+{
+  "schema": "wellmanifest.standards-lock/v1",
+  "version": "1.0.0",
+  "updatePolicy": {
+    "merge": "trusted-validator"
+  },
+  "entries": [
+    {
+      "id": "wellmanifest/poa",
+      "version": "0.1.0",
+      "revision": "b0432f3729e6da51cf0c7007970cb16bb971f937",
+      "contracts": [
+        {
+          "path": "standard/poa-process.schema.v1.json",
+          "digest": "sha256:9222fbe9aded60df6d3c0b39b7a4a89b8ad627f122349e909fdfba44047669ab"
+        }
+      ]
+    },
+    {
+      "id": "wellmanifest/mcp",
+      "version": "0.1.0",
+      "revision": "91f02710715ad46818bf84e21c34dde390a89653",
+      "contracts": [
+        {
+          "path": "src/wellmanifest_mcp/schemas/contracts.json",
+          "digest": "sha256:e890ad518f531138f4bf4394c2f36697d8dab5290e50dbf32f6d4fc21a8f1063"
+        }
+      ]
+    },
+    {
+      "id": "wellmanifest/nl-uri-dsl-llm",
+      "version": "1.5.0",
+      "revision": "adc005677d835f46c540a760c9a89f29ba4a96ee",
+      "contracts": [
+        {
+          "path": "profiles/semantic-v1.json",
+          "digest": "sha256:f5158d6011cbcb20efc50954d6b7e9b0da1ec43ddff6b50a663239f46d4f5770"
+        }
+      ]
+    },
+    {
+      "id": "wellmanifest/uriprocess",
+      "version": "0.3.0",
+      "revision": "0a81334ce0d04a3adac26070597c95ceb44c42c4",
+      "contracts": [
+        {
+          "path": "README.md",
+          "digest": "sha256:9f0d56677f2c1121ea9f4e100d7c6697ca8b5cc28c521d6d349cab7ad40359b9"
+        }
+      ]
+    }
+  ]
+}
