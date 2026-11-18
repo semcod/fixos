@@ -13,6 +13,7 @@ from fixos.cli.mesh_cmd import parse_ports
 from fixos.cli.printers_cmd import printers as printers_cmd
 from fixos.plugins.base import Severity
 from fixos.plugins.builtin.mesh import (
+    REMOTE_POSIX_SH_PROBE,
     REMOTE_PYTHON_PROBE,
     Plugin,
     TargetSnmpInfo,
@@ -22,6 +23,7 @@ from fixos.plugins.builtin.mesh import (
     build_mdns_query,
     parse_ifconfig_text,
     parse_ip_j_addr,
+    parse_posix_probe_output,
     parse_ssh_config_hosts,
     parse_tailscale_peers,
 )
@@ -408,3 +410,129 @@ def test_remote_probe_script_and_port_validation_and_usb_queue(monkeypatch):
     res = CliRunner().invoke(printers_cmd, ["--mesh", "--json"])
     assert res.exit_code == 0
     assert captured_targets == [["fe80::1"]]
+
+
+def test_posix_sh_fallback_for_pythonless_ssh_peer_and_non_retry_on_ssh_auth_failure():
+    import shutil
+    import socket
+
+    # 1. Direct execution of REMOTE_POSIX_SH_PROBE against an ephemeral loopback listener
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as srv:
+        srv.bind(("127.0.0.1", 0))
+        srv.listen(2)
+        open_port = srv.getsockname()[1]
+        proc = subprocess.run(
+            [
+                "sh",
+                "-c",
+                REMOTE_POSIX_SH_PROBE,
+                "sh",
+                "127.0.0.1",
+                "127.0.0.1",
+                "127.0.0.1",
+                str(open_port),
+                "1",
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    parsed = parse_posix_probe_output(proc.stdout)
+    assert parsed is not None
+    assert parsed["resolved_ip"] == "127.0.0.1"
+    assert parsed["probe_kind"] == "posix_sh"
+    if shutil.which("nc"):
+        assert open_port in parsed["open_ports"]
+        assert 1 in parsed["closed_ports"]
+
+    # 2. SSH peer missing python3 (rc=127) falls back to POSIX sh probe
+    ssh_calls: list[str] = []
+
+    def fallback_runner(cmd: str, timeout: int = 120):
+        if "ip -j -4 addr show" in cmd:
+            return (
+                True,
+                json.dumps(
+                    [
+                        {
+                            "ifname": "eth0",
+                            "operstate": "UP",
+                            "addr_info": [
+                                {
+                                    "family": "inet",
+                                    "local": "192.168.188.212",
+                                    "prefixlen": 24,
+                                }
+                            ],
+                        }
+                    ]
+                ),
+                "",
+                0,
+            )
+        if "ssh -o BatchMode=yes" in cmd:
+            ssh_calls.append(cmd)
+            if "python3 -c" in cmd:
+                return False, "", "ash: python3: not found", 127
+            return (
+                True,
+                "HOST=GL-MT6000\nRESOLVED=192.168.188.158\nSRC=192.168.188.1\nOPEN=631\nCLOSED=9100\n",
+                "",
+                0,
+            )
+        return True, "", "", 0
+
+    plugin = Plugin(
+        targets=["192.168.188.158"],
+        nodes=["root@192.168.188.1"],
+        ports=(631, 9100),
+        discover_peers=False,
+        probe_ssh=True,
+        runner=fallback_runner,
+        resolver=lambda h: h,
+        tcp_probe=lambda *a: (True, 1.1),
+        mdns_probe=lambda *a: True,
+        snmp_inspector=lambda *a: None,
+        system="linux",
+    )
+    res = plugin.diagnose()
+    assert len(ssh_calls) == 2
+    by_id = {r["node_id"]: r for r in res.raw_data["targets"][0]["results"]}
+    router = by_id["ssh:root@192.168.188.1"]
+    assert router["mode"] == "active"
+    assert router["open_ports"] == [631]
+    assert router["closed_ports"] == [9100]
+    assert router["remote_hostname"] == "GL-MT6000"
+    assert "POSIX sh" in router["note"]
+
+    # 3. Ping-only POSIX sh output (when remote router lacks nc) still marks reachable
+    ping_only = parse_posix_probe_output(
+        "HOST=openwrt\nRESOLVED=192.168.188.158\nSRC=192.168.188.1\nPING=1\n"
+    )
+    assert ping_only is not None and ping_only["ping_ok"] is True
+
+    # 4. SSH transport/auth failure (rc=255) does NOT retry, and hostile target is rejected
+    auth_calls: list[str] = []
+
+    def auth_fail_runner(cmd: str, timeout: int = 120):
+        if "ssh -o BatchMode=yes" in cmd:
+            auth_calls.append(cmd)
+            return False, "", "Permission denied (publickey).", 255
+        return False, "", "", 1
+
+    p_auth = Plugin(
+        targets=["192.168.188.158"],
+        nodes=["minis"],
+        ports=(631,),
+        runner=auth_fail_runner,
+        resolver=lambda h: "192.168.188.80" if h == "minis" else h,
+        tcp_probe=lambda *a: (False, None),
+        mdns_probe=lambda *a: False,
+        snmp_inspector=lambda *a: None,
+        system="linux",
+    )
+    p_auth.diagnose()
+    assert len(auth_calls) == 1
+    assert p_auth._exec_ssh_probe("minis", "192.168.1.1;id", None) is None
+

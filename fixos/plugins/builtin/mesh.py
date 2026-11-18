@@ -49,6 +49,7 @@ SSH_PORT = 22
 MDNS_MULTICAST_ADDR = str(ipaddress.IPv4Address(bytes((224, 0, 0, 251))))
 UNSPECIFIED_IPV4 = str(ipaddress.IPv4Address(0))
 _SAFE_SSH_TARGET_RE = re.compile(r"^(?:[A-Za-z0-9._-]+@)?[A-Za-z0-9][A-Za-z0-9._-]{0,252}$")
+_SAFE_HOST_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,252}$")
 
 VIRTUAL_IFACE_PREFIXES = (
     "lo",
@@ -136,6 +137,107 @@ if connect_host:
             ms.close()
 print(json.dumps(out))
 """.strip()
+
+REMOTE_POSIX_SH_PROBE = """
+t="$1"
+rip="$2"
+hint="$3"
+shift 3
+h=$(uname -n 2>/dev/null || hostname 2>/dev/null || echo "")
+printf 'HOST=%s\\n' "$h"
+if [ -z "$rip" ] && command -v getent >/dev/null 2>&1; then
+  rip=$(getent ahostsv4 "$t" 2>/dev/null | awk 'NR==1{print $1}')
+fi
+if [ -z "$rip" ] && command -v nslookup >/dev/null 2>&1; then
+  rip=$(nslookup "$t" 2>/dev/null | awk '/^Address[^:]*: [0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+/{ip=$NF} END{if(ip)print ip}')
+fi
+c="$rip"
+[ -z "$c" ] && c="$hint"
+printf 'RESOLVED=%s\\n' "$rip"
+if [ -n "$c" ]; then
+  if command -v ip >/dev/null 2>&1; then
+    sip=$(ip -4 route get "$c" 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src"){print $(i+1); exit}}')
+    printf 'SRC=%s\\n' "$sip"
+  fi
+  if command -v nc >/dev/null 2>&1; then
+    for p in "$@"; do
+      if nc -z -w 1 "$c" "$p" >/dev/null 2>&1; then
+        printf 'OPEN=%s\\n' "$p"
+      else
+        printf 'CLOSED=%s\\n' "$p"
+      fi
+    done
+  elif ping -c 1 -W 1 "$c" >/dev/null 2>&1; then
+    printf 'PING=1\\n'
+  else
+    printf 'PING=0\\n'
+  fi
+fi
+""".strip()
+
+
+def parse_posix_probe_output(text: str) -> dict[str, Any] | None:
+    """Parse key=value lines emitted by ``REMOTE_POSIX_SH_PROBE``."""
+    seen_marker = False
+    hostname = ""
+    source_ip = ""
+    resolved_ip = ""
+    open_ports: list[int] = []
+    closed_ports: list[int] = []
+    ping_ok: bool | None = None
+
+    for raw in text.splitlines():
+        line = raw.strip()
+        if "=" not in line:
+            continue
+        key, val = line.split("=", 1)
+        if key == "HOST":
+            seen_marker = True
+            hostname = val.strip()
+        elif key == "RESOLVED":
+            seen_marker = True
+            candidate = val.strip()
+            if _is_valid_ipv4(candidate):
+                resolved_ip = candidate
+        elif key == "SRC":
+            candidate = val.strip()
+            if _is_valid_ipv4(candidate):
+                source_ip = candidate
+        elif key == "OPEN":
+            if val.isdigit():
+                open_ports.append(int(val))
+        elif key == "CLOSED":
+            if val.isdigit():
+                closed_ports.append(int(val))
+        elif key == "PING":
+            ping_ok = val.strip() == "1"
+
+    if not seen_marker:
+        return None
+    return {
+        "hostname": hostname,
+        "source_ip": source_ip,
+        "resolved_ip": resolved_ip or None,
+        "open_ports": open_ports,
+        "closed_ports": closed_ports,
+        "ping_ok": ping_ok,
+        "latency_ms": None,
+        "mdns_unicast_ok": None,
+        "mdns_multicast_ok": None,
+        "probe_kind": "posix_sh",
+    }
+
+
+def _is_missing_remote_python(rc: int, out: str, err: str) -> bool:
+    if rc == 255:
+        return False
+    if rc == 127:
+        return True
+    combined = f"{out}\n{err}".lower()
+    return "python3" in combined and any(
+        marker in combined
+        for marker in ("not found", "no such file", "not recognized")
+    )
 
 
 @dataclass
@@ -782,12 +884,18 @@ class Plugin(DiagnosticPlugin):
                 src_ip = str(remote.get("source_ip") or node.address)
                 resolved_remote = remote.get("resolved_ip")
                 r_host = str(remote.get("hostname") or "")
+                via = (
+                    "SSH/POSIX sh"
+                    if remote.get("probe_kind") == "posix_sh"
+                    else "SSH"
+                )
                 return NodeProbeResult(
                     node_id=node.node_id,
                     node_kind=node.kind,
                     source_ip=src_ip,
                     mode="active",
                     resolved_ip=resolved_remote,
+                    ping_ok=remote.get("ping_ok"),
                     open_ports=[int(p) for p in remote.get("open_ports") or []],
                     closed_ports=[int(p) for p in remote.get("closed_ports") or []],
                     latency_ms=remote.get("latency_ms"),
@@ -798,7 +906,7 @@ class Plugin(DiagnosticPlugin):
                     ),
                     explicit=node.explicit,
                     remote_hostname=r_host,
-                    note=f"zdalny test SSH ({r_host or node.ssh_target})",
+                    note=f"zdalny test {via} ({r_host or node.ssh_target})",
                 )
             if node.explicit:
                 return NodeProbeResult(
@@ -833,6 +941,10 @@ class Plugin(DiagnosticPlugin):
     ) -> dict[str, Any] | None:
         if not _SAFE_SSH_TARGET_RE.fullmatch(ssh_target):
             return None
+        if not (_is_valid_ipv4(target) or _SAFE_HOST_RE.fullmatch(target)):
+            return None
+        if target_ip and not _is_valid_ipv4(target_ip):
+            target_ip = None
         encoded = base64.b64encode(REMOTE_PYTHON_PROBE.encode("utf-8")).decode("ascii")
         ports_csv = ",".join(str(int(p)) for p in self._ports)
         ip_arg = shlex.quote(target_ip or "")
@@ -848,19 +960,48 @@ class Plugin(DiagnosticPlugin):
             "-o StrictHostKeyChecking=accept-new -- "
             f"{shlex.quote(ssh_target)} {shlex.quote(remote_cmd)}"
         )
+        ok, out, err, rc = self._run(ssh_cmd, timeout=10)
+        if ok and out:
+            for line in reversed(out.splitlines()):
+                line = line.strip()
+                if line.startswith("{") and line.endswith("}"):
+                    try:
+                        parsed = json.loads(line)
+                        if isinstance(parsed, dict):
+                            return parsed
+                    except json.JSONDecodeError:
+                        continue
+        if not ok and _is_missing_remote_python(rc, out, err):
+            return self._exec_ssh_posix_probe(ssh_target, target, target_ip)
+        return None
+
+    def _exec_ssh_posix_probe(
+        self, ssh_target: str, target: str, target_ip: str | None
+    ) -> dict[str, Any] | None:
+        """Fallback probe for Python-less SSH peers (e.g. OpenWrt / BusyBox)."""
+        if not _SAFE_SSH_TARGET_RE.fullmatch(ssh_target):
+            return None
+        if not (_is_valid_ipv4(target) or _SAFE_HOST_RE.fullmatch(target)):
+            return None
+        literal_ip = target if _is_valid_ipv4(target) else ""
+        safe_hint = target_ip if (target_ip and _is_valid_ipv4(target_ip)) else ""
+        port_args = " ".join(
+            shlex.quote(str(int(p))) for p in self._ports if 1 <= int(p) <= 65535
+        )
+        remote_cmd = (
+            f"sh -c {shlex.quote(REMOTE_POSIX_SH_PROBE)} sh "
+            f"{shlex.quote(target)} {shlex.quote(literal_ip)} {shlex.quote(safe_hint)}"
+            + (f" {port_args}" if port_args else "")
+        )
+        ssh_cmd = (
+            "ssh -o BatchMode=yes -o ConnectTimeout=3 "
+            "-o StrictHostKeyChecking=accept-new -- "
+            f"{shlex.quote(ssh_target)} {shlex.quote(remote_cmd)}"
+        )
         ok, out, _, _ = self._run(ssh_cmd, timeout=10)
         if not ok or not out:
             return None
-        for line in reversed(out.splitlines()):
-            line = line.strip()
-            if line.startswith("{") and line.endswith("}"):
-                try:
-                    parsed = json.loads(line)
-                    if isinstance(parsed, dict):
-                        return parsed
-                except json.JSONDecodeError:
-                    continue
-        return None
+        return parse_posix_probe_output(out)
 
     def _icmp_ping_local(self, target_ip: str, source_ip: str) -> bool:
         if self._system == "windows":
