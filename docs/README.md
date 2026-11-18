@@ -4,6 +4,9 @@ Ta dokumentacja dotyczy narzędzia do diagnostyki i naprawy systemu fixOS.
 
 ## Dla użytkownika
 
+- [Diagnostyka wielowęzłowa sieci](information/mesh.md) — `fixos mesh` i
+  `fixos printers --mesh`, testy osiągalności hosta z każdego interfejsu i węzła
+  LAN/SSH, detekcja pustej bramy SNMP oraz blokady multicast mDNS.
 - [Diagnostyka i naprawa drukarek](information/printers.md) — `fixos printers`,
   nierozwiązywalne nazwy drukarek sieciowych, IPP Everywhere, CUPS i Windows.
 - [Duże pliki i decyzje bez LLM](information/storage-triage.md) — `fixos storage`,
