@@ -1,0 +1,91 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-176",
+  "summary": "Autonomous Docker dangling/ephemeral cleanup and stale /tmp test-dir reclamation in fixos auto",
+  "workstream": "application",
+  "classification": {
+    "kind": "FEATURE",
+    "priority": "P1",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-176/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/cli/_auto_cleanup.py",
+    "fixos/cli/_cleanup_free_target.py",
+    "fixos/cli/_cleanup_space.py",
+    "tests/unit/test_auto_remediation.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "targetBranch": "main",
+    "acceptedBaseSha": "4f23ed158a9b470e6cc5ba2b66e346ced152b0d1",
+    "outcome": "Enable fixos auto to autonomously reclaim dangling Docker images, dangling build cache, strictly allowlisted 0-ref ephemeral/qualification Docker images, uv/pip caches, and stale (>2h) current-UID /tmp test directories without touching active containers, protected images, Docker volumes, or user data.",
+    "complexity": "M",
+    "estimatedMinutes": 45,
+    "budgets": {
+      "maxImplementationFiles": 4,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "runtimeDependencies": [],
+    "nonGoals": [
+      "Do not modify fixos/cli/fix_cmd.py or tests/unit/test_auto_cleanup.py (reserved by ticket-163).",
+      "Do not delete Docker volumes, running/stopped container images, approved/parent/latest images, or user backups/documents."
+    ],
+    "architecture": {
+      "status": "accepted",
+      "decision": "Extend the existing hooks already called by fixos auto (_auto_cleanup.cleanup_docker_builder, _auto_cleanup._CACHE_PATHS, _cleanup_space._scan_tmp) plus _cleanup_free_target helpers with fail-closed container-image inspection, strict ephemeral allowlist and protected-token guards, and current-UID 2h retention for known /tmp test prefixes.",
+      "components": [
+        {
+          "name": "auto-cleanup-remediation",
+          "paths": [
+            "fixos/cli/_auto_cleanup.py",
+            "fixos/cli/_cleanup_free_target.py",
+            "fixos/cli/_cleanup_space.py"
+          ]
+        },
+        {
+          "name": "auto-remediation-tests",
+          "paths": [
+            "tests/unit/test_auto_remediation.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert ticket-176 PR to restore previous Docker build-cache-only and 24h-only /tmp cleanup behavior."
+    },
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "wellman run --root . --allow-primary-venv -- pytest -q tests/unit/test_auto_remediation.py tests/unit/test_auto_cleanup.py tests/unit/test_cleanup_tmp.py tests/unit/test_cleanup_free_target.py"
+        ],
+        "evidence": "All new and existing auto-cleanup, /tmp, and free-target unit tests pass."
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "./project/governance-check.sh --base origin/main",
+          "wellman check --root ."
+        ],
+        "evidence": "GOV-PASS and zero Wellman errors on ticket-176."
+      }
+    ]
+  }
+}
