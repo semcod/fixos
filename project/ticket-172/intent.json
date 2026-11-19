@@ -1,0 +1,80 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-172",
+  "summary": "chore(governance): register stray root path ownership for Windows checkout cleanup",
+  "workstream": "governance",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P1",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-172/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    ".governance/manifest.json",
+    ".governance/standard-adoption.json"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "3d116a7479ea576cfa4a277b75f6d70adfac35b0",
+    "targetBranch": "main",
+    "outcome": "Registered Since no actual code in/** under governance.ownedPaths in .governance/manifest.json and synchronized .governance/standard-adoption.json artifact digests so the invalid NTFS stray file can be deleted in a scoped ticket.",
+    "nonGoals": [
+      "Modifying managed .governance/*.py scripts or application source code."
+    ],
+    "complexity": "XS",
+    "estimatedMinutes": 10,
+    "budgets": {
+      "maxAffectedComponents": 1,
+      "maxImplementationFiles": 2,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Add Since no actual code in/** to coordination.workstreams.governance.ownedPaths in .governance/manifest.json and update .governance/manifest.json SHA-256 digests in .governance/standard-adoption.json.",
+      "components": [
+        {
+          "name": "governance",
+          "paths": [
+            ".governance/manifest.json",
+            ".governance/standard-adoption.json"
+          ]
+        }
+      ],
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "responsibilityChanges": false,
+      "rollback": "Revert commit on ticket/172-register-stray-path-owner.",
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      }
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "pytest -q tests/unit/test_standard_adoption_projection.py"
+        ],
+        "evidence": "Standard adoption projection tests pass with updated manifest digest."
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "./project/governance-check.sh --base 3d116a7479ea576cfa4a277b75f6d70adfac35b0 --head HEAD"
+        ],
+        "evidence": "governance-check.sh passes with zero errors."
+      }
+    ]
+  }
+}
