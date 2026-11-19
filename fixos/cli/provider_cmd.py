@@ -1,11 +1,28 @@
 """
-Provider management commands for fixOS CLI
+Provider management commands for fixOS CLI.
 """
+
+from __future__ import annotations
+
+from typing import TypedDict
 
 import click
 
+from fixos.constants import UI_BORDER_WIDTH
 
-PROVIDERS_INFO = {
+
+class ProviderInfo(TypedDict):
+    """Metadata describing a supported LLM provider."""
+
+    name: str
+    url: str
+    key_url: str
+    env_var: str
+    models: list[str]
+    pricing: str
+
+
+PROVIDERS_INFO: dict[str, ProviderInfo] = {
     "gemini": {
         "name": "Google Gemini",
         "url": "https://ai.google.dev/",
@@ -105,6 +122,47 @@ PROVIDERS_INFO = {
 }
 
 
+def _echo_providers_header() -> None:
+    click.echo(click.style("\nDostępni providerzy LLM:", fg="cyan", bold=True))
+    click.echo(click.style("═" * min(UI_BORDER_WIDTH, 60), fg="cyan"))
+    click.echo()
+
+
+def _echo_provider_entry(
+    provider_id: str,
+    info: ProviderInfo,
+    active_provider: str | None,
+    *,
+    include_details: bool,
+) -> None:
+    pricing = info.get("pricing", "PAID")
+    badge = click.style(f"[{pricing}]", fg="green" if pricing == "FREE" else "yellow")
+    active_marker = (
+        click.style(" [aktywny]", fg="green", bold=True)
+        if provider_id == active_provider
+        else ""
+    )
+    name = click.style(info["name"], fg="yellow", bold=True)
+    click.echo(f"  {badge} {name}{active_marker}")
+    click.echo(f"    ID      : {provider_id}")
+    if include_details:
+        click.echo(f"    Strona  : {info['url']}")
+    click.echo(
+        f"    Klucz   : {click.style(info['key_url'], fg='blue', underline=True)}"
+    )
+    click.echo(f"    Zmienna : {info.get('env_var', 'N/A')}")
+    if include_details:
+        click.echo(f"    Modele  : {', '.join(info['models'][:3])}")
+    click.echo()
+
+
+def _echo_usage_footer(lines: tuple[str, ...]) -> None:
+    click.echo(click.style("Użycie:", fg="green", bold=True))
+    for line in lines:
+        click.echo(f"  {line}")
+    click.echo()
+
+
 @click.command("llm")
 @click.option("--free", is_flag=True, help="Tylko darmowe providery")
 def llm_providers(free: bool) -> None:
@@ -118,41 +176,24 @@ def llm_providers(free: bool) -> None:
     from fixos.config import FixOsConfig
 
     cfg = FixOsConfig.load()
-    active_provider = cfg.provider
-
-    click.echo(click.style("\nDostępni providerzy LLM:", fg="cyan", bold=True))
-    click.echo(click.style("═" * 60, fg="cyan"))
-    click.echo()
+    _echo_providers_header()
 
     for provider_id, info in PROVIDERS_INFO.items():
-        # Filter by free flag
         if free and info.get("pricing") != "FREE":
             continue
-
-        # Build provider line with badge
-        pricing = info.get("pricing", "PAID")
-        badge = click.style(
-            f"[{pricing}]", fg="green" if pricing == "FREE" else "yellow"
+        _echo_provider_entry(
+            provider_id,
+            info,
+            cfg.provider,
+            include_details=True,
         )
-        active_marker = ""
-        if provider_id == active_provider:
-            active_marker = click.style(" [aktywny]", fg="green", bold=True)
 
-        name = click.style(info["name"], fg="yellow", bold=True)
-        click.echo(f"  {badge} {name}{active_marker}")
-        click.echo(f"    ID: {provider_id}")
-        click.echo(f"    Strona: {info['url']}")
-        click.echo(
-            f"    Klucz   : {click.style(info['key_url'], fg='blue', underline=True)}"
+    _echo_usage_footer(
+        (
+            "fixos token set <KLUCZ>  # auto-detect providera",
+            "fixos fix --provider <ID>  # wymuszony provider",
         )
-        click.echo(f"    Zmienna : {info.get('env_var', 'N/A')}")
-        click.echo(f"    Modele: {', '.join(info['models'][:3])}")
-        click.echo()
-
-    click.echo(click.style("Użycie:", fg="green", bold=True))
-    click.echo("  fixos token set <KLUCZ>  # auto-detect providera")
-    click.echo("  fixos fix --provider <ID>  # wymuszony provider")
-    click.echo()
+    )
 
 
 @click.command("providers")
@@ -163,34 +204,22 @@ def providers() -> None:
     from fixos.config import FixOsConfig
 
     cfg = FixOsConfig.load()
-    active_provider = cfg.provider
-
-    click.echo(click.style("\nDostępni providerzy LLM:", fg="cyan", bold=True))
-    click.echo(click.style("═" * 60, fg="cyan"))
-    click.echo()
+    _echo_providers_header()
 
     for provider_id, info in PROVIDERS_INFO.items():
-        pricing = info.get("pricing", "PAID")
-        badge = click.style(
-            f"[{pricing}]", fg="green" if pricing == "FREE" else "yellow"
+        _echo_provider_entry(
+            provider_id,
+            info,
+            cfg.provider,
+            include_details=False,
         )
-        active_marker = ""
-        if provider_id == active_provider:
-            active_marker = click.style(" [aktywny]", fg="green", bold=True)
 
-        name = click.style(info["name"], fg="yellow", bold=True)
-        click.echo(f"  {badge} {name}{active_marker}")
-        click.echo(f"    ID: {provider_id}")
-        click.echo(
-            f"    Klucz   : {click.style(info['key_url'], fg='blue', underline=True)}"
+    _echo_usage_footer(
+        (
+            "fixos llm  # szczegółowa lista z modelami",
+            "fixos token set <KLUCZ>  # zapisz klucz API",
         )
-        click.echo(f"    Zmienna : {info.get('env_var', 'N/A')}")
-        click.echo()
-
-    click.echo(click.style("Użycie:", fg="green", bold=True))
-    click.echo("  fixos llm  # szczegółowa lista z modelami")
-    click.echo("  fixos token set <KLUCZ>  # zapisz klucz API")
-    click.echo()
+    )
 
 
 @click.command("test-llm")
@@ -198,7 +227,12 @@ def providers() -> None:
 @click.option("--token", "-t", default=None, envvar="API_KEY", help="Token API")
 @click.option("--model", "-m", default=None, help="Model")
 @click.option("--no-banner", is_flag=True, help="Ukryj baner")
-def test_llm(provider: str, token: str, model: str, no_banner: bool) -> None:
+def test_llm(
+    provider: str | None,
+    token: str | None,
+    model: str | None,
+    no_banner: bool,
+) -> None:
     """
     Test połączenia z LLM.
 
@@ -227,12 +261,15 @@ def test_llm(provider: str, token: str, model: str, no_banner: bool) -> None:
     if model:
         cfg.model = model
 
-    click.echo(click.style("\nTest połączenia z LLM...", fg="yellow"))
-    click.echo(f"  Provider: {cfg.provider}")
-    click.echo(f"  Model: {cfg.model}")
-    click.echo(
-        f"  Klucz: {'skonfigurowany' if cfg.api_key else click.style('BRAK', fg='red', bold=True)}"
+    click.echo(click.style("\nTest połączenia z LLM...", fg="yellow", bold=True))
+    click.echo(f"  Provider : {cfg.provider}")
+    click.echo(f"  Model    : {cfg.model}")
+    key_status = (
+        click.style("skonfigurowany", fg="green")
+        if cfg.api_key
+        else click.style("BRAK", fg="red", bold=True)
     )
+    click.echo(f"  Klucz    : {key_status}")
 
     if not cfg.api_key:
         click.echo(
@@ -261,11 +298,11 @@ def test_llm(provider: str, token: str, model: str, no_banner: bool) -> None:
         click.echo(f"  {response.strip()}")
         click.echo(f"\nZużyte tokeny: {llm.total_tokens}")
 
-    except LLMError as e:
-        click.echo(click.style(f"\n❌ Błąd połączenia: {e}", fg="red"))
+    except LLMError as exc:
+        click.echo(click.style(f"\n❌ Błąd połączenia: {exc}", fg="red"))
         click.echo("\nMożliwe przyczyny:")
         click.echo("  - Nieprawidłowy klucz API")
         click.echo("  - Problem z połączeniem internetowym")
         click.echo("  - Provider niedostępny")
-    except Exception as e:
-        click.echo(click.style(f"\n❌ Nieoczekiwany błąd: {e}", fg="red"))
+    except (OSError, RuntimeError, ValueError, TypeError) as exc:
+        click.echo(click.style(f"\n❌ Nieoczekiwany błąd: {exc}", fg="red"))

@@ -1,7 +1,10 @@
 """
-Human-in-the-Loop (HITL) Session for fixOS Agent
-Interactive session where user approves each action.
+Human-in-the-Loop (HITL) Session for fixOS Agent.
+Interactive session where user approves each action while maintaining a single
+memory-only AnonymizationContext across turns.
 """
+
+from __future__ import annotations
 
 import time
 from typing import Any
@@ -14,7 +17,15 @@ from ..platform_utils import (
     setup_signal_timeout,
 )
 from ..providers.llm import LLMAuthError, LLMClient, LLMError
-from ..utils.anonymizer import anonymize, deanonymize, display_anonymized_preview
+from ..utils import anonymizer as _anonymizer_mod
+from ..utils.anonymizer import (
+    ALIAS_RE,
+    AnonymizationContext,
+    ResolutionError,
+    anonymize,
+    deanonymize,
+    display_anonymized_preview,
+)
 from ..utils.timeout import SessionTimeout
 from ..utils.web_search import format_results_for_llm, search_all
 from . import session_handlers as handlers
@@ -32,6 +43,45 @@ from .session_core import (
 )
 
 
+def _create_session_anonymization_context() -> AnonymizationContext:
+    """Create a session-scoped alias table pre-seeded with primary host tokens."""
+    sensitive = _anonymizer_mod._get_sensitive()
+    context = AnonymizationContext(primary_user=sensitive.get("username"))
+    hostname = sensitive.get("hostname")
+    if hostname:
+        context.bind("HOSTNAME", hostname, "[HOSTNAME]")
+    home = sensitive.get("home")
+    if home:
+        context.bind("HOME", home, "[HOME]")
+    return context
+
+
+def _deanonymize_remediation_action(
+    action: RemediationAction,
+    context: AnonymizationContext,
+) -> RemediationAction:
+    """Resolve an action's executable fields against the session alias table fail-closed."""
+    scoped_text = " ".join((*action.affected_targets, *action.evidence))
+    scoped_aliases = set(ALIAS_RE.findall(scoped_text))
+    primary_aliases = {"[USER]", "[HOSTNAME]", "[HOME]"} & set(context.reverse_map)
+    if scoped_aliases:
+        allowed_aliases = (scoped_aliases & set(context.reverse_map)) | primary_aliases
+        # If affected_targets/evidence explicitly cited an unknown/semantic alias,
+        # keep it in allowed_aliases so deanonymize rejects it as unknown_or_semantic_alias.
+        allowed_aliases |= scoped_aliases - set(context.reverse_map)
+    else:
+        allowed_aliases = set(context.reverse_map)
+
+    return transform_remediation_commands(
+        action,
+        lambda value: deanonymize(
+            value,
+            context=context,
+            allowed_aliases=allowed_aliases,
+        ),
+    )
+
+
 class HITLSession:
     """Interactive Human-in-the-Loop diagnostic and repair session."""
 
@@ -43,10 +93,16 @@ class HITLSession:
         diagnostics: dict[str, Any],
         config: FixOsConfig,
         show_data: bool = True,
+        anonymization_context: AnonymizationContext | None = None,
     ):
         self.diagnostics = diagnostics
         self.config = config
         self.show_data = show_data
+        self.anonymization_context = (
+            anonymization_context
+            if anonymization_context is not None
+            else _create_session_anonymization_context()
+        )
         self.llm = LLMClient(config)
         self.os_info = get_os_info()
         self.pkg_manager = get_package_manager() or "unknown"
@@ -64,6 +120,14 @@ class HITLSession:
         self.start_ts = self.session_started_ts
         self._setup_timeout()
 
+    def _ensure_anonymization_context(self) -> AnonymizationContext:
+        """Lazily initialize context even when tests instantiate via ``__new__``."""
+        ctx = getattr(self, "anonymization_context", None)
+        if ctx is None:
+            ctx = _create_session_anonymization_context()
+            self.anonymization_context = ctx
+        return ctx
+
     def _setup_timeout(self) -> None:
         """Setup session timeout handler."""
         from . import session_io
@@ -71,7 +135,6 @@ class HITLSession:
         def _timeout(signum, frame) -> None:
             raise SessionTimeout()
 
-        # Store reference in session_io for reinstatement during user input
         session_io._setup_timeout_ref(self, self.config.session_timeout, _timeout)
         setup_signal_timeout(self.config.session_timeout, _timeout)
 
@@ -92,7 +155,8 @@ class HITLSession:
 
     def _initialize_messages(self) -> bool:
         """Initialize LLM message history with system prompt and diagnostics."""
-        anon_str, report = anonymize(str(self.diagnostics))
+        ctx = self._ensure_anonymization_context()
+        anon_str, report = anonymize(str(self.diagnostics), context=ctx)
 
         if self.show_data:
             display_anonymized_preview(anon_str, report)
@@ -164,10 +228,13 @@ class HITLSession:
             if results:
                 web_ctx = format_results_for_llm(results)
                 io.console.print(web_ctx)
+                anon_web_ctx, _ = anonymize(
+                    web_ctx, context=self._ensure_anonymization_context()
+                )
                 self.messages.append(
                     {
                         "role": "user",
-                        "content": f"External sources:\n{web_ctx}\nUpdate analysis.",
+                        "content": f"External sources:\n{anon_web_ctx}\nUpdate analysis.",
                     }
                 )
             return True
@@ -176,12 +243,18 @@ class HITLSession:
     def _select_turn_choices(
         self, reply: str
     ) -> list[RemediationAction | DiagnosticChoice]:
-        """Build the next menu while preserving the iterative queue."""
-        actions = [
-            transform_remediation_commands(action, deanonymize)
-            for action in extract_remediation_actions(reply)
-            if action.finding_ref not in self._completed_finding_refs
-        ]
+        """Build the next menu while preserving the iterative queue and alias context."""
+        ctx = self._ensure_anonymization_context()
+        actions: list[RemediationAction] = []
+        for raw_action in extract_remediation_actions(reply):
+            if raw_action.finding_ref in self._completed_finding_refs:
+                continue
+            try:
+                actions.append(_deanonymize_remediation_action(raw_action, ctx))
+            except ResolutionError as exc:
+                io.console.print(
+                    f"  [yellow]⚠️ Odrzucono akcję z nierozwiązywalnym aliasem ({exc}).[/yellow]"
+                )
 
         if self._diagnosis_queue_active:
             if self._focused_optimization is not None:
@@ -258,6 +331,7 @@ class HITLSession:
 
     def _process_turn(self) -> bool:
         """Process one turn of the HITL session."""
+        ctx = self._ensure_anonymization_context()
         self._start_llm_turn()
         rem = self.remaining()
         if rem <= 0:
@@ -271,19 +345,18 @@ class HITLSession:
                 temperature=0.2,
             )
             self.messages.append({"role": "assistant", "content": reply})
-        except LLMAuthError as e:
+        except LLMAuthError as exc:
             io.clear_thinking()
-            io.print_llm_error(e)
-            # The same key fails every retry; external search cannot fix it.
+            io.print_llm_error(exc)
             io.console.print(
                 "  [yellow]Sesja zakończona: popraw klucz (`fixos token set …` lub "
                 "plik .env) i uruchom ponownie. Bez LLM działa `fixos quick` "
                 "i `fixos cleanup`.[/yellow]"
             )
             return False
-        except LLMError as e:
+        except LLMError as exc:
             io.clear_thinking()
-            io.print_llm_error(e)
+            io.print_llm_error(exc)
             return self._handle_llm_error()
         io.clear_thinking()
 
@@ -312,13 +385,13 @@ class HITLSession:
                 selected = self.last_fixes[index]
         choices_before = list(self.last_fixes)
 
-        # Handle all command types via handlers module
         should_continue, was_handled = handlers.parse_user_input(
             user_in,
             self.last_fixes,
             self.messages,
             self.executed,
             self.config.serpapi_key,
+            anonymization_context=ctx,
         )
 
         if isinstance(selected, DiagnosticChoice):
@@ -327,8 +400,8 @@ class HITLSession:
             self._record_completed_choices(choices_before, self.last_fixes)
 
         if not was_handled:
-            # Free text → send to LLM
-            self.messages.append({"role": "user", "content": user_in})
+            anon_user_in, _ = anonymize(user_in, context=ctx)
+            self.messages.append({"role": "user", "content": anon_user_in})
             self._reset_diagnosis_queue()
         elif user_in.lower() in ("d", "s", "skip", "pomiń", "pomin") or (
             handlers.is_cleanup_intent(user_in)
@@ -377,7 +450,6 @@ def run_hitl_session(
     session.run()
 
 
-# Backward compatibility exports
 __all__ = [
     "SYSTEM_PROMPT",
     "CmdResult",

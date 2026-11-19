@@ -1,7 +1,10 @@
 """
 Command handlers for HITL session.
-Each handler processes a specific user command type.
+Each handler processes a specific user command type while preserving an optional
+session-scoped AnonymizationContext across turns.
 """
+
+from __future__ import annotations
 
 import hashlib
 import json
@@ -23,7 +26,12 @@ from ..platform_utils import (
     is_interactive_blocker,
     run_command,
 )
-from ..utils.anonymizer import anonymize, deanonymize
+from ..utils.anonymizer import (
+    ALIAS_RE,
+    AnonymizationContext,
+    anonymize,
+    deanonymize,
+)
 from ..utils.web_search import format_results_for_llm, search_all
 from . import session_io as io
 from .session_core import (
@@ -66,6 +74,20 @@ def _resolve_command_timeout(cmd: str) -> int:
     return DEFAULT_COMMAND_TIMEOUT
 
 
+def _resolve_with_context(
+    cmd: str,
+    anonymization_context: AnonymizationContext | None,
+) -> str:
+    """Resolve bound session aliases when a contextual alias map is active."""
+    if anonymization_context is None or not ALIAS_RE.search(cmd):
+        return cmd
+    return deanonymize(
+        cmd,
+        context=anonymization_context,
+        allowed_aliases=set(anonymization_context.reverse_map),
+    )
+
+
 def handle_quit() -> bool:
     """Handle [Q] Quit command. Returns False to exit loop."""
     io.print_session_ended()
@@ -80,16 +102,22 @@ def handle_skip_all(messages: list) -> bool:
     return True
 
 
-def handle_describe_problem(messages: list, ask_fn) -> bool:
+def handle_describe_problem(
+    messages: list,
+    ask_fn,
+    *,
+    anonymization_context: AnonymizationContext | None = None,
+) -> bool:
     """Handle [D] Describe own problem command."""
     problem = ask_fn()
     if problem:
+        anon_problem, _ = anonymize(problem, context=anonymization_context)
         messages.append(
             {
                 "role": "user",
                 "content": (
                     f"User describes a new problem:\n"
-                    f"{problem}\n\n"
+                    f"{anon_problem}\n\n"
                     f"Analyze this problem and return the required structured remediation plan."
                 ),
             }
@@ -176,7 +204,11 @@ def _execution_outcome(results: list[CmdResult], expected_steps: int) -> str:
 
 
 def _remediation_feedback(
-    action: RemediationAction, results: list[CmdResult], expected_steps: int
+    action: RemediationAction,
+    results: list[CmdResult],
+    expected_steps: int,
+    *,
+    anonymization_context: AnonymizationContext | None = None,
 ) -> str:
     canonical_input = json.dumps(
         {
@@ -192,7 +224,7 @@ def _remediation_feedback(
     steps = []
     output_context = []
     for result in results:
-        anonymous_command, _ = anonymize(result.cmd)
+        anonymous_command, _ = anonymize(result.cmd, context=anonymization_context)
         steps.append(
             {
                 "phase": result.phase,
@@ -201,7 +233,10 @@ def _remediation_feedback(
                 "returnCode": result.returncode,
             }
         )
-        anonymous_output, _ = anonymize(result.stdout + "\n" + result.stderr)
+        anonymous_output, _ = anonymize(
+            result.stdout + "\n" + result.stderr,
+            context=anonymization_context,
+        )
         if anonymous_output.strip():
             output_context.append(
                 f"- {result.phase}/{result.outcome}: "
@@ -237,12 +272,15 @@ def _execute_remediation_action(
     messages: list,
     executed: list,
     run_cmd_fn,
+    *,
+    anonymization_context: AnonymizationContext | None = None,
 ) -> str:
     """Execute one selected strategy, stopping mutation steps on first refusal."""
     results: list[CmdResult] = []
     for index, command in enumerate(action.commands, 1):
+        resolved_cmd = _resolve_with_context(command, anonymization_context)
         result = run_cmd_fn(
-            command,
+            resolved_cmd,
             f"[{action.finding_ref}] {action.label} — krok {index}/{len(action.commands)}",
         )
         result = _tag_result(result, action, "remediation")
@@ -256,8 +294,9 @@ def _execute_remediation_action(
     )
     if mutation_complete:
         for index, command in enumerate(action.verification, 1):
+            resolved_cmd = _resolve_with_context(command, anonymization_context)
             result = run_cmd_fn(
-                command,
+                resolved_cmd,
                 f"[{action.finding_ref}] weryfikacja {index}/{len(action.verification)}",
             )
             result = _tag_result(result, action, "verification")
@@ -271,13 +310,25 @@ def _execute_remediation_action(
     messages.append(
         {
             "role": "user",
-            "content": _remediation_feedback(action, results, expected_steps),
+            "content": _remediation_feedback(
+                action,
+                results,
+                expected_steps,
+                anonymization_context=anonymization_context,
+            ),
         }
     )
     return outcome
 
 
-def handle_execute_all(fixes: list, messages: list, executed: list, run_cmd_fn) -> bool:
+def handle_execute_all(
+    fixes: list,
+    messages: list,
+    executed: list,
+    run_cmd_fn,
+    *,
+    anonymization_context: AnonymizationContext | None = None,
+) -> bool:
     """Handle [A] Execute all commands."""
     if not fixes:
         io.print_no_commands()
@@ -297,7 +348,11 @@ def handle_execute_all(fixes: list, messages: list, executed: list, run_cmd_fn) 
         completed_findings: set[str] = set()
         for action in selected_fixes:
             outcome = _execute_remediation_action(
-                action, messages, executed, run_cmd_fn
+                action,
+                messages,
+                executed,
+                run_cmd_fn,
+                anonymization_context=anonymization_context,
             )
             if outcome == "SUCCEEDED":
                 completed_findings.add(action.finding_ref)
@@ -315,11 +370,16 @@ def handle_execute_all(fixes: list, messages: list, executed: list, run_cmd_fn) 
 
     summary_lines = []
     for cmd, comment in selected_fixes:
-        result = run_cmd_fn(cmd, comment)
+        resolved_cmd = _resolve_with_context(cmd, anonymization_context)
+        result = run_cmd_fn(resolved_cmd, comment)
         executed.append(result)
-        anon_out, _ = anonymize(result.stdout + result.stderr)
+        anon_cmd, _ = anonymize(resolved_cmd, context=anonymization_context)
+        anon_out, _ = anonymize(
+            result.stdout + result.stderr,
+            context=anonymization_context,
+        )
         status = "✅ sukces" if result.ok else f"❌ błąd (kod {result.returncode})"
-        summary = f"- `{cmd}`: {status}"
+        summary = f"- `{anon_cmd}`: {status}"
         if anon_out.strip():
             summary += f"\n  Output: {anon_out.strip()[:MAX_ANON_PREVIEW_LENGTH]}"
         summary_lines.append(summary)
@@ -339,7 +399,13 @@ def handle_execute_all(fixes: list, messages: list, executed: list, run_cmd_fn) 
 
 
 def handle_fix_by_number(
-    user_in: str, fixes: list, messages: list, executed: list, run_cmd_fn
+    user_in: str,
+    fixes: list,
+    messages: list,
+    executed: list,
+    run_cmd_fn,
+    *,
+    anonymization_context: AnonymizationContext | None = None,
 ) -> bool:
     """Handle [N] Execute specific fix by number."""
     idx = int(user_in) - 1
@@ -366,7 +432,11 @@ def handle_fix_by_number(
             return True
         if isinstance(selected, RemediationAction):
             outcome = _execute_remediation_action(
-                selected, messages, executed, run_cmd_fn
+                selected,
+                messages,
+                executed,
+                run_cmd_fn,
+                anonymization_context=anonymization_context,
             )
             if outcome == "SUCCEEDED":
                 fixes[:] = [
@@ -379,15 +449,17 @@ def handle_fix_by_number(
                 ]
             return True
         cmd, comment = selected
-        result = run_cmd_fn(cmd, comment)
+        resolved_cmd = _resolve_with_context(cmd, anonymization_context)
+        result = run_cmd_fn(resolved_cmd, comment)
         executed.append(result)
-        anon_out, _ = anonymize(result.stdout)
-        anon_err, _ = anonymize(result.stderr)
+        anon_cmd, _ = anonymize(resolved_cmd, context=anonymization_context)
+        anon_out, _ = anonymize(result.stdout, context=anonymization_context)
+        anon_err, _ = anonymize(result.stderr, context=anonymization_context)
         messages.append(
             {
                 "role": "user",
                 "content": (
-                    f"Executed: `{cmd}`\n"
+                    f"Executed: `{anon_cmd}`\n"
                     f"Success: {result.ok}\n"
                     f"Stdout:\n```\n{anon_out[:MAX_ANON_PREVIEW_LENGTH]}\n```\n"
                     f"Stderr:\n```\n{anon_err[:MAX_STDERR_PREVIEW_LENGTH]}\n```\n"
@@ -403,33 +475,55 @@ def handle_fix_by_number(
 
 
 def handle_direct_command(
-    user_in: str, messages: list, executed: list, run_cmd_fn
+    user_in: str,
+    messages: list,
+    executed: list,
+    run_cmd_fn,
+    *,
+    anonymization_context: AnonymizationContext | None = None,
 ) -> bool:
     """Handle [!cmd] Direct command execution."""
-    cmd = user_in[1:].strip()
-    result = run_cmd_fn(cmd, "Komenda użytkownika")
+    raw_cmd = user_in[1:].strip()
+    resolved_cmd = _resolve_with_context(raw_cmd, anonymization_context)
+    result = run_cmd_fn(resolved_cmd, "Komenda użytkownika")
     executed.append(result)
-    anon_out, _ = anonymize(f"{result.stdout}\n{result.stderr}")
+    anon_cmd, _ = anonymize(resolved_cmd, context=anonymization_context)
+    anon_out, _ = anonymize(
+        f"{result.stdout}\n{result.stderr}",
+        context=anonymization_context,
+    )
     messages.append(
         {
             "role": "user",
-            "content": f"User ran: `{cmd}`\nResult: {anon_out[:MAX_DIRECT_CMD_PREVIEW_LENGTH]}\nWhat next?",
+            "content": (
+                f"User ran: `{anon_cmd}`\n"
+                f"Result: {anon_out[:MAX_DIRECT_CMD_PREVIEW_LENGTH]}\n"
+                f"What next?"
+            ),
         }
     )
     return True
 
 
-def handle_search(user_in: str, messages: list, serpapi_key: str | None) -> bool:
+def handle_search(
+    user_in: str,
+    messages: list,
+    serpapi_key: str | None,
+    *,
+    anonymization_context: AnonymizationContext | None = None,
+) -> bool:
     """Handle [search <q>] Web search command."""
     query = user_in[7:].strip()
     results = search_all(query, serpapi_key)
     if results:
         web_ctx = format_results_for_llm(results)
         io.console.print(web_ctx)
+        anon_query, _ = anonymize(query, context=anonymization_context)
+        anon_ctx, _ = anonymize(web_ctx, context=anonymization_context)
         messages.append(
             {
                 "role": "user",
-                "content": f"Search results for '{query}':\n{web_ctx}\nWhat do you think?",
+                "content": f"Search results for '{anon_query}':\n{anon_ctx}\nWhat do you think?",
             }
         )
     else:
@@ -437,15 +531,33 @@ def handle_search(user_in: str, messages: list, serpapi_key: str | None) -> bool
     return True
 
 
-def handle_free_text(user_in: str, messages: list) -> bool:
-    """Handle free text input → send to LLM."""
-    messages.append({"role": "user", "content": user_in})
+def handle_free_text(
+    user_in: str,
+    messages: list,
+    *,
+    anonymization_context: AnonymizationContext | None = None,
+) -> bool:
+    """Handle free text input → send anonymized payload to LLM."""
+    anon_text, _ = anonymize(user_in, context=anonymization_context)
+    messages.append({"role": "user", "content": anon_text})
     return True
 
 
-def run_single_command(cmd: str, comment: str) -> CmdResult:
+def run_single_command(
+    cmd: str,
+    comment: str,
+    *,
+    anonymization_context: AnonymizationContext | None = None,
+) -> CmdResult:
     """Run a command with full transparency and safety checks."""
-    cmd = deanonymize(cmd)
+    if anonymization_context is not None and ALIAS_RE.search(cmd):
+        cmd = deanonymize(
+            cmd,
+            context=anonymization_context,
+            allowed_aliases=set(anonymization_context.reverse_map),
+        )
+    else:
+        cmd = deanonymize(cmd)
     cmd = elevate_cmd(cmd)
 
     package_guard = package_cleanup_guard(cmd)
@@ -460,7 +572,6 @@ def run_single_command(cmd: str, comment: str) -> CmdResult:
             returncode=-98,
         )
 
-    # Check for dangerous commands
     danger = is_dangerous(cmd)
     if danger:
         io.print_blocked_command(cmd, danger)
@@ -473,7 +584,6 @@ def run_single_command(cmd: str, comment: str) -> CmdResult:
             returncode=-99,
         )
 
-    # Check for interactive blockers
     blocker = is_interactive_blocker(cmd)
     if blocker:
         io.console.print(f"\n  [bold yellow]⚠️  OSTRZEŻENIE:[/bold yellow] {blocker}")
@@ -509,7 +619,6 @@ def run_single_command(cmd: str, comment: str) -> CmdResult:
     timeout = _resolve_command_timeout(cmd)
     io.console.print("  [dim]⏳ Wykonuję...[/dim]", end="")
 
-    # Suspend session timeout during command execution
     with io.suspend_timeout():
         ok, stdout, stderr, rc = run_command(cmd, timeout=timeout)
 
@@ -522,60 +631,90 @@ def run_single_command(cmd: str, comment: str) -> CmdResult:
 
 
 def parse_user_input(
-    user_in: str, fixes: list, messages: list, executed: list, serpapi_key: str | None
+    user_in: str,
+    fixes: list,
+    messages: list,
+    executed: list,
+    serpapi_key: str | None,
+    *,
+    anonymization_context: AnonymizationContext | None = None,
 ) -> tuple[bool, bool]:
     """
     Parse user input and execute appropriate handler.
 
     Returns:
         Tuple of (should_continue, was_handled)
-        - should_continue: True to continue session, False to exit
-        - was_handled: True if input was handled, False if should be treated as free text
     """
     if not user_in:
         return True, True
 
     lo = user_in.lower()
 
-    # [Q] Quit
     if lo in ("q", "quit", "exit", "koniec"):
         return handle_quit(), True
 
-    # [D] Describe own problem
     if lo == "d":
-        return handle_describe_problem(messages, io.ask_user_problem), True
-
-    # [S] Skip all
-    if lo in ("s", "skip", "pomiń", "pomin"):
-        return handle_skip_all(messages), True
-
-    # [A] Execute all
-    if lo in ("a", "all", "wszystkie"):
-        return handle_execute_all(fixes, messages, executed, run_single_command), True
-
-    # [N] Execute specific fix by number
-    if user_in.isdigit():
         return (
-            handle_fix_by_number(
-                user_in, fixes, messages, executed, run_single_command
+            handle_describe_problem(
+                messages,
+                io.ask_user_problem,
+                anonymization_context=anonymization_context,
             ),
             True,
         )
 
-    # [!cmd] Direct command execution
-    if user_in.startswith("!"):
+    if lo in ("s", "skip", "pomiń", "pomin"):
+        return handle_skip_all(messages), True
+
+    if lo in ("a", "all", "wszystkie"):
         return (
-            handle_direct_command(user_in, messages, executed, run_single_command),
+            handle_execute_all(
+                fixes,
+                messages,
+                executed,
+                run_single_command,
+                anonymization_context=anonymization_context,
+            ),
             True,
         )
 
-    # [search <q>] Web search
-    if lo.startswith("search "):
-        return handle_search(user_in, messages, serpapi_key), True
+    if user_in.isdigit():
+        return (
+            handle_fix_by_number(
+                user_in,
+                fixes,
+                messages,
+                executed,
+                run_single_command,
+                anonymization_context=anonymization_context,
+            ),
+            True,
+        )
 
-    # Bounded cleanup intent (including a single-word typo such as "clanup")
+    if user_in.startswith("!"):
+        return (
+            handle_direct_command(
+                user_in,
+                messages,
+                executed,
+                run_single_command,
+                anonymization_context=anonymization_context,
+            ),
+            True,
+        )
+
+    if lo.startswith("search "):
+        return (
+            handle_search(
+                user_in,
+                messages,
+                serpapi_key,
+                anonymization_context=anonymization_context,
+            ),
+            True,
+        )
+
     if is_cleanup_intent(user_in):
         return handle_cleanup_intent(messages), True
 
-    # Not handled - treat as free text
     return True, False

@@ -1,0 +1,117 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-167",
+  "summary": "feat(agent,cli): persist HITL anonymization, sign rollback snapshots, and unify legacy CLI",
+  "workstream": "application",
+  "classification": {
+    "kind": "FEATURE",
+    "priority": "P2",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-167/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/agent/hitl_session.py",
+    "fixos/agent/session_handlers.py",
+    "fixos/cli/features_cmd.py",
+    "fixos/cli/provider_cmd.py",
+    "fixos/cli/scan_cmd.py",
+    "fixos/orchestrator/rollback.py",
+    "tests/e2e/test_hitl_multiturn_and_snapshot_recovery.py",
+    "tests/unit/test_legacy_cli_commands.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "5b77c5a4f49faf8107040b01f58032bdd840846f",
+    "targetBranch": "main",
+    "outcome": "HITL sessions preserve a single AnonymizationContext across turns with fail-closed alias resolution, RollbackSession signs snapshots with HMAC-SHA256/SHA-256 and recovers interrupted journals after crashes, and legacy CLI commands (scan, features, provider) share unified formatting and complete type annotations without changing public options.",
+    "nonGoals": [
+      "Changing public CLI flags or subcommand names of scan, features, llm, providers, or test-llm.",
+      "Modifying concurrent ticket-161 or ticket-163 owned paths."
+    ],
+    "complexity": "M",
+    "estimatedMinutes": 35,
+    "budgets": {
+      "maxAffectedComponents": 3,
+      "maxImplementationFiles": 9,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Attach a persistent AnonymizationContext to HITLSession and thread it optionally through session_handlers while keeping positional compatibility; upgrade RollbackSession to atomic v2 signed snapshots plus pre-execution crash journals while remaining backward-compatible with v1 files; standardize typing and shared output styling in scan_cmd, features_cmd, and provider_cmd.",
+      "components": [
+        {
+          "name": "agent",
+          "paths": [
+            "fixos/agent/hitl_session.py",
+            "fixos/agent/session_handlers.py",
+            "tests/e2e/test_hitl_multiturn_and_snapshot_recovery.py"
+          ]
+        },
+        {
+          "name": "orchestrator",
+          "paths": [
+            "fixos/orchestrator/rollback.py"
+          ]
+        },
+        {
+          "name": "cli",
+          "paths": [
+            "fixos/cli/scan_cmd.py",
+            "fixos/cli/features_cmd.py",
+            "fixos/cli/provider_cmd.py",
+            "tests/unit/test_legacy_cli_commands.py"
+          ]
+        }
+      ],
+      "interfaceChanges": [],
+      "dataChanges": [
+        {
+          "kind": "component-local-state",
+          "component": "orchestrator",
+          "description": "Private rollback snapshot HMAC-SHA256 signature and pre-execution crash journal in ~/.fixos/rollback"
+        }
+      ],
+      "responsibilityChanges": false,
+      "rollback": "Revert commits on ticket/167-hitl-rollback-legacy-cli.",
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      }
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "pytest -q tests/e2e/test_hitl_multiturn_and_snapshot_recovery.py tests/e2e/test_anonymization_layers.py tests/unit/test_anonymizer.py"
+        ],
+        "evidence": "Multi-turn HITL anonymization and fail-closed alias resolution pass all unit and e2e tests."
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "pytest -q tests/e2e/test_hitl_multiturn_and_snapshot_recovery.py"
+        ],
+        "evidence": "Snapshot lifecycle, HMAC-SHA256 tamper detection, and crash journal recovery pass integration tests."
+      },
+      {
+        "criterion": "AC-03",
+        "commands": [
+          "pytest -q tests/unit/test_legacy_cli_commands.py tests/unit/test_core.py",
+          "./project/governance-check.sh --base 5b77c5a4f49faf8107040b01f58032bdd840846f --head HEAD"
+        ],
+        "evidence": "Legacy CLI option parity, typing, formatting, and governance checks pass with zero errors."
+      }
+    ]
+  }
+}
