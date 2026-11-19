@@ -1,0 +1,85 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-174",
+  "summary": "fix(diagnostics,tests): skip Windows NTFS junctions and normalize expanded cache roots",
+  "workstream": "application",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P1",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-174/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/diagnostics/cache_discovery.py",
+    "tests/unit/test_cache_discovery.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "f309ef4fdde0153470ee503202665eb78610cbd2",
+    "targetBranch": "main",
+    "outcome": "Windows NTFS junctions and legacy aliases (Application Data, Temporary Internet Files, History) are skipped during cache discovery, expanded cache roots use os.path.normpath, and cache discovery unit tests isolate Windows user environment variables.",
+    "nonGoals": [
+      "Modifying CI workflow files or governance manifests."
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 10,
+    "budgets": {
+      "maxAffectedComponents": 2,
+      "maxImplementationFiles": 2,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Add _is_link_or_junction and _expand_norm helpers plus SKIP_ELECTRON_APP_DIRS in fixos/diagnostics/cache_discovery.py and isolate Windows environment variables in tests/unit/test_cache_discovery.py.",
+      "components": [
+        {
+          "name": "diagnostics",
+          "paths": [
+            "fixos/diagnostics/cache_discovery.py"
+          ]
+        },
+        {
+          "name": "tests",
+          "paths": [
+            "tests/unit/test_cache_discovery.py"
+          ]
+        }
+      ],
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "responsibilityChanges": false,
+      "rollback": "Revert commit on ticket/174-windows-ntfs-junctions-normpath.",
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      }
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "pytest -q tests/unit/test_cache_discovery.py tests/e2e/test_cross_platform_quick_cache.py"
+        ],
+        "evidence": "All cache discovery and cross-platform integration tests pass."
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "./project/governance-check.sh --base f309ef4fdde0153470ee503202665eb78610cbd2 --head HEAD"
+        ],
+        "evidence": "governance-check.sh passes with zero errors."
+      }
+    ]
+  }
+}
