@@ -236,6 +236,7 @@ class RollbackSession:
         return subprocess.run(
             rollback_cmd,
             shell=True,
+            check=False,
             capture_output=True,
             text=True,
             timeout=30,
@@ -276,7 +277,7 @@ class RollbackSession:
                         "output": proc.stdout.strip() or proc.stderr.strip(),
                     }
                 )
-            except Exception as exc:
+            except (OSError, subprocess.SubprocessError, ValueError) as exc:
                 results.append(
                     {
                         "command": orig_cmd,

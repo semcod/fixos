@@ -259,7 +259,7 @@ def _run_disk_analysis(
                 fmt.status(
                     f"{indent}Błąd analizy dysku: {disk_analysis['error']}", fg="red"
                 )
-        except Exception as exc:
+        except (OSError, RuntimeError, ValueError, KeyError) as exc:
             fmt.status(f"{indent}Błąd podczas analizy dysku: {exc}", fg="red")
         return
 
@@ -293,7 +293,7 @@ def _run_disk_analysis(
         click.echo(
             click.style(f"{indent}Moduł analizy dysku nie jest dostępny", fg="yellow")
         )
-    except Exception as exc:
+    except (OSError, RuntimeError, ValueError, KeyError) as exc:
         click.echo(
             click.style(f"{indent}Błąd podczas analizy dysku: {exc}", fg="red")
         )

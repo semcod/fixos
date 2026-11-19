@@ -304,5 +304,5 @@ def test_llm(
         click.echo("  - Nieprawidłowy klucz API")
         click.echo("  - Problem z połączeniem internetowym")
         click.echo("  - Provider niedostępny")
-    except Exception as exc:
+    except (OSError, RuntimeError, ValueError, TypeError) as exc:
         click.echo(click.style(f"\n❌ Nieoczekiwany błąd: {exc}", fg="red"))

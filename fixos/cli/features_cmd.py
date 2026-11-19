@@ -76,10 +76,9 @@ def _show_install_plan(
     if len(to_install) > 10:
         console.print(f"  ... i {len(to_install) - 10} więcej")
     console.print()
-    if not yes and not dry_run:
-        if not click.confirm("Kontynuować instalację?"):
-            console.print("[yellow]Anulowano.[/yellow]")
-            return False
+    if not yes and not dry_run and not click.confirm("Kontynuować instalację?"):
+        console.print("[yellow]Anulowano.[/yellow]")
+        return False
     return True
 
 
@@ -153,7 +152,7 @@ def features_profiles() -> None:
             console.print(
                 f"  {prof.icon}  [bold]{prof.name:15s}[/bold]  {prof.description}"
             )
-        except Exception:
+        except (OSError, ValueError, KeyError, TypeError):
             console.print(f"  📦  [bold]{profile_name:15s}[/bold]  (błąd ładowania)")
 
     console.print()
@@ -176,7 +175,7 @@ def _interactive_profile_select() -> str:
         try:
             prof = UserProfile.load(profile_name)
             console.print(f"  [{i}] {prof.icon} {prof.name} - {prof.description}")
-        except Exception:
+        except (OSError, ValueError, KeyError, TypeError):
             console.print(f"  [{i}] 📦 {profile_name}")
 
     console.print()
