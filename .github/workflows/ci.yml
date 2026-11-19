@@ -12,16 +12,43 @@ permissions:
 env:
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
   PYTHONUNBUFFERED: "1"
+  PYTHONIOENCODING: "utf-8"
+  PYTHONUTF8: "1"
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11", "3.12"]
+        slot: ["3.10", "3.11", "3.12", "macos-3.12", "windows-3.12"]
+        include:
+          - slot: "3.10"
+            runner: ubuntu-latest
+            python-version: "3.10"
+            native-os-subset: false
+          - slot: "3.11"
+            runner: ubuntu-latest
+            python-version: "3.11"
+            native-os-subset: false
+          - slot: "3.12"
+            runner: ubuntu-latest
+            python-version: "3.12"
+            native-os-subset: false
+          - slot: "macos-3.12"
+            runner: macos-latest
+            python-version: "3.12"
+            native-os-subset: true
+          - slot: "windows-3.12"
+            runner: windows-latest
+            python-version: "3.12"
+            native-os-subset: true
 
     steps:
+      - name: Preserve LF line endings on checkout
+        shell: bash
+        run: git config --global core.autocrlf false
+
       - name: Checkout
         id: checkout
         uses: actions/checkout@v4
@@ -69,13 +96,30 @@ jobs:
             exit 1
           fi
 
-      - name: Run tests
-        id: tests
+      - name: Run full test suite (Linux)
+        id: tests_linux
+        if: ${{ !matrix.native-os-subset }}
+        shell: bash
         run: python -m pytest tests/ -v --tb=short
+
+      - name: Run native OS quick-scan and cache-classification integration suite (macOS / Windows)
+        id: tests_native
+        if: ${{ matrix.native-os-subset }}
+        shell: bash
+        run: |
+          python -m pytest -v --tb=short \
+            tests/e2e/test_cross_platform_quick_cache.py \
+            tests/unit/test_cache_discovery.py \
+            tests/unit/test_quick_snapshot.py \
+            tests/unit/test_quick_cmd.py \
+            tests/unit/test_legacy_cli_commands.py \
+            tests/e2e/test_hitl_multiturn_and_snapshot_recovery.py \
+            tests/unit/test_mcp_receipts.py \
+            tests/unit/test_poa_grants.py
 
       - name: Lint changed Python files
         id: lint
-        if: matrix.python-version == '3.12'
+        if: matrix.slot == '3.12'
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
         shell: bash
@@ -105,11 +149,17 @@ jobs:
           DEPENDENCIES_RESULT: ${{ steps.dependencies.outcome }}
           COMPILE_RESULT: ${{ steps.compile.outcome }}
           COLLECT_RESULT: ${{ steps.collect.outcome }}
-          TEST_RESULT: ${{ steps.tests.outcome }}
+          TEST_LINUX_RESULT: ${{ steps.tests_linux.outcome }}
+          TEST_NATIVE_RESULT: ${{ steps.tests_native.outcome }}
           LINT_RESULT: ${{ steps.lint.outcome }}
           LINT_CLASS: ${{ steps.lint.outputs.failure_class }}
         shell: bash
         run: |
+          if [[ "${{ matrix.native-os-subset }}" == "true" ]]; then
+            TEST_RESULT="$TEST_NATIVE_RESULT"
+          else
+            TEST_RESULT="$TEST_LINUX_RESULT"
+          fi
           failure_class=NONE
           next_step="No action required."
           if [[ "$CHECKOUT_RESULT" != "success" ]]; then
@@ -136,7 +186,7 @@ jobs:
           fi
 
           {
-            echo "## CI result / Python ${{ matrix.python-version }}"
+            echo "## CI result / ${{ matrix.runner }} / Python ${{ matrix.python-version }}"
             echo ""
             echo "| Stage | Result |"
             echo "| --- | --- |"
