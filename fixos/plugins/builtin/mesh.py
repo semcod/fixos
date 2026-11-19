@@ -96,10 +96,9 @@ except OSError:
 connect_host = out["resolved_ip"] or target_ip_hint
 if connect_host:
     try:
-        udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        udp.connect((connect_host, 9))
-        out["source_ip"] = udp.getsockname()[0]
-        udp.close()
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp:
+            udp.connect((connect_host, 9))
+            out["source_ip"] = udp.getsockname()[0]
     except OSError:
         pass
     latencies = []
@@ -186,31 +185,34 @@ def parse_posix_probe_output(text: str) -> dict[str, Any] | None:
     closed_ports: list[int] = []
     ping_ok: bool | None = None
 
-    for raw in text.splitlines():
-        line = raw.strip()
+    for line in text.splitlines():
         if "=" not in line:
             continue
         key, val = line.split("=", 1)
+        key = key.strip()
+        val = val.strip()
         if key == "HOST":
             seen_marker = True
-            hostname = val.strip()
+            hostname = val
         elif key == "RESOLVED":
             seen_marker = True
-            candidate = val.strip()
-            if _is_valid_ipv4(candidate):
-                resolved_ip = candidate
+            if _is_valid_ipv4(val):
+                resolved_ip = val
         elif key == "SRC":
-            candidate = val.strip()
-            if _is_valid_ipv4(candidate):
-                source_ip = candidate
-        elif key == "OPEN":
-            if val.isdigit():
-                open_ports.append(int(val))
-        elif key == "CLOSED":
-            if val.isdigit():
-                closed_ports.append(int(val))
+            if _is_valid_ipv4(val):
+                source_ip = val
+        elif key in ("OPEN", "CLOSED"):
+            if not (val.isascii() and val.isdigit()):
+                continue
+            digits = val.lstrip("0")
+            if not 1 <= len(digits) <= 5:
+                continue
+            port = int(digits)
+            if 1 <= port <= 65535:
+                ports = open_ports if key == "OPEN" else closed_ports
+                ports.append(port)
         elif key == "PING":
-            ping_ok = val.strip() == "1"
+            ping_ok = val == "1"
 
     if not seen_marker:
         return None
