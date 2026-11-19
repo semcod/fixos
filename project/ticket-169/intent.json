@@ -1,0 +1,78 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-169",
+  "summary": "ci(workflows): add native macOS and Windows integration test matrix",
+  "workstream": "infrastructure",
+  "classification": {
+    "kind": "FEATURE",
+    "priority": "P2",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-169/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    ".github/workflows/ci.yml"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "d08a56917f7e5e958670ccdebe4362cdf3b33e7f",
+    "targetBranch": "main",
+    "outcome": "GitHub Actions CI executes quick-scan, cache-classification, CLI, anonymization, rollback, and POA/MCP integration tests natively on macOS (macos-latest) and Windows (windows-latest) inside the canonical 'test' matrix job alongside Ubuntu Python 3.10-3.12.",
+    "nonGoals": [
+      "Modifying .governance/required-checks.json or adding separate top-level workflow job identifiers."
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 15,
+    "budgets": {
+      "maxAffectedComponents": 1,
+      "maxImplementationFiles": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Extend jobs.test.strategy.matrix in .github/workflows/ci.yml with macos-latest and windows-latest Python 3.12 matrix entries using core.autocrlf=false before checkout so managed SHA-256 governance gates and cross-platform quick/cache integration tests run natively under the governed 'test' job.",
+      "components": [
+        {
+          "name": "ci",
+          "paths": [
+            ".github/workflows/ci.yml"
+          ]
+        }
+      ],
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "responsibilityChanges": false,
+      "rollback": "Revert commit on ticket/169-native-os-ci-matrix.",
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      }
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python3 -c \"import yaml; d=yaml.safe_load(open('.github/workflows/ci.yml')); assert list(d['jobs'].keys()) == ['test']\""
+        ],
+        "evidence": "YAML syntax and canonical 'test' matrix job definition pass required-checks validation."
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "./project/governance-check.sh --base d08a56917f7e5e958670ccdebe4362cdf3b33e7f --head HEAD"
+        ],
+        "evidence": "governance-check.sh passes with zero errors and zero warnings."
+      }
+    ]
+  }
+}
