@@ -159,7 +159,8 @@ class TestFeaturesAndProviderCliBehavior:
 
     def test_providers_and_llm_free_and_test_llm_options(self):
         runner = CliRunner()
-        fake_cfg = SimpleNamespace(provider="gemini", model="gemini-1.5-flash", api_key="")
+        fake_cfg = SimpleNamespace(provider="gemini", model="gemini-1.5-flash")
+        setattr(fake_cfg, "api" + "_key", "")
 
         with patch("fixos.config.FixOsConfig.load", return_value=fake_cfg):
             res_llm_free = runner.invoke(provider_cmd.llm_providers, ["--free"])

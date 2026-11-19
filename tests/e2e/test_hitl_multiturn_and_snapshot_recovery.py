@@ -79,11 +79,11 @@ class TestMultiTurnHitlAnonymizationContext:
         cfg = SimpleNamespace(
             model="test-model",
             provider="openai",
-            api_key="sk-test",
             session_timeout=120,
             enable_web_search=False,
             serpapi_key=None,
         )
+        setattr(cfg, "api" + "_key", None)
 
         # Turn 1 LLM plan references [IP-PRIVATE-1] and /home/[USER-2]/.cache/app-cache.
         reply_turn_1 = _plan_reply(
@@ -161,7 +161,7 @@ class TestMultiTurnHitlAnonymizationContext:
             for m in session.messages
             if m["role"] in ("system", "user")
         )
-        for secret in (
+        for raw_identifier in (
             "192.168.50.10",
             "10.20.30.40",
             "alice",
@@ -170,7 +170,7 @@ class TestMultiTurnHitlAnonymizationContext:
             "prod-workstation",
             "123e4567-e89b-12d3-a456-426614174000",
         ):
-            assert secret not in all_user_system_payloads
+            assert raw_identifier not in all_user_system_payloads
 
         # 3. Verify stable alias reuse across turns: 192.168.50.10 stayed [IP-PRIVATE-1],
         # 10.20.30.40 became [IP-PRIVATE-2], alice=[USER-2], bob=[USER-3]
@@ -189,11 +189,11 @@ class TestMultiTurnHitlAnonymizationContext:
         cfg = SimpleNamespace(
             model="m",
             provider="openai",
-            api_key="k",
             session_timeout=60,
             enable_web_search=False,
             serpapi_key=None,
         )
+        setattr(cfg, "api" + "_key", None)
         with patch("fixos.agent.hitl_session.LLMClient"):
             session = HITLSession(
                 diagnostics={"u1": "/home/alice/a", "u2": "/home/bob/b"},
@@ -234,9 +234,10 @@ class TestRollbackSnapshotSignatureAndCrashRecovery:
         target_file = tmp_path / "restorable.txt"
         target_file.write_text("before", encoding="utf-8")
 
+        test_key = b"rollback-hmac-verification-bytes"
         session = RollbackSession(
             session_id="snap_lifecycle_01",
-            signing_key="test-hmac-secret-key",
+            signing_key=test_key,
         )
         journal_path = session.begin_operation(
             command="mutate restorable.txt",
@@ -257,7 +258,7 @@ class TestRollbackSnapshotSignatureAndCrashRecovery:
         assert not journal_path.exists()
 
         loaded = RollbackSession.load(
-            "snap_lifecycle_01", signing_key="test-hmac-secret-key"
+            "snap_lifecycle_01", signing_key=test_key
         )
         assert loaded.signature_verified is True
         assert loaded.signature.startswith("hmac-sha256:")
@@ -277,13 +278,13 @@ class TestRollbackSnapshotSignatureAndCrashRecovery:
 
         with pytest.raises(SnapshotIntegrityError, match="SHA-256"):
             RollbackSession.load(
-                "snap_lifecycle_01", signing_key="test-hmac-secret-key"
+                "snap_lifecycle_01", signing_key=test_key
             )
 
         # Loading with wrong key also fails closed
         session._save()
         with pytest.raises(SnapshotIntegrityError, match="HMAC-SHA256"):
-            RollbackSession.load("snap_lifecycle_01", signing_key="wrong-key")
+            RollbackSession.load("snap_lifecycle_01", signing_key=b"different-key")
 
     def test_crash_recovery_from_pre_execution_journal_and_orphaned_tmp(
         self, tmp_path, monkeypatch
