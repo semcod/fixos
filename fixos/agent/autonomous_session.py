@@ -4,7 +4,6 @@ Handles self-directed diagnostic and repair sessions with LLM.
 """
 
 import re
-import signal
 import subprocess
 import time
 from dataclasses import dataclass, field
@@ -181,17 +180,19 @@ class AutonomousSession:
         return bool(getattr(cfg, "api_key", None))
 
     def _setup_timeout(self) -> None:
-        """Setup session timeout handler."""
+        """Setup session timeout handler on POSIX platforms; no-op on Windows."""
+        from ..platform_utils import setup_signal_timeout
 
         def _timeout_handler(signum, frame) -> None:
             raise SessionTimeout()
 
-        signal.signal(signal.SIGALRM, _timeout_handler)
-        signal.alarm(self.config.session_timeout)
+        setup_signal_timeout(self.config.session_timeout, _timeout_handler)
 
     def _clear_timeout(self) -> None:
-        """Clear the timeout alarm."""
-        signal.alarm(0)
+        """Clear the timeout alarm on POSIX platforms; no-op on Windows."""
+        from ..platform_utils import cancel_signal_timeout
+
+        cancel_signal_timeout()
 
     def _confirm_start(self) -> bool:
         """Ask user for confirmation before starting autonomous mode."""

@@ -8,6 +8,7 @@ caches, records resource counters and compares them with earlier snapshots.
 from __future__ import annotations
 
 import concurrent.futures
+import contextlib
 import json
 import os
 import platform
@@ -63,6 +64,7 @@ CACHE_RULES: tuple[CacheRule, ...] = (
             "~/.npm/_cacache",
             "~/.npm/_npx",
             "~/.npm/_prebuilds",
+            "~/Library/Caches/npm",
             "~/AppData/Local/npm-cache/_cacache",
             "~/AppData/Local/npm-cache/_npx",
         ),
@@ -80,12 +82,22 @@ CACHE_RULES: tuple[CacheRule, ...] = (
             "~/.pnpm-store",
             "~/.cache/pnpm",
             "~/Library/Caches/pnpm",
+            "~/AppData/Local/pnpm/store",
+            "~/AppData/Local/pnpm-cache",
         ),
         "pnpm store prune",
         stack="node",
     ),
     CacheRule(
-        "yarn", "Yarn cache", ("~/.cache/yarn",), "yarn cache clean", stack="node"
+        "yarn",
+        "Yarn cache",
+        (
+            "~/.cache/yarn",
+            "~/Library/Caches/Yarn",
+            "~/AppData/Local/Yarn/Cache",
+        ),
+        "yarn cache clean",
+        stack="node",
     ),
     CacheRule(
         "conda",
@@ -97,7 +109,12 @@ CACHE_RULES: tuple[CacheRule, ...] = (
     CacheRule(
         "poetry",
         "Poetry cache",
-        ("~/.cache/pypoetry/cache", "~/.cache/pypoetry/artifacts"),
+        (
+            "~/.cache/pypoetry/cache",
+            "~/.cache/pypoetry/artifacts",
+            "~/Library/Caches/pypoetry",
+            "~/AppData/Local/pypoetry/Cache",
+        ),
         "poetry cache clear --all pypi",
         stack="python",
     ),
@@ -167,7 +184,13 @@ CACHE_RULES: tuple[CacheRule, ...] = (
     CacheRule(
         "ccache",
         "Compiler cache",
-        ("~/.ccache", "~/.cache/sccache"),
+        (
+            "~/.ccache",
+            "~/.cache/sccache",
+            "~/Library/Caches/ccache",
+            "~/Library/Caches/Mozilla.sccache",
+            "~/AppData/Local/Mozilla/sccache",
+        ),
         "ccache --clear 2>/dev/null || true; rm -rf ~/.cache/sccache/*",
         stack="developer",
     ),
@@ -180,7 +203,12 @@ CACHE_RULES: tuple[CacheRule, ...] = (
     CacheRule(
         "playwright",
         "Playwright browsers",
-        ("~/.cache/ms-playwright", "~/.cache/puppeteer"),
+        (
+            "~/.cache/ms-playwright",
+            "~/.cache/puppeteer",
+            "~/Library/Caches/ms-playwright",
+            "~/AppData/Local/ms-playwright",
+        ),
         "rm -rf ~/.cache/ms-playwright ~/.cache/puppeteer",
         risk="review",
         stack="node",
@@ -188,7 +216,11 @@ CACHE_RULES: tuple[CacheRule, ...] = (
     CacheRule(
         "jetbrains",
         "JetBrains indexes/cache",
-        ("~/.cache/JetBrains",),
+        (
+            "~/.cache/JetBrains",
+            "~/Library/Caches/JetBrains",
+            "~/AppData/Local/JetBrains",
+        ),
         "review in fixos cleanup --list",
         risk="review",
         stack="developer",
@@ -205,24 +237,38 @@ def _state_dir(override: str | Path | None = None) -> Path:
     xdg_state = os.environ.get("XDG_STATE_HOME")
     if xdg_state:
         return Path(xdg_state) / "fixos"
+    sys_name = platform.system()
+    if sys_name == "Windows":
+        local_app = os.environ.get("LOCALAPPDATA")
+        base = Path(local_app) if local_app else (Path.home() / "AppData" / "Local")
+        return base / "fixos" / "state"
+    if sys_name == "Darwin":
+        return Path.home() / "Library" / "Application Support" / "fixos" / "state"
     return Path.home() / ".local" / "state" / "fixos"
 
 
 def _docker_cache_path() -> Path:
-    root = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"))
-    return root / "fixos" / "docker-usage.json"
+    xdg_cache = os.environ.get("XDG_CACHE_HOME")
+    if xdg_cache:
+        return Path(xdg_cache) / "fixos" / "docker-usage.json"
+    sys_name = platform.system()
+    if sys_name == "Windows":
+        local_app = os.environ.get("LOCALAPPDATA")
+        base = Path(local_app) if local_app else (Path.home() / "AppData" / "Local")
+        return base / "fixos" / "cache" / "docker-usage.json"
+    if sys_name == "Darwin":
+        return Path.home() / "Library" / "Caches" / "fixos" / "docker-usage.json"
+    return Path.home() / ".cache" / "fixos" / "docker-usage.json"
 
 
 def _read_os_release() -> dict[str, str]:
     values: dict[str, str] = {}
-    try:
+    with contextlib.suppress(OSError):
         for raw in Path("/etc/os-release").read_text(encoding="utf-8").splitlines():
             if "=" not in raw:
                 continue
             key, value = raw.split("=", 1)
             values[key] = value.strip().strip('"')
-    except OSError:
-        pass
     return values
 
 
@@ -230,7 +276,7 @@ def _detect_context(cwd: Path) -> dict[str, Any]:
     os_release = _read_os_release()
     command_stacks = {
         "docker": ("docker", "podman"),
-        "python": ("python3", "uv", "conda", "poetry"),
+        "python": ("python3", "python", "uv", "conda", "poetry"),
         "node": ("node", "npm", "pnpm", "yarn"),
         "java": ("java", "gradle", "mvn"),
         "rust": ("cargo", "rustc"),
@@ -576,10 +622,8 @@ def _write_history(path: Path, rows: list[dict[str, Any]]) -> None:
         os.replace(tmp_name, path)
     finally:
         if tmp_name:
-            try:
+            with contextlib.suppress(OSError):
                 Path(tmp_name).unlink(missing_ok=True)
-            except OSError:
-                pass
 
 
 def _history_row(

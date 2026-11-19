@@ -1,0 +1,106 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-168",
+  "summary": "feat(diagnostics): cross-platform Windows and macOS quick scan, cache classification, and lock portability",
+  "workstream": "application",
+  "classification": {
+    "kind": "FEATURE",
+    "priority": "P2",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-168/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/agent/autonomous_session.py",
+    "fixos/diagnostics/cache_discovery.py",
+    "fixos/diagnostics/quick_snapshot.py",
+    "fixos/mcp_receipts.py",
+    "fixos/poa_grants.py",
+    "tests/e2e/test_cross_platform_quick_cache.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "a0a63db0deb99f76e4ee9402b6ac020f801f8a31",
+    "targetBranch": "main",
+    "outcome": "Quick scan, generic/Electron cache classification, MCP receipts, POA grants, and autonomous session timeouts run natively across Linux, macOS, and Windows with dedicated cross-platform integration tests.",
+    "nonGoals": [
+      "Modifying .github/workflows/ci.yml (delivered in the follow-up infrastructure ticket once ticket-168 lands).",
+      "Modifying concurrent ticket-161 or ticket-163 owned paths."
+    ],
+    "complexity": "M",
+    "estimatedMinutes": 30,
+    "budgets": {
+      "maxAffectedComponents": 3,
+      "maxImplementationFiles": 7,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Extend CACHE_RULES and cache_discovery roots for Darwin and Windows while keeping safe-only classification boundaries, and provide msvcrt/platform_utils fallbacks where fcntl/SIGALRM are unavailable on Windows.",
+      "components": [
+        {
+          "name": "diagnostics",
+          "paths": [
+            "fixos/diagnostics/cache_discovery.py",
+            "fixos/diagnostics/quick_snapshot.py",
+            "tests/e2e/test_cross_platform_quick_cache.py"
+          ]
+        },
+        {
+          "name": "poa_mcp",
+          "paths": [
+            "fixos/mcp_receipts.py",
+            "fixos/poa_grants.py"
+          ]
+        },
+        {
+          "name": "agent",
+          "paths": [
+            "fixos/agent/autonomous_session.py"
+          ]
+        }
+      ],
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "responsibilityChanges": false,
+      "rollback": "Revert commits on ticket/168-cross-platform-quick-cache.",
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      }
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "pytest -q tests/e2e/test_cross_platform_quick_cache.py tests/unit/test_cache_discovery.py tests/unit/test_quick_snapshot.py"
+        ],
+        "evidence": "Cross-platform quick snapshot and cache classification pass unit and integration suites."
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "pytest -q tests/unit/test_mcp_receipts.py tests/unit/test_poa_grants.py tests/unit/test_wellman_canary.py"
+        ],
+        "evidence": "Portable file locking and timeout wrappers pass MCP, POA, and runtime canary checks."
+      },
+      {
+        "criterion": "AC-03",
+        "commands": [
+          "./project/governance-check.sh --base a0a63db0deb99f76e4ee9402b6ac020f801f8a31 --head HEAD"
+        ],
+        "evidence": "governance-check.sh and ruff pass with zero findings."
+      }
+    ]
+  }
+}
