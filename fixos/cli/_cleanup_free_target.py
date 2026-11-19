@@ -182,15 +182,84 @@ def _docker_used_image_refs(timeout: int) -> tuple[set[str], set[str]] | None:
 
 
 def docker_prune_dangling(timeout: int = DOCKER_CALL_TIMEOUT_SECONDS) -> TierResult:
-    """Prune dangling images and old build cache (no volumes, no tagged data)."""
+    """Prune dangling images, dangling build cache, and old build cache (no volumes)."""
     ok, out = docker_call(["image", "prune", "-f"], timeout)
     if not ok:
         return TierResult("docker-dangling", attempted=False, skipped_reason=out)
+    docker_call(["builder", "prune", "-f"], timeout)
     ok_cache, out_cache = docker_call(
         ["builder", "prune", "-f", "--filter", "until=168h"], timeout
     )
     note = out_cache if not ok_cache else ""
     return TierResult("docker-dangling", note=note)
+
+
+def docker_remove_ephemeral_unused_images(
+    timeout: int = DOCKER_CALL_TIMEOUT_SECONDS,
+) -> TierResult:
+    """Remove strictly allowlisted 0-reference ephemeral/qualification Docker images."""
+    from fixos.cli._auto_cleanup import is_ephemeral_docker_image_tag
+
+    used = _docker_used_image_refs(timeout)
+    if used is None:
+        return TierResult(
+            "docker-ephemeral-images", attempted=False, skipped_reason="docker unavailable"
+        )
+    used_ids, used_names = used
+    expanded_ids: set[str] = set()
+    for uid in used_ids:
+        expanded_ids.add(uid)
+        expanded_ids.add(uid[:12])
+        expanded_ids.add(f"sha256:{uid}")
+    if used_names:
+        ok_insp, out_insp = docker_call(
+            ["image", "inspect", "--format", "{{.Id}}", *sorted(used_names)], timeout
+        )
+        if not ok_insp:
+            return TierResult(
+                "docker-ephemeral-images",
+                attempted=False,
+                skipped_reason="failed to resolve in-use container image IDs",
+            )
+        for line in out_insp.splitlines():
+            iid = line.strip()
+            if not iid:
+                continue
+            bare = iid.split(":", 1)[1] if iid.startswith("sha256:") else iid
+            expanded_ids.update({iid, bare, bare[:12]})
+    ok, out = docker_call(
+        ["images", "--no-trunc", "--format", "{{.ID}}\t{{.Repository}}:{{.Tag}}"],
+        timeout,
+    )
+    if not ok:
+        return TierResult("docker-ephemeral-images", attempted=False, skipped_reason=out)
+    candidates: list[str] = []
+    seen: set[str] = set()
+    for line in out.splitlines():
+        if "\t" not in line:
+            continue
+        image_id, repo_tag = (p.strip() for p in line.split("\t", 1))
+        bare = image_id.split(":", 1)[1] if image_id.startswith("sha256:") else image_id
+        if (
+            image_id in expanded_ids
+            or bare in expanded_ids
+            or bare[:12] in expanded_ids
+            or repo_tag in used_names
+        ):
+            continue
+        if repo_tag not in seen and is_ephemeral_docker_image_tag(repo_tag):
+            seen.add(repo_tag)
+            candidates.append(repo_tag)
+    if not candidates:
+        return TierResult("docker-ephemeral-images")
+    ok_rmi, out_rmi = docker_call(["rmi", *candidates], timeout)
+    if not ok_rmi:
+        return TierResult(
+            "docker-ephemeral-images", attempted=False, skipped_reason=out_rmi[:200]
+        )
+    return TierResult(
+        "docker-ephemeral-images", note=f"removed {len(candidates)} ephemeral images"
+    )
 
 
 def _parse_docker_created(value: str) -> float:

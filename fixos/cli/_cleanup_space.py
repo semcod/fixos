@@ -1388,6 +1388,15 @@ _EXCLUDED_TMP_PREFIXES = (
     "snap.",
     "snap-",
 )
+_EPHEMERAL_TMP_TEST_PREFIXES = (
+    "pytest-of-",
+    "heyasa-pytest-",
+    "subllm-qualify-",
+    "oqllm-",
+    "va077-",
+    "pip-build-env-",
+)
+DEFAULT_TMP_EPHEMERAL_TEST_HOURS = 2.0
 
 
 def _scan_tmp(
@@ -1397,13 +1406,19 @@ def _scan_tmp(
     """Scan and return files/directories in /tmp older than `days` (default 1 day).
 
     System sockets, FIFOs, and protected directories (.X11-unix, .ICE-unix, .X*-lock,
-    .tmux-*, ssh-*, systemd-private-*, etc.) are excluded.
+    .tmux-*, ssh-*, systemd-private-*, etc.) are excluded. Known current-UID
+    ephemeral test/qualification directories use a shorter 2-hour cutoff when
+    `days` is larger so autonomous cleanup reclaims finished test scratch promptly.
     """
     import stat as stat_module
     import time
 
     now = time.time()
     cutoff_seconds = days * 86400
+    ephemeral_cutoff_seconds = min(
+        cutoff_seconds, DEFAULT_TMP_EPHEMERAL_TEST_HOURS * 3600.0
+    )
+    current_uid = os.getuid() if hasattr(os, "getuid") else None
     tmp_path = Path(tmp_dir) if tmp_dir is not None else Path("/tmp")
     candidates = []
     directories = []
@@ -1423,8 +1438,18 @@ def _scan_tmp(
                         continue
                     mtime = stat_val.st_mtime
                     age_seconds = now - mtime
-                    if age_seconds >= cutoff_seconds:
-                        is_dir = stat_module.S_ISDIR(stat_val.st_mode)
+                    is_dir = stat_module.S_ISDIR(stat_val.st_mode)
+                    is_link = stat_module.S_ISLNK(stat_val.st_mode)
+                    is_ephemeral_test_dir = (
+                        is_dir
+                        and not is_link
+                        and any(name.startswith(p) for p in _EPHEMERAL_TMP_TEST_PREFIXES)
+                        and (current_uid is None or stat_val.st_uid == current_uid)
+                    )
+                    effective_cutoff = (
+                        ephemeral_cutoff_seconds if is_ephemeral_test_dir else cutoff_seconds
+                    )
+                    if age_seconds >= effective_cutoff:
                         age_days = age_seconds / 86400
                         candidates.append({
                             "description": f"{name} (wiek: {age_days:.1f} dni)",
