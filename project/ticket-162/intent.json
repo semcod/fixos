@@ -1,0 +1,81 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-162",
+  "summary": "fix(governance): reconcile standard-adoption.json after 0.20.162 upgrade",
+  "workstream": "governance",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P1",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-162/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    ".governance/standard-adoption.json",
+    "CHANGELOG.md"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "229fabd419ff5ff43173c686c36300301626b6d3",
+    "targetBranch": "main",
+    "outcome": "Reconciled .governance/standard-adoption.json after the 0.20.162 upgrade so all managed projection digests, baseline S4 levels, and wellmanifest/docs S2 adoption pass standard_pack_check.py in enforce mode with zero findings.",
+    "nonGoals": [
+      "Modifying managed .governance/manifest.lock.json files or application source code."
+    ],
+    "complexity": "XS",
+    "estimatedMinutes": 10,
+    "budgets": {
+      "maxAffectedComponents": 1,
+      "maxImplementationFiles": 2,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Synchronize repository-owned .governance/standard-adoption.json with .governance/manifest.json digest 55716d09..., restore S4 external ruleset proof for baseline S4 packs, include pinned wellmanifest/docs 0.6.0@b536d01 at S2, and record the governance projection reconciliation in CHANGELOG.md.",
+      "components": [
+        {
+          "name": "governance",
+          "paths": [
+            ".governance/standard-adoption.json",
+            "CHANGELOG.md"
+          ]
+        }
+      ],
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "responsibilityChanges": false,
+      "rollback": "Revert commit on ticket/162-reconcile-standard-adoption-162.",
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      }
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python3 .governance/standard_pack_check.py --root . --strict --format json",
+          "./project/governance-check.sh"
+        ],
+        "evidence": "standard_pack_check.py returns ok=true, findings=[] in enforce mode; governance-check.sh passes with 0 errors."
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "pytest -q tests/unit/test_standard_adoption_projection.py"
+        ],
+        "evidence": "1 passed with zero findings."
+      }
+    ]
+  }
+}

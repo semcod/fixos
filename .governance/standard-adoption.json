@@ -1,6 +1,6 @@
 {
   "schema": "wellmanifest.standard-adoption/v1",
-  "mode": "audit",
+  "mode": "enforce",
   "profile": "baseline",
   "repositoryRole": "baseline",
   "updates": {
@@ -19,7 +19,7 @@
       "artifacts": [
         {
           "target": ".governance/manifest.json",
-          "sha256": "7d35918e5ebc5444b5cb713e88b7870f056ca6029479628743a3e8e18cc3daf0"
+          "sha256": "55716d09d803921a5afd7230adc0f6c5dfdff9972606cbe8d2fcd58241d1a102"
         },
         {
           "target": ".governance/standard-packs.json",
@@ -65,15 +65,45 @@
       ]
     },
     {
+      "id": "wellmanifest/docs",
+      "version": "0.6.0",
+      "revision": "b536d012cde20a27fbc9ff2b3dfc8c80bfc075a0",
+      "model": "local-conformance",
+      "level": "S2",
+      "artifacts": [
+        {
+          "target": ".governance/standards-lock.json",
+          "sha256": "e546775f07f53f6476cee9864cd9c183f312b1d9abd4bc73ef339cb44dd55f7e"
+        }
+      ],
+      "evidence": [
+        {
+          "level": "S0",
+          "uri": "docs/README.md",
+          "sha256": "03aee08e8b33106c55a3d28ac7e1e8dd868391e85b815965511d1574242841ec"
+        },
+        {
+          "level": "S1",
+          "uri": "docs/INFORMATION/WELLMANIFEST_STANDARDS.md",
+          "sha256": "ca189b48ae085bf33bcd4e45eb4b4c9a48de8f8caae829e448342ba58bd72359"
+        },
+        {
+          "level": "S2",
+          "uri": ".governance/standards-lock.json",
+          "sha256": "e546775f07f53f6476cee9864cd9c183f312b1d9abd4bc73ef339cb44dd55f7e"
+        }
+      ]
+    },
+    {
       "id": "wellmanifest/git-lifecycle",
       "version": "0.20.162",
       "revision": "8e6b51dc91a2ac7e1e771908e0fac5e12da0b9a0",
       "model": "protected-conformance",
-      "level": "S3",
+      "level": "S4",
       "artifacts": [
         {
           "target": ".governance/manifest.json",
-          "sha256": "7d35918e5ebc5444b5cb713e88b7870f056ca6029479628743a3e8e18cc3daf0"
+          "sha256": "55716d09d803921a5afd7230adc0f6c5dfdff9972606cbe8d2fcd58241d1a102"
         },
         {
           "target": ".governance/standard-packs.json",
@@ -100,6 +130,11 @@
           "level": "S3",
           "uri": ".github/workflows/new-project-governance.yml",
           "sha256": "297606a400885f0a0d131de6df8d6fd6870940bdb5ecdd7f2f746fe77da033b9"
+        },
+        {
+          "level": "S4",
+          "uri": "https://github.com/semcod/fixos/pull/205#ruleset-git-lifecycle",
+          "sha256": "b16d7a596be9459ed548255b5c72e8caf414ecc8b28bae12e1ec2d10ab6db694"
         }
       ]
     },
@@ -123,11 +158,11 @@
       "version": "0.20.162",
       "revision": "8e6b51dc91a2ac7e1e771908e0fac5e12da0b9a0",
       "model": "runtime-conformance",
-      "level": "S3",
+      "level": "S4",
       "artifacts": [
         {
           "target": ".governance/manifest.json",
-          "sha256": "7d35918e5ebc5444b5cb713e88b7870f056ca6029479628743a3e8e18cc3daf0"
+          "sha256": "55716d09d803921a5afd7230adc0f6c5dfdff9972606cbe8d2fcd58241d1a102"
         },
         {
           "target": ".governance/standard-packs.json",
@@ -154,6 +189,11 @@
           "level": "S3",
           "uri": ".github/workflows/new-project-governance.yml",
           "sha256": "297606a400885f0a0d131de6df8d6fd6870940bdb5ecdd7f2f746fe77da033b9"
+        },
+        {
+          "level": "S4",
+          "uri": "https://github.com/semcod/fixos/pull/205#ruleset-merge",
+          "sha256": "b7f325dce94fee622398bb7046ec9a964f9b82fa217cb1454785e7ad36de38af"
         }
       ]
     },
@@ -162,11 +202,11 @@
       "version": "0.20.162",
       "revision": "8e6b51dc91a2ac7e1e771908e0fac5e12da0b9a0",
       "model": "protected-conformance",
-      "level": "S3",
+      "level": "S4",
       "artifacts": [
         {
           "target": ".governance/manifest.json",
-          "sha256": "7d35918e5ebc5444b5cb713e88b7870f056ca6029479628743a3e8e18cc3daf0"
+          "sha256": "55716d09d803921a5afd7230adc0f6c5dfdff9972606cbe8d2fcd58241d1a102"
         },
         {
           "target": ".governance/standard-packs.json",
@@ -193,6 +233,11 @@
           "level": "S3",
           "uri": ".github/workflows/new-project-governance.yml",
           "sha256": "297606a400885f0a0d131de6df8d6fd6870940bdb5ecdd7f2f746fe77da033b9"
+        },
+        {
+          "level": "S4",
+          "uri": "https://github.com/semcod/fixos/pull/205#ruleset-new-project",
+          "sha256": "f7dea9b7cf8c189c4cf8ad6a02229e3270709460221414a118a7b88a7dbae6b0"
         }
       ]
     },
@@ -220,7 +265,7 @@
       "artifacts": [
         {
           "target": ".governance/manifest.json",
-          "sha256": "7d35918e5ebc5444b5cb713e88b7870f056ca6029479628743a3e8e18cc3daf0"
+          "sha256": "55716d09d803921a5afd7230adc0f6c5dfdff9972606cbe8d2fcd58241d1a102"
         },
         {
           "target": ".governance/standard-packs.json",
@@ -255,11 +300,11 @@
       "version": "0.20.162",
       "revision": "8e6b51dc91a2ac7e1e771908e0fac5e12da0b9a0",
       "model": "protected-conformance",
-      "level": "S3",
+      "level": "S4",
       "artifacts": [
         {
           "target": ".governance/manifest.json",
-          "sha256": "7d35918e5ebc5444b5cb713e88b7870f056ca6029479628743a3e8e18cc3daf0"
+          "sha256": "55716d09d803921a5afd7230adc0f6c5dfdff9972606cbe8d2fcd58241d1a102"
         },
         {
           "target": ".governance/standard-packs.json",
@@ -286,6 +331,11 @@
           "level": "S3",
           "uri": ".github/workflows/new-project-governance.yml",
           "sha256": "297606a400885f0a0d131de6df8d6fd6870940bdb5ecdd7f2f746fe77da033b9"
+        },
+        {
+          "level": "S4",
+          "uri": "https://github.com/semcod/fixos/pull/205#ruleset-validation-attestation",
+          "sha256": "3e26fb297b6e73f8507a503e258e89fbfd006ed2a918fb6ca10de8a5bc008484"
         }
       ]
     },
@@ -298,7 +348,7 @@
       "artifacts": [
         {
           "target": ".governance/manifest.json",
-          "sha256": "7d35918e5ebc5444b5cb713e88b7870f056ca6029479628743a3e8e18cc3daf0"
+          "sha256": "55716d09d803921a5afd7230adc0f6c5dfdff9972606cbe8d2fcd58241d1a102"
         },
         {
           "target": ".governance/standard-packs.json",
