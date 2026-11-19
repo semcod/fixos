@@ -80,12 +80,12 @@
         {
           "level": "S0",
           "uri": "docs/README.md",
-          "sha256": "03aee08e8b33106c55a3d28ac7e1e8dd868391e85b815965511d1574242841ec"
+          "sha256": "0e2e86ac082dfe4ac5306cf7a61a74c5c6acb8985b9a8352401c2d6afaddfe75"
         },
         {
           "level": "S1",
           "uri": "docs/INFORMATION/WELLMANIFEST_STANDARDS.md",
-          "sha256": "ca189b48ae085bf33bcd4e45eb4b4c9a48de8f8caae829e448342ba58bd72359"
+          "sha256": "fd8682544b8755194161a92eb149709d1ac2e6604187d786de37fa1e2283e4a8"
         },
         {
           "level": "S2",

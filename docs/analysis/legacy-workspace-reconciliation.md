@@ -44,7 +44,7 @@ przeprowadzone na bazie `da0ea36a101b3444fd6020c79f0ac0c5527e81be` (Fixos 2.7.1,
 `wellmanifest/new-project` `0.20.162`). Źródło gałęzi backupowej:
 `1e4d4d364c613aeabc8b3c7ab0c229e5cc008d60`. Archiwum kwarantanny odpowiada
 odłączonemu worktree na `f787fa4192b39fffd79aa781469dff405f640406`
-(`/home/tom/github/subactor/.worktrees/.quarantine/PLF-20296-20261026T113356Z`).
+(`$HOME/github/subactor/.worktrees/.quarantine/PLF-20296-20261026T113356Z`).
 Właścicielem repozytorium jest `semcod/fixos`.
 
 <!-- docs:section method -->

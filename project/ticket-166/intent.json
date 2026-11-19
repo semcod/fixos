@@ -12,6 +12,7 @@
     "project/ticket-166/**",
     "TODO.md",
     "project/TICKETS.md",
+    ".governance/standard-adoption.json",
     "VERSION",
     "docs/ANALYSIS/PLANFILE_GITHUB_SYNC_AUDIT.md",
     "docs/INFORMATION/WELLMANIFEST_STANDARDS.md",
@@ -77,9 +78,10 @@
       {
         "criterion": "AC-01",
         "commands": [
-          "python3 /home/tom/github/wellmanifest/docs/docs/standard/check.py --root . --standard-revision 19efafbeb18923cfd51cc69bd519330488500137 --base dbe080ac4d15980f160d501365c882fc17e4662d"
+          "wellman check --root .",
+          "python3 .governance/standard_pack_check.py --root . --strict --format json"
         ],
-        "evidence": "check.py passes with ok=true and zero findings across all deliverables."
+        "evidence": "wellman check, standard_pack_check.py, and wellmanifest/docs check.py pass with ok=true and zero findings across all deliverables."
       },
       {
         "criterion": "AC-02",
