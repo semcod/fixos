@@ -1,0 +1,94 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-166",
+  "summary": "docs(audit): publish #174/#171 closure reports and bump to 2.7.2",
+  "workstream": "integration",
+  "classification": {
+    "kind": "SERVICE",
+    "priority": "P2",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-166/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "VERSION",
+    "docs/ANALYSIS/PLANFILE_GITHUB_SYNC_AUDIT.md",
+    "docs/INFORMATION/WELLMANIFEST_STANDARDS.md",
+    "docs/README.md",
+    "docs/analysis/legacy-workspace-reconciliation.md",
+    "pyproject.toml"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "dbe080ac4d15980f160d501365c882fc17e4662d",
+    "targetBranch": "main",
+    "outcome": "Published governed closure reports for #174 (PLF-21812) and #171 (PLF-21822) under docs/, updated the Wellmanifest standards index (v6) and docs/README.md, and bumped FixOS version carriers to 2.7.2.",
+    "nonGoals": [
+      "Modifying application source code or external repository configurations."
+    ],
+    "complexity": "M",
+    "estimatedMinutes": 20,
+    "budgets": {
+      "maxAffectedComponents": 2,
+      "maxImplementationFiles": 6,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Update docs/analysis/legacy-workspace-reconciliation.md (v4), docs/ANALYSIS/PLANFILE_GITHUB_SYNC_AUDIT.md (v2), docs/INFORMATION/WELLMANIFEST_STANDARDS.md (v6), and docs/README.md per wellmanifest/docs, and bump VERSION and pyproject.toml to 2.7.2.",
+      "components": [
+        {
+          "name": "docs",
+          "paths": [
+            "docs/analysis/legacy-workspace-reconciliation.md",
+            "docs/ANALYSIS/PLANFILE_GITHUB_SYNC_AUDIT.md",
+            "docs/INFORMATION/WELLMANIFEST_STANDARDS.md",
+            "docs/README.md"
+          ]
+        },
+        {
+          "name": "packaging",
+          "paths": [
+            "VERSION",
+            "pyproject.toml"
+          ]
+        }
+      ],
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "responsibilityChanges": false,
+      "rollback": "Revert commits on ticket/166-docs-closure-release-2-7-2.",
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      }
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python3 /home/tom/github/wellmanifest/docs/docs/standard/check.py --root . --standard-revision 19efafbeb18923cfd51cc69bd519330488500137 --base dbe080ac4d15980f160d501365c882fc17e4662d"
+        ],
+        "evidence": "check.py passes with ok=true and zero findings across all deliverables."
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "./project/governance-check.sh --base dbe080ac4d15980f160d501365c882fc17e4662d --head HEAD",
+          "pytest -q tests/unit/test_version_parity.py tests/unit/test_standard_adoption_projection.py"
+        ],
+        "evidence": "governance-check.sh passes with 0 errors and version parity tests pass for 2.7.2."
+      }
+    ]
+  }
+}
