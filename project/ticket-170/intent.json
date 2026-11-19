@@ -1,0 +1,71 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-170",
+  "summary": "docs(governance): retire completed TODO items and record 2.7.3 changelog",
+  "workstream": "governance",
+  "classification": {
+    "kind": "SERVICE",
+    "priority": "P2",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-170/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "CHANGELOG.md"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "ff3b9a377e4632291d6afc1184628804bdda08de",
+    "targetBranch": "main",
+    "outcome": "Updated TODO.md to retire the three completed engineering tasks and documented release [2.7.3] - 2026-11-19 in CHANGELOG.md.",
+    "nonGoals": [
+      "Modifying VERSION, pyproject.toml, or application source code."
+    ],
+    "complexity": "XS",
+    "estimatedMinutes": 10,
+    "budgets": {
+      "maxAffectedComponents": 1,
+      "maxImplementationFiles": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Retire the three completed items from TODO.md and add the [2.7.3] - 2026-11-19 section in CHANGELOG.md.",
+      "components": [
+        {
+          "name": "governance",
+          "paths": [
+            "CHANGELOG.md"
+          ]
+        }
+      ],
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "responsibilityChanges": false,
+      "rollback": "Revert commit on ticket/170-changelog-todo-2-7-3.",
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      }
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "./project/governance-check.sh --base ff3b9a377e4632291d6afc1184628804bdda08de --head HEAD"
+        ],
+        "evidence": "governance-check.sh passes with zero errors and zero warnings."
+      }
+    ]
+  }
+}
