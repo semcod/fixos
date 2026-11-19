@@ -3,23 +3,39 @@ Features CLI command for fixOS.
 Manage packages and system features based on user profiles.
 """
 
-import json
-import click
-from typing import Optional, List, Dict
+from __future__ import annotations
 
+import json
+from typing import Any
+
+import click
+
+from ..constants import UI_BORDER_WIDTH
 from ..features import SystemDetector
-from ..features.catalog import PackageCatalog
-from ..features.profiles import UserProfile
 from ..features.auditor import FeatureAuditor
+from ..features.catalog import PackageCatalog, PackageInfo
 from ..features.installer import FeatureInstaller
+from ..features.profiles import UserProfile
 from ..features.renderer import FeatureRenderer
 from ..utils.terminal import console
+
+
+def _print_features_heading(title: str) -> None:
+    """Render a consistent Rich section heading."""
+    console.print()
+    console.print(f"[bold cyan]{title}[/bold cyan]")
+    console.print(f"[cyan]{'═' * min(UI_BORDER_WIDTH, 60)}[/cyan]")
+    console.print()
+
+
+def _print_unknown_profile(profile: str) -> None:
+    console.print(f"[red]❌ Profil '{profile}' nie istnieje.[/red]")
+    console.print(f"Dostępne profile: {', '.join(UserProfile.list_available())}")
 
 
 @click.group(name="features")
 def features() -> None:
     """Zarządzanie pakietami komfortu systemu."""
-    pass
 
 
 @features.command("audit")
@@ -27,18 +43,16 @@ def features() -> None:
     "--profile", "-p", help="Profil użytkownika (developer, sysadmin, gamer, itd.)"
 )
 @click.option("--json-output", is_flag=True, help="Output JSON")
-def features_audit(profile: Optional[str], json_output: bool) -> None:
+def features_audit(profile: str | None, json_output: bool) -> None:
     """Sprawdź brakujące pakiety dla profilu."""
     system = SystemDetector().detect()
 
-    if not profile:
-        profile = _interactive_profile_select()
+    selected_profile = profile or _interactive_profile_select()
 
     try:
-        prof = UserProfile.load(profile)
+        prof = UserProfile.load(selected_profile)
     except FileNotFoundError:
-        console.print(f"[red]❌ Profil '{profile}' nie istnieje.[/red]")
-        console.print(f"Dostępne profile: {', '.join(UserProfile.list_available())}")
+        _print_unknown_profile(selected_profile)
         return
 
     catalog = PackageCatalog.load()
@@ -46,17 +60,19 @@ def features_audit(profile: Optional[str], json_output: bool) -> None:
     result = auditor.audit(prof)
 
     if json_output:
-        click.echo(json.dumps(result.to_dict(), indent=2))
+        click.echo(json.dumps(result.to_dict(), indent=2, ensure_ascii=False))
     else:
         FeatureRenderer.render_audit(result)
 
 
-def _show_install_plan(to_install: List, yes: bool, dry_run: bool) -> bool:
+def _show_install_plan(
+    to_install: list[PackageInfo], yes: bool, dry_run: bool
+) -> bool:
     """Display install plan and ask for confirmation. Returns False to abort."""
     console.print()
-    console.print(f"[bold]Zostaną zainstalowane {len(to_install)} pakiety:[/bold]")
+    console.print(f"[bold cyan]Zostaną zainstalowane {len(to_install)} pakiety:[/bold cyan]")
     for pkg in to_install[:10]:
-        console.print(f"  • {pkg.id} - {pkg.description[:40]}")
+        console.print(f"  • [bold]{pkg.id}[/bold] — {pkg.description[:50]}")
     if len(to_install) > 10:
         console.print(f"  ... i {len(to_install) - 10} więcej")
     console.print()
@@ -67,19 +83,20 @@ def _show_install_plan(to_install: List, yes: bool, dry_run: bool) -> bool:
     return True
 
 
-def _show_install_results(install_result: Dict) -> None:
+def _show_install_results(install_result: dict[str, Any]) -> None:
     """Display installation results summary."""
     console.print()
-    if install_result["installed"]:
-        console.print(
-            f"[green]✅ Zainstalowano: {len(install_result['installed'])}[/green]"
-        )
-    if install_result["failed"]:
-        console.print(f"[red]❌ Nie udało się: {len(install_result['failed'])}[/red]")
-        for pkg_id in install_result["failed"][:5]:
+    installed = install_result.get("installed", [])
+    failed = install_result.get("failed", [])
+    skipped = install_result.get("skipped", [])
+    if installed:
+        console.print(f"[green]✅ Zainstalowano: {len(installed)}[/green]")
+    if failed:
+        console.print(f"[red]❌ Nie udało się: {len(failed)}[/red]")
+        for pkg_id in failed[:5]:
             console.print(f"   - {pkg_id}")
-    if install_result["skipped"]:
-        console.print(f"[yellow]⏭️ Pominięto: {len(install_result['skipped'])}[/yellow]")
+    if skipped:
+        console.print(f"[yellow]⏭️ Pominięto: {len(skipped)}[/yellow]")
     console.print()
 
 
@@ -88,24 +105,29 @@ def _show_install_results(install_result: Dict) -> None:
 @click.option("--dry-run", is_flag=True, help="Symulacja bez instalacji")
 @click.option("--yes", "-y", is_flag=True, help="Bez potwierdzenia")
 @click.option("--category", "-c", multiple=True, help="Tylko wybrane kategorie")
-def features_install(profile: str, dry_run: bool, yes: bool, category: tuple) -> None:
+def features_install(
+    profile: str,
+    dry_run: bool,
+    yes: bool,
+    category: tuple[str, ...],
+) -> None:
     """Zainstaluj brakujące pakiety dla profilu."""
     system = SystemDetector().detect()
 
     try:
         prof = UserProfile.load(profile)
     except FileNotFoundError:
-        console.print(f"[red]❌ Profil '{profile}' nie istnieje.[/red]")
-        console.print(f"Dostępne profile: {', '.join(UserProfile.list_available())}")
+        _print_unknown_profile(profile)
         return
 
     catalog = PackageCatalog.load()
     auditor = FeatureAuditor(catalog, system)
     result = auditor.audit(prof)
 
-    to_install = result.missing + result.repos_needed
+    to_install: list[PackageInfo] = list(result.missing) + list(result.repos_needed)
     if category:
-        to_install = [p for p in to_install if p.category in category]
+        allowed_categories = set(category)
+        to_install = [p for p in to_install if p.category in allowed_categories]
 
     if not to_install:
         console.print("[green]✅ Wszystkie pakiety z profilu są zainstalowane![/green]")
@@ -123,9 +145,7 @@ def features_profiles() -> None:
     """Lista dostępnych profili."""
     profiles = UserProfile.list_available()
 
-    console.print()
-    console.print("[bold cyan]📋 Dostępne profile:[/bold cyan]")
-    console.print()
+    _print_features_heading("📋 Dostępne profile:")
 
     for profile_name in profiles:
         try:
@@ -150,9 +170,7 @@ def _interactive_profile_select() -> str:
     """Interactive profile selection."""
     profiles = UserProfile.list_available()
 
-    console.print()
-    console.print("[bold cyan]Wybierz profil:[/bold cyan]")
-    console.print()
+    _print_features_heading("Wybierz profil:")
 
     for i, profile_name in enumerate(profiles, 1):
         try:
@@ -166,7 +184,6 @@ def _interactive_profile_select() -> str:
     while True:
         choice = console.input("Wybór (numer lub nazwa): ").strip()
 
-        # Try numeric selection
         if choice.isdigit():
             idx = int(choice) - 1
             if 0 <= idx < len(profiles):
@@ -174,15 +191,13 @@ def _interactive_profile_select() -> str:
             console.print("[red]Nieprawidłowy numer.[/red]")
             continue
 
-        # Try name selection
         if choice in profiles:
             return choice
 
-        # Partial match
         matches = [p for p in profiles if choice.lower() in p.lower()]
         if len(matches) == 1:
             return matches[0]
-        elif len(matches) > 1:
+        if len(matches) > 1:
             console.print(f"[yellow]Dopasowania: {', '.join(matches)}[/yellow]")
         else:
             console.print(f"[red]Nie znaleziono profilu '{choice}'[/red]")
