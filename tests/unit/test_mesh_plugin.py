@@ -412,6 +412,27 @@ def test_remote_probe_script_and_port_validation_and_usb_queue(monkeypatch):
     assert captured_targets == [["fe80::1"]]
 
 
+def test_probe_helpers_validate_ports_and_manage_udp_socket():
+    parsed = parse_posix_probe_output(
+        "  HOST = router  \n"
+        "  OPEN = 631  \n"
+        "OPEN=0\n"
+        "CLOSED=70000\n"
+        "OPEN=²\n"
+        "CLOSED=١\n"
+        f"OPEN={'9' * 5000}\n"
+        f"OPEN={'0' * 5000}1\n"
+        "\tCLOSED\t=\t65535\t\n"
+    )
+    assert parsed is not None
+    assert parsed["hostname"] == "router"
+    assert parsed["open_ports"] == [631, 1]
+    assert parsed["closed_ports"] == [65535]
+    assert "with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp:" in (
+        REMOTE_PYTHON_PROBE
+    )
+
+
 def test_posix_sh_fallback_for_pythonless_ssh_peer_and_non_retry_on_ssh_auth_failure():
     import shutil
     import socket
