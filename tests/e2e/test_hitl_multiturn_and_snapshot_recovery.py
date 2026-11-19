@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -239,16 +240,20 @@ class TestRollbackSnapshotSignatureAndCrashRecovery:
             session_id="snap_lifecycle_01",
             signing_key=test_key,
         )
+        py_exe = f'"{sys.executable}"'
+        restore_cmd = (
+            f"{py_exe} -c \"from pathlib import Path; Path({str(target_file)!r}).write_text('restored', encoding='utf-8')\""
+        )
         journal_path = session.begin_operation(
             command="mutate restorable.txt",
-            rollback_cmd=f"python3 -c \"from pathlib import Path; Path({str(target_file)!r}).write_text('restored', encoding='utf-8')\"",
+            rollback_cmd=restore_cmd,
         )
         assert journal_path.is_file()
 
         target_file.write_text("mutated", encoding="utf-8")
         session.record(
             command="mutate restorable.txt",
-            rollback_cmd=f"python3 -c \"from pathlib import Path; Path({str(target_file)!r}).write_text('restored', encoding='utf-8')\"",
+            rollback_cmd=restore_cmd,
             stdout="mutated ok",
             stderr="",
             success=True,
@@ -304,7 +309,7 @@ class TestRollbackSnapshotSignatureAndCrashRecovery:
 
         # Begin step-2, then simulate an abrupt process crash (journal + partial .tmp file left behind)
         undo_step_2 = (
-            f"python3 -c \"from pathlib import Path; Path({str(marker)!r}).write_text('rolled-back-after-crash', encoding='utf-8')\""
+            f'"{sys.executable}" -c "from pathlib import Path; Path({str(marker)!r}).write_text(\'rolled-back-after-crash\', encoding=\'utf-8\')"'
         )
         journal_path = session.begin_operation(
             command="step-2-interrupted",

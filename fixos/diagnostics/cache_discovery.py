@@ -169,10 +169,16 @@ def _resolve_platform_roots(system_name: str) -> tuple[list[tuple[str, bool]], l
     directory name matches ``is_generic_cache_safe`` or they contain an explicit
     ``Cache`` / ``Caches`` subdirectory.
     """
+    xdg_cache = os.path.expanduser("~/.cache")
+    xdg_config = os.path.expanduser("~/.config")
+
     if system_name == "Darwin":
         macos_caches = os.path.expanduser("~/Library/Caches")
         macos_app_support = os.path.expanduser("~/Library/Application Support")
-        return ([(macos_caches, False)], [macos_app_support])
+        return (
+            [(macos_caches, False), (xdg_cache, False)],
+            [macos_app_support, xdg_config],
+        )
 
     if system_name == "Windows":
         local_app = os.environ.get("LOCALAPPDATA") or os.path.expanduser(
@@ -184,12 +190,11 @@ def _resolve_platform_roots(system_name: str) -> tuple[list[tuple[str, bool]], l
         electron_roots = [roaming_app]
         if local_app != roaming_app:
             electron_roots.append(local_app)
-        return ([(local_app, True)], electron_roots)
+        if xdg_config not in electron_roots:
+            electron_roots.append(xdg_config)
+        return ([(local_app, True), (xdg_cache, False)], electron_roots)
 
-    return (
-        [(os.path.expanduser("~/.cache"), False)],
-        [os.path.expanduser("~/.config")],
-    )
+    return ([(xdg_cache, False)], [xdg_config])
 
 
 def discover_additional_caches(
