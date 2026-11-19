@@ -50,7 +50,9 @@ jobs:
 
       - name: Build Ubuntu image
         run: |
-          docker build -f docker/ubuntu/Dockerfile -t fixos-test:ubuntu .
+          ubuntu_df="${RUNNER_TEMP}/Dockerfile.ubuntu"
+          awk 'NR==1{print; print "ENV DEBIAN_FRONTEND=noninteractive"; print "RUN sed -i '\''s|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/ubuntu/|g; s|http://security.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/ubuntu/|g'\'' /etc/apt/sources.list.d/ubuntu.sources"; next}1' docker/ubuntu/Dockerfile > "$ubuntu_df"
+          docker build -f "$ubuntu_df" -t fixos-test:ubuntu .
 
       - name: Test on Ubuntu
         run: |
