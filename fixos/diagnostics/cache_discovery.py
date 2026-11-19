@@ -77,15 +77,19 @@ KNOWN_MACOS_SYSTEM_CACHES = frozenset(
 
 KNOWN_WINDOWS_LOCALAPPDATA_SKIP = frozenset(
     {
+        "Application Data",
         "ConnectedDevicesPlatform",
         "Comms",
         "D3DSCache",
         "Diagnostics",
+        "ElevatedDiagnostics",
+        "History",
         "Microsoft",
         "Packages",
         "Programs",
         "Publishers",
         "Temp",
+        "Temporary Internet Files",
         "VirtualStore",
         "pnpm-store",
     }
@@ -94,8 +98,10 @@ KNOWN_WINDOWS_LOCALAPPDATA_SKIP = frozenset(
 # Electron/Chromium apps scanned explicitly elsewhere or protected OS roots.
 KNOWN_CONFIG_APPS = frozenset(
     {
+        "Application Data",
         "google-chrome",
         "Google",
+        "History",
         "microsoft-edge",
         "Microsoft",
         "BraveSoftware",
@@ -111,7 +117,14 @@ KNOWN_CONFIG_APPS = frozenset(
         "MobileSync",
         "Packages",
         "Programs",
+        "Temp",
+        "Temporary Internet Files",
+        "VirtualStore",
     }
+)
+
+SKIP_ELECTRON_APP_DIRS = (
+    KNOWN_CONFIG_APPS | KNOWN_CACHE_DIR_NAMES | KNOWN_WINDOWS_LOCALAPPDATA_SKIP
 )
 
 ELECTRON_CACHE_DIR_NAMES = (
@@ -161,6 +174,18 @@ def is_generic_cache_safe(path: str) -> bool:
     return any(hint in base for hint in GENERIC_SAFE_NAME_HINTS)
 
 
+def _is_link_or_junction(path: str) -> bool:
+    """Return True when path is a symlink or a Windows NTFS junction."""
+    if os.path.islink(path):
+        return True
+    is_junction = getattr(os.path, "isjunction", None)
+    return bool(is_junction and is_junction(path))
+
+
+def _expand_norm(path: str) -> str:
+    return os.path.normpath(os.path.expanduser(path))
+
+
 def _resolve_platform_roots(system_name: str) -> tuple[list[tuple[str, bool]], list[str]]:
     """Return ``(cache_roots_with_strict_flag, electron_app_roots)`` for ``system_name``.
 
@@ -169,23 +194,23 @@ def _resolve_platform_roots(system_name: str) -> tuple[list[tuple[str, bool]], l
     directory name matches ``is_generic_cache_safe`` or they contain an explicit
     ``Cache`` / ``Caches`` subdirectory.
     """
-    xdg_cache = os.path.expanduser("~/.cache")
-    xdg_config = os.path.expanduser("~/.config")
+    xdg_cache = _expand_norm("~/.cache")
+    xdg_config = _expand_norm("~/.config")
 
     if system_name == "Darwin":
-        macos_caches = os.path.expanduser("~/Library/Caches")
-        macos_app_support = os.path.expanduser("~/Library/Application Support")
+        macos_caches = _expand_norm("~/Library/Caches")
+        macos_app_support = _expand_norm("~/Library/Application Support")
         return (
             [(macos_caches, False), (xdg_cache, False)],
             [macos_app_support, xdg_config],
         )
 
     if system_name == "Windows":
-        local_app = os.environ.get("LOCALAPPDATA") or os.path.expanduser(
-            "~/AppData/Local"
+        local_app = os.path.normpath(
+            os.environ.get("LOCALAPPDATA") or _expand_norm("~/AppData/Local")
         )
-        roaming_app = os.environ.get("APPDATA") or os.path.expanduser(
-            "~/AppData/Roaming"
+        roaming_app = os.path.normpath(
+            os.environ.get("APPDATA") or _expand_norm("~/AppData/Roaming")
         )
         electron_roots = [roaming_app]
         if local_app != roaming_app:
@@ -312,7 +337,7 @@ def _discover_cache_root_dirs(
             continue
 
         path = os.path.join(cache_root, entry)
-        if not os.path.isdir(path) or os.path.islink(path):
+        if not os.path.isdir(path) or _is_link_or_junction(path):
             continue
         if path_is_covered(path, covered_paths):
             continue
@@ -338,7 +363,7 @@ def _discover_cache_root_dirs(
                 sub_path = os.path.join(path, sub_name)
                 if (
                     not os.path.isdir(sub_path)
-                    or os.path.islink(sub_path)
+                    or _is_link_or_junction(sub_path)
                     or path_is_covered(sub_path, covered_paths)
                 ):
                     continue
@@ -391,9 +416,9 @@ def _discover_electron_caches_in_root(
     for app_dir in sorted(glob.glob(os.path.join(config_root, "*"))):
         app_name = os.path.basename(app_dir)
         if (
-            app_name in KNOWN_CONFIG_APPS
+            app_name in SKIP_ELECTRON_APP_DIRS
             or not os.path.isdir(app_dir)
-            or os.path.islink(app_dir)
+            or _is_link_or_junction(app_dir)
         ):
             continue
 
@@ -407,7 +432,7 @@ def _discover_electron_caches_in_root(
             for path in candidates:
                 if (
                     not os.path.isdir(path)
-                    or os.path.islink(path)
+                    or _is_link_or_junction(path)
                     or path in seen_local
                     or path_is_covered(path, covered_paths)
                 ):
