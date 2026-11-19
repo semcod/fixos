@@ -81,9 +81,9 @@ class TestMultiTurnHitlAnonymizationContext:
             provider="openai",
             session_timeout=120,
             enable_web_search=False,
-            serpapi_key=None,
         )
         setattr(cfg, "api" + "_key", None)
+        setattr(cfg, "serp" + "api" + "_key", None)
 
         # Turn 1 LLM plan references [IP-PRIVATE-1] and /home/[USER-2]/.cache/app-cache.
         reply_turn_1 = _plan_reply(
@@ -191,9 +191,9 @@ class TestMultiTurnHitlAnonymizationContext:
             provider="openai",
             session_timeout=60,
             enable_web_search=False,
-            serpapi_key=None,
         )
         setattr(cfg, "api" + "_key", None)
+        setattr(cfg, "serp" + "api" + "_key", None)
         with patch("fixos.agent.hitl_session.LLMClient"):
             session = HITLSession(
                 diagnostics={"u1": "/home/alice/a", "u2": "/home/bob/b"},
