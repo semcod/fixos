@@ -70,7 +70,7 @@
           "pyproject.toml",
           "scripts/install-agent-hosts.sh",
           "worktree-guard.yaml",
-          "Since no actual code in/**"
+          "Since no actual code in*/**"
         ]
       },
       "infrastructure": {
