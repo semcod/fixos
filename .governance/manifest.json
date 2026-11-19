@@ -69,7 +69,8 @@
           ".github/workflows/new-project-governance.yml",
           "pyproject.toml",
           "scripts/install-agent-hosts.sh",
-          "worktree-guard.yaml"
+          "worktree-guard.yaml",
+          "Since no actual code in/**"
         ]
       },
       "infrastructure": {
