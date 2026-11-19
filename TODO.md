@@ -6,18 +6,15 @@ zamiast pozostawać tutaj jako rosnąca lista zaznaczonych pól.
 
 Ostatni przegląd: 2026-11-19.
 
-## Aktywne i zablokowane zewnętrznie
+## Zablokowane zewnętrznie i obce dzierżawy
 
 - [ ] Odblokować i dokończyć poprawkę uprawnień plików regularnych w `_remove_tree`
   (`#206` / `PLF-21827` / `ticket-161`). Stan: `BLOCKED` na zewnętrznym właścicielu
   `subactor/coding-agent#322` (`_prior_project_attempt` pod projekcją statusu `0.20.162`).
-- [ ] Dodać testy integracyjne szybkiego skanu i klasyfikacji cache na natywnych
-  środowiskach Windows oraz macOS (obecna macierz CI weryfikuje Python 3.10–3.12
-  oraz 5 dystrybucji Linux w kontenerach).
-- [ ] Ujednolicić formatowanie i typowanie starszych komend CLI (`scan`,
-  `features`, `provider`) bez zmiany ich publicznych opcji.
-- [ ] Utrzymywać kontekst anonimizacji przez wiele tur HITL oraz dodać testy
-  integracyjne cyklu życia snapshotu, podpisu i odtworzenia po awarii.
+- [ ] Kontynuować cel wolnego miejsca i selekcję kandydatów (`#210`–`#213` /
+  `PLF-21828`–`PLF-21831` / `ticket-163`). Stan: `BLOCKED` na zarządzanym
+  przekazaniu dzierżawy (`owner_handoff`) od `agent:cline` przy `POLICY_DISABLED`
+  dla automatycznego `idleTakeover`.
 
 ## Zasady utrzymania
 

@@ -83,6 +83,20 @@
   rekurencyjnych skanów `/` oraz `/home` z szybkich kontroli.
 - Czyszczenie cache JetBrains trafia w aktualną ścieżkę i wymaga zamknięcia IDE.
 
+## [2.7.3] - 2026-11-19
+
+### Added
+- Utrzymanie jednego kontekstu `AnonymizationContext` przez wiele tur sesji HITL (`HITLSession`, `session_handlers`) ze spójnym rozwiązywaniem aliasów numerowanych i blokadą `fail-closed` dla aliasów spoza wybranego zakresu (`PR #217` / `ticket-167`).
+- Atomowe zapisy snapshotów `RollbackSession` (`fixos.rollback-snapshot/v2`) z podpisem `HMAC-SHA256` / `SHA-256`, wykrywaniem manipulacji (`SnapshotIntegrityError`), dziennikiem sprzed wykonania (`fixos.rollback-journal/v1`) i odtwarzaniem po awarii wraz z testami integracyjnymi (`PR #217` / `ticket-167`).
+- Natywne reguły szybkiego skanu i klasyfikacji cache/Electron dla macOS (`~/Library/Caches`, `~/Library/Application Support`) oraz Windows (`%LOCALAPPDATA%`, `%APPDATA%`), przenośność blokad plikowych bez `fcntl`/`SIGALRM` oraz testy integracyjne uruchamiane natywnie w CI na `macos-latest` i `windows-latest` (`PR #218` / `ticket-168`, `PR #219` / `ticket-169`).
+
+### Changed
+- Ujednolicono formatowanie wyjścia i pełne adnotacje typów PEP 604/585 w starszych komendach CLI (`scan`, `features`, `provider` / `llm` / `test-llm`) bez zmiany ich publicznych opcji (`PR #217` / `ticket-167`).
+
+### Fixed
+- Uwzględniono katalogi XDG (`~/.cache`, `~/.config`) obok natywnych lokalizacji na macOS i Windows, pominięto złącza NTFS junction (`Application Data`, `Temporary Internet Files`, `History`) oraz znormalizowano separatory ścieżek w `cache_discovery.py`, a testy rollbacku używają `sys.executable` (`PR #220` / `ticket-171`, `PR #223` / `ticket-174`).
+- Usunięto błędnie zatwierdzony artefakt ze spacją i kropką na końcu nazwy blokujący `git checkout` na Windows NTFS (`Since no actual code in*/**`), zabezpieczono `.gitignore` oraz przełączono obraz testowy Ubuntu 24.04 w CI na mirror Fastly `mirrors.edge.kernel.org` (`PR #221` / `ticket-172`, `PR #222` / `ticket-173`).
+
 ## [2.7.2] - 2026-11-19
 
 ### Changed
