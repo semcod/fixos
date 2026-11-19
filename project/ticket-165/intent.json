@@ -1,0 +1,78 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-165",
+  "summary": "docs(governance): reconcile TODO and CHANGELOG for 2.7.2 (#174, #171, #209)",
+  "workstream": "governance",
+  "classification": {
+    "kind": "SERVICE",
+    "priority": "P2",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-165/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "CHANGELOG.md"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "db845b77d3c335f2e9cca50fc01eef4cd141cbe5",
+    "targetBranch": "main",
+    "outcome": "Removed completed #174 (PLF-21812) and #171 (PLF-21822) items from TODO.md and recorded the 2.7.2 mesh probe validation fix (#209 / PR #214), 0.20.162 standard-adoption reconciliation (PR #208), legacy archive-and-retire disposition (#174), and end-to-end Heyasa -> Willman -> Validator canary (#171) in CHANGELOG.md.",
+    "nonGoals": [
+      "Modifying application source code, VERSION, or docs/** (handled in the follow-up integration ticket)."
+    ],
+    "complexity": "XS",
+    "estimatedMinutes": 10,
+    "budgets": {
+      "maxAffectedComponents": 1,
+      "maxImplementationFiles": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Update TODO.md and CHANGELOG.md in the governance workstream so completed #174 and #171 items are retired from active TODO and summarized under release [2.7.2] - 2026-11-19.",
+      "components": [
+        {
+          "name": "governance",
+          "paths": [
+            "CHANGELOG.md"
+          ]
+        }
+      ],
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "responsibilityChanges": false,
+      "rollback": "Revert commit on ticket/165-changelog-todo-2-7-2.",
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      }
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "./project/governance-check.sh --base db845b77d3c335f2e9cca50fc01eef4cd141cbe5 --head HEAD"
+        ],
+        "evidence": "governance-check.sh passes with 0 errors and 0 warnings."
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "pytest -q tests/unit/test_standard_adoption_projection.py"
+        ],
+        "evidence": "Session-start governance plugin and standard-adoption check pass with 0 findings."
+      }
+    ]
+  }
+}

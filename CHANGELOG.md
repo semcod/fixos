@@ -83,6 +83,16 @@
   rekurencyjnych skanów `/` oraz `/home` z szybkich kontroli.
 - Czyszczenie cache JetBrains trafia w aktualną ścieżkę i wymaga zamknięcia IDE.
 
+## [2.7.2] - 2026-11-19
+
+### Changed
+- Wykonano autoryzowaną przez właściciela dyspozycję `archive-and-retire` dla historycznego refa `refs/heads/ticket/110-sync-standard-requirements-backup`, zamknięto `wellmanifest/new-project#575`, czysto wyrejestrowano scalony worktree `ticket-138` i zaktualizowano analizę `docs/analysis/legacy-workspace-reconciliation.md` (`#174` / `PLF-21812`).
+- Udowodniono pełną pętlę autonomiczną Heyasa → Willman → Central Planfile (`PLF-28514`) → Coding Agent (`ticket-164`) → OneDev → niezależny `ifuri-validator-agent` (`PR #214`, `willman.project-observation/v1` ze statusem `merged` i `writer_released: true`), zgłaszając zidentyfikowane luki do repozytoriów właścicielskich `semcod/planfile#403` oraz `subactor/coding-agent#320/#322/#323` (`#171` / `PLF-21822`).
+- Zrekoncyliowano projekcję `.governance/standard-adoption.json` po aktualizacji `wellmanifest/new-project` do `0.20.162` (`PR #208`).
+
+### Fixed
+- Utwardzono walidację portów ASCII (`1..65535`) z przycinaniem białych znaków w `parse_posix_probe_output` oraz bezwarunkowe zamykanie gniazda UDP (`with socket.socket(...) as udp:`) w `REMOTE_PYTHON_PROBE` w `fixos/plugins/builtin/mesh.py` wraz z testami jednostkowymi (`#209` / `PR #214`).
+
 ## [2.7.1] - 2026-11-18
 
 ### Added
