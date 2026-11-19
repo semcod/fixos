@@ -11,7 +11,6 @@ Provides:
 from __future__ import annotations
 
 import contextlib
-import fcntl
 import hashlib
 import json
 import os
@@ -22,6 +21,16 @@ from collections.abc import Callable, Mapping
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - Windows
+    fcntl = None  # type: ignore[assignment]
+
+try:
+    import msvcrt
+except ImportError:  # pragma: no cover - POSIX
+    msvcrt = None  # type: ignore[assignment]
 
 RECEIPT_SCHEMA = "wellmanifest.mcp/task-receipt/v1"
 JOURNAL_SCHEMA = "wellmanifest.mcp/task-journal/v1"
@@ -94,26 +103,46 @@ def _single_flight_lock(base_dir: Path, req_id: str, *, non_blocking: bool = Fal
     if not acquired:
         raise BlockingIOError("request_in_flight")
     fd = -1
+    os_locked = False
     try:
         fd = os.open(str(lock_path), os.O_CREAT | os.O_RDWR, 0o600)
-        flags = fcntl.LOCK_EX | (fcntl.LOCK_NB if non_blocking else 0)
-        fcntl.flock(fd, flags)
+        if fcntl is not None:
+            flags = fcntl.LOCK_EX | (fcntl.LOCK_NB if non_blocking else 0)
+            fcntl.flock(fd, flags)
+            os_locked = True
+        elif msvcrt is not None:  # pragma: no cover - Windows
+            mode = msvcrt.LK_NBLCK if non_blocking else msvcrt.LK_LOCK
+            try:
+                msvcrt.locking(fd, mode, 1)
+                os_locked = True
+            except OSError as exc:
+                if non_blocking:
+                    raise BlockingIOError("request_in_flight") from exc
+                raise
         yield
     finally:
         if fd >= 0:
-            with contextlib.suppress(OSError):
-                fcntl.flock(fd, fcntl.LOCK_UN)
+            if os_locked:
+                with contextlib.suppress(OSError):
+                    if fcntl is not None:
+                        fcntl.flock(fd, fcntl.LOCK_UN)
+                    elif msvcrt is not None:  # pragma: no cover - Windows
+                        os.lseek(fd, 0, os.SEEK_SET)
+                        msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
             with contextlib.suppress(OSError):
                 os.close(fd)
         tlock.release()
 
 
 def _fsync_parent_dir(path: Path) -> None:
-    dir_fd = os.open(str(path.parent), os.O_RDONLY)
-    try:
-        os.fsync(dir_fd)
-    finally:
-        os.close(dir_fd)
+    if os.name == "nt":
+        return
+    with contextlib.suppress(OSError):
+        dir_fd = os.open(str(path.parent), os.O_RDONLY)
+        try:
+            os.fsync(dir_fd)
+        finally:
+            os.close(dir_fd)
 
 
 def _contained_path(base_dir: Path, filename: str) -> Path:

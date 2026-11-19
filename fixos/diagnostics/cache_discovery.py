@@ -1,14 +1,17 @@
 """
-Generic cache discovery for fixOS cleanup.
+Generic cross-platform cache discovery for fixOS cleanup.
 
-Finds large cache directories under ~/.cache and Electron app caches under
-~/.config that are not already covered by known service scanners.
+Finds large cache directories and Electron/Chromium app caches on Linux
+(``~/.cache``, ``~/.config``), macOS (``~/Library/Caches``,
+``~/Library/Application Support``), and Windows (``%LOCALAPPDATA%``,
+``%APPDATA%``) without misclassifying application state or user data.
 """
 
 from __future__ import annotations
 
 import glob
 import os
+import platform
 from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -19,17 +22,25 @@ if TYPE_CHECKING:
 from ..constants import GENERIC_CACHE_THRESHOLD_MB
 from .native_scan import scan_dir_native
 
-# Top-level ~/.cache names already handled by dedicated ServiceType scanners.
+# Top-level cache names already handled by dedicated ServiceType scanners or
+# protected system subsystems.
 KNOWN_CACHE_DIR_NAMES = frozenset(
     {
         "pip",
         "npm",
+        "npm-cache",
         "yarn",
+        "Yarn",
+        "pnpm",
+        "pnpm-cache",
         "pypoetry",
         "huggingface",
         "google-chrome",
+        "Google",
         "microsoft-edge",
         "mozilla",
+        "Mozilla",
+        "Firefox",
         "thumbnails",
         "gcloud",
         "JetBrains",
@@ -47,20 +58,59 @@ KNOWN_CACHE_DIR_NAMES = frozenset(
         "BraveSoftware",
         "spotify",
         "log",
+        "go-build",
+        "ruff",
+        "fixos",
     }
 )
 
-# Electron/Chromium apps scanned explicitly elsewhere or via dedicated types.
+KNOWN_MACOS_SYSTEM_CACHES = frozenset(
+    {
+        "CloudKit",
+        "FamilyCircle",
+        "GeoServices",
+        "PassKit",
+        "Safari",
+        "Homebrew",
+    }
+)
+
+KNOWN_WINDOWS_LOCALAPPDATA_SKIP = frozenset(
+    {
+        "ConnectedDevicesPlatform",
+        "Comms",
+        "D3DSCache",
+        "Diagnostics",
+        "Microsoft",
+        "Packages",
+        "Programs",
+        "Publishers",
+        "Temp",
+        "VirtualStore",
+        "pnpm-store",
+    }
+)
+
+# Electron/Chromium apps scanned explicitly elsewhere or protected OS roots.
 KNOWN_CONFIG_APPS = frozenset(
     {
         "google-chrome",
+        "Google",
         "microsoft-edge",
+        "Microsoft",
         "BraveSoftware",
         "Code",
         "Cursor",
         "discord",
         "Slack",
         "spotify",
+        "Apple",
+        "AddressBook",
+        "Dock",
+        "Knowledge",
+        "MobileSync",
+        "Packages",
+        "Programs",
     }
 )
 
@@ -86,155 +136,278 @@ GENERIC_SAFE_NAME_HINTS = (
 
 
 def normalize_path(path: str) -> str:
-    return os.path.realpath(os.path.expanduser(path))
+    return os.path.normcase(os.path.realpath(os.path.expanduser(path)))
 
 
 def path_is_covered(path: str, covered_paths: Iterable[str]) -> bool:
     """Return True when path is already represented by a known service scan."""
-    normalized = normalize_path(path)
+    norm_target = Path(normalize_path(path))
     for covered in covered_paths:
-        covered_norm = covered if covered.startswith("/") else normalize_path(covered)
-        if normalized == covered_norm:
-            return True
-        if normalized.startswith(f"{covered_norm}/"):
-            return True
-        if covered_norm.startswith(f"{normalized}/"):
+        expanded = os.path.expanduser(covered)
+        norm_cov = Path(os.path.normcase(os.path.realpath(expanded)))
+        if (
+            norm_target == norm_cov
+            or norm_target.is_relative_to(norm_cov)
+            or norm_cov.is_relative_to(norm_target)
+        ):
             return True
     return False
 
 
 def is_generic_cache_safe(path: str) -> bool:
-    """Heuristic safety check for unknown cache directories."""
-    base = os.path.basename(path.rstrip("/")).lower()
+    """Heuristic safety check for unknown cache directories across POSIX/Windows."""
+    cleaned = path.rstrip("/\\")
+    base = cleaned.replace("\\", "/").rsplit("/", 1)[-1].lower()
     return any(hint in base for hint in GENERIC_SAFE_NAME_HINTS)
+
+
+def _resolve_platform_roots(system_name: str) -> tuple[list[tuple[str, bool]], list[str]]:
+    """Return ``(cache_roots_with_strict_flag, electron_app_roots)`` for ``system_name``.
+
+    When ``strict_cache_subpath`` is True (Windows ``%LOCALAPPDATA%``), arbitrary
+    top-level application directories are NOT treated as generic caches unless their
+    directory name matches ``is_generic_cache_safe`` or they contain an explicit
+    ``Cache`` / ``Caches`` subdirectory.
+    """
+    if system_name == "Darwin":
+        macos_caches = os.path.expanduser("~/Library/Caches")
+        macos_app_support = os.path.expanduser("~/Library/Application Support")
+        return ([(macos_caches, False)], [macos_app_support])
+
+    if system_name == "Windows":
+        local_app = os.environ.get("LOCALAPPDATA") or os.path.expanduser(
+            "~/AppData/Local"
+        )
+        roaming_app = os.environ.get("APPDATA") or os.path.expanduser(
+            "~/AppData/Roaming"
+        )
+        electron_roots = [roaming_app]
+        if local_app != roaming_app:
+            electron_roots.append(local_app)
+        return ([(local_app, True)], electron_roots)
+
+    return (
+        [(os.path.expanduser("~/.cache"), False)],
+        [os.path.expanduser("~/.config")],
+    )
 
 
 def discover_additional_caches(
     get_size_mb: Callable[[str], float],
     threshold_mb: int,
     covered_paths: set[str],
+    *,
+    system_name: str | None = None,
 ) -> list[ServiceDataInfo]:
     """Discover large caches not already covered by known service scanners."""
-
+    effective_os = system_name or platform.system()
     generic_threshold = max(threshold_mb, GENERIC_CACHE_THRESHOLD_MB)
+    cache_roots, electron_roots = _resolve_platform_roots(effective_os)
+
     results: list[ServiceDataInfo] = []
     seen_paths: set[str] = set()
 
-    for info in _discover_xdg_cache_dirs(get_size_mb, generic_threshold, covered_paths):
-        norm = normalize_path(info.path)
-        if norm not in seen_paths:
-            seen_paths.add(norm)
-            results.append(info)
+    for cache_root, strict_mode in cache_roots:
+        for info in _discover_cache_root_dirs(
+            cache_root,
+            get_size_mb,
+            generic_threshold,
+            covered_paths,
+            system_name=effective_os,
+            strict_windows_layout=strict_mode,
+        ):
+            norm = normalize_path(info.path)
+            if norm not in seen_paths:
+                seen_paths.add(norm)
+                results.append(info)
 
-    for info in _discover_electron_caches(get_size_mb, threshold_mb, covered_paths):
-        norm = normalize_path(info.path)
-        if norm not in seen_paths:
-            seen_paths.add(norm)
-            results.append(info)
+    for app_root in electron_roots:
+        for info in _discover_electron_caches_in_root(
+            app_root,
+            get_size_mb,
+            threshold_mb,
+            covered_paths,
+        ):
+            norm = normalize_path(info.path)
+            if norm not in seen_paths:
+                seen_paths.add(norm)
+                results.append(info)
 
     results.sort(key=lambda item: item.size_mb, reverse=True)
     return results
 
 
-def _discover_xdg_cache_dirs(
+def _discover_cache_root_dirs(
+    cache_root: str,
     get_size_mb: Callable[[str], float],
     threshold_mb: int,
     covered_paths: set[str],
+    *,
+    system_name: str,
+    strict_windows_layout: bool,
 ) -> list[ServiceDataInfo]:
-    cache_root = os.path.expanduser("~/.cache")
     if not os.path.isdir(cache_root):
         return []
 
+    skip_names = set(KNOWN_CACHE_DIR_NAMES)
+    if system_name == "Darwin":
+        skip_names |= KNOWN_MACOS_SYSTEM_CACHES
+    elif system_name == "Windows":
+        skip_names |= KNOWN_WINDOWS_LOCALAPPDATA_SKIP
+
     results: list[ServiceDataInfo] = []
 
-    # 1. Fast native scan using Rust fixos-native if available and sizing function is default
-    use_native = getattr(get_size_mb, "__name__", "") in ("_get_path_size_mb", "measure_tree")
+    use_native = (
+        not strict_windows_layout
+        and getattr(get_size_mb, "__name__", "") in ("_get_path_size_mb", "measure_tree")
+    )
     if use_native:
         native_entries = scan_dir_native(
             Path(cache_root),
             min_bytes=threshold_mb * 1024 * 1024,
-            exclude=tuple(KNOWN_CACHE_DIR_NAMES),
+            exclude=tuple(skip_names),
         )
     else:
         native_entries = None
+
     if native_entries is not None:
         for item in native_entries:
             name = item.get("name", "")
             path = item.get("path", "")
-            if not path or path_is_covered(path, covered_paths):
+            if (
+                not path
+                or name.startswith("com.apple.")
+                or path_is_covered(path, covered_paths)
+            ):
                 continue
             size_mb = item.get("bytes", 0) / (1024 * 1024)
             if size_mb < threshold_mb:
                 continue
-            safe = is_generic_cache_safe(path)
+            safe = system_name == "Darwin" or is_generic_cache_safe(path)
             results.append(
                 _build_generic_entry(
                     label=f"Cache: {name}",
                     path=path,
                     size_mb=round(size_mb, 2),
                     safe=safe,
-                    description=f"Discovered cache directory (~/.cache/{name})",
+                    description=f"Discovered cache directory ({path})",
                 )
             )
         return results
 
-    # 2. Python fallback
     try:
         entries = sorted(os.listdir(cache_root))
     except OSError:
         return []
 
     for entry in entries:
-        if entry in KNOWN_CACHE_DIR_NAMES:
+        if entry in skip_names or (
+            system_name == "Darwin" and entry.startswith("com.apple.")
+        ):
             continue
 
         path = os.path.join(cache_root, entry)
-        if not os.path.isdir(path):
+        if not os.path.isdir(path) or os.path.islink(path):
             continue
         if path_is_covered(path, covered_paths):
+            continue
+
+        if strict_windows_layout:
+            if is_generic_cache_safe(entry):
+                size_mb = get_size_mb(path)
+                if size_mb >= threshold_mb:
+                    results.append(
+                        _build_generic_entry(
+                            label=f"Cache: {entry}",
+                            path=path,
+                            size_mb=size_mb,
+                            safe=True,
+                            description=f"Discovered Windows cache directory ({path})",
+                        )
+                    )
+                continue
+
+            # Inside %LOCALAPPDATA%\<App>, only explicit Cache/Caches subdirs qualify,
+            # preserving non-cache application state.
+            for sub_name in ("Cache", "Caches", "cache"):
+                sub_path = os.path.join(path, sub_name)
+                if (
+                    not os.path.isdir(sub_path)
+                    or os.path.islink(sub_path)
+                    or path_is_covered(sub_path, covered_paths)
+                ):
+                    continue
+                size_mb = get_size_mb(sub_path)
+                if size_mb >= threshold_mb:
+                    results.append(
+                        _build_generic_entry(
+                            label=f"Cache: {entry}",
+                            path=sub_path,
+                            size_mb=size_mb,
+                            safe=True,
+                            description=f"Discovered Windows app cache ({sub_path})",
+                        )
+                    )
             continue
 
         size_mb = get_size_mb(path)
         if size_mb < threshold_mb:
             continue
 
-        safe = is_generic_cache_safe(path)
+        # Under macOS ~/Library/Caches, every non-system bundle cache is a cache root;
+        # under ~/.cache we retain name-hint classification (safe vs review).
+        safe = True if system_name == "Darwin" else is_generic_cache_safe(path)
         results.append(
             _build_generic_entry(
                 label=f"Cache: {entry}",
                 path=path,
                 size_mb=size_mb,
                 safe=safe,
-                description=f"Discovered cache directory (~/.cache/{entry})",
+                description=f"Discovered cache directory ({path})",
             )
         )
 
     return results
 
 
-def _discover_electron_caches(
+def _discover_electron_caches_in_root(
+    config_root: str,
     get_size_mb: Callable[[str], float],
     threshold_mb: int,
     covered_paths: set[str],
 ) -> list[ServiceDataInfo]:
     from .service_scanner import ServiceType
 
-    config_root = os.path.expanduser("~/.config")
     if not os.path.isdir(config_root):
         return []
 
     results: list[ServiceDataInfo] = []
+    seen_local: set[str] = set()
     for app_dir in sorted(glob.glob(os.path.join(config_root, "*"))):
         app_name = os.path.basename(app_dir)
-        if app_name in KNOWN_CONFIG_APPS or not os.path.isdir(app_dir):
+        if (
+            app_name in KNOWN_CONFIG_APPS
+            or not os.path.isdir(app_dir)
+            or os.path.islink(app_dir)
+        ):
             continue
 
         for cache_name in ELECTRON_CACHE_DIR_NAMES:
-            for path in glob.glob(os.path.join(app_dir, "*", cache_name)):
-                if not os.path.isdir(path):
+            # Electron apps store caches either directly under <App>/<CacheName>
+            # (macOS/Windows Roaming) or under <App>/<Profile>/<CacheName>.
+            candidates = [
+                os.path.join(app_dir, cache_name),
+                *glob.glob(os.path.join(app_dir, "*", cache_name)),
+            ]
+            for path in candidates:
+                if (
+                    not os.path.isdir(path)
+                    or os.path.islink(path)
+                    or path in seen_local
+                    or path_is_covered(path, covered_paths)
+                ):
                     continue
-                if path_is_covered(path, covered_paths):
-                    continue
+                seen_local.add(path)
 
                 size_mb = get_size_mb(path)
                 if size_mb < threshold_mb:
@@ -261,7 +434,7 @@ def _build_generic_entry(
     size_mb: float,
     safe: bool,
     description: str,
-    service_type: ServiceType = None,
+    service_type: ServiceType | None = None,
 ) -> ServiceDataInfo:
     from .service_cleanup import ServiceCleaner
     from .service_scanner import RiskLevel, ServiceDataInfo, ServiceType
@@ -270,9 +443,6 @@ def _build_generic_entry(
         service_type = ServiceType.GENERIC_CACHE
     size_gb = size_mb / 1024
     cleanup_command = ServiceCleaner.get_cleanup_command(service_type, path)
-    # Discovered dirs are only ever "safe" (recognized cache name pattern) or
-    # "review" (unrecognized, look before deleting) — never "dangerous",
-    # since we have no basis to claim it's real installed-app data.
     risk_level = RiskLevel.SAFE.value if safe else RiskLevel.REVIEW.value
     return ServiceDataInfo(
         service_type=service_type,

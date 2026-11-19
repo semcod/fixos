@@ -9,7 +9,6 @@ exact target + `input_digest`, and an unconsumed single-use capability grant.
 from __future__ import annotations
 
 import contextlib
-import fcntl
 import hashlib
 import json
 import math
@@ -20,6 +19,16 @@ from collections.abc import Mapping
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - Windows
+    fcntl = None  # type: ignore[assignment]
+
+try:
+    import msvcrt
+except ImportError:  # pragma: no cover - POSIX
+    msvcrt = None  # type: ignore[assignment]
 
 POA_PLAN_SCHEMA = "wellmanifest.poa/minimal-plan/v1"
 POA_GRANT_SCHEMA = "wellmanifest.authority-lifecycle/grant/v1"
@@ -293,11 +302,13 @@ def _atomic_write(path: Path, data: Mapping[str, Any]) -> None:
         handle.flush()
         os.fsync(handle.fileno())
     os.replace(tmp, path)
-    dir_fd = os.open(str(path.parent), os.O_RDONLY)
-    try:
-        os.fsync(dir_fd)
-    finally:
-        os.close(dir_fd)
+    if os.name != "nt":
+        with contextlib.suppress(OSError):
+            dir_fd = os.open(str(path.parent), os.O_RDONLY)
+            try:
+                os.fsync(dir_fd)
+            finally:
+                os.close(dir_fd)
 
 
 def issue_poa_grant(
@@ -404,8 +415,14 @@ def verify_and_consume_poa_grant(
     ref_now = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
 
     fd = os.open(str(lock_path), os.O_CREAT | os.O_RDWR, 0o600)
+    os_locked = False
     try:
-        fcntl.flock(fd, fcntl.LOCK_EX)
+        if fcntl is not None:
+            fcntl.flock(fd, fcntl.LOCK_EX)
+            os_locked = True
+        elif msvcrt is not None:  # pragma: no cover - Windows
+            msvcrt.locking(fd, msvcrt.LK_LOCK, 1)
+            os_locked = True
         if consumed_path.exists():
             raise ValueError("POA_GRANT_REPLAYED")
 
@@ -458,7 +475,12 @@ def verify_and_consume_poa_grant(
             "plan_hash": plan_hash,
         }
     finally:
-        with contextlib.suppress(OSError):
-            fcntl.flock(fd, fcntl.LOCK_UN)
+        if os_locked:
+            with contextlib.suppress(OSError):
+                if fcntl is not None:
+                    fcntl.flock(fd, fcntl.LOCK_UN)
+                elif msvcrt is not None:  # pragma: no cover - Windows
+                    os.lseek(fd, 0, os.SEEK_SET)
+                    msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
         with contextlib.suppress(OSError):
             os.close(fd)
