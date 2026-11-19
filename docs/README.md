@@ -31,15 +31,17 @@ Ta dokumentacja dotyczy narzędzia do diagnostyki i naprawy systemu fixOS.
 
 ## Standardy i diagnostyka
 
-- [Audyt synchronizacji Planfile–GitHub](ANALYSIS/PLANFILE_GITHUB_SYNC_AUDIT.md)
-  — dwukierunkowy worker systemd (`#170`), kanarek `PLF-21826` (`#202`), uzgodnienie
-  23 historycznych zadań `done` oraz zewnętrzne blokady `#171` i `#174`.
+- [Audyt synchronizacji Planfile–GitHub i pętli Heyasa](ANALYSIS/PLANFILE_GITHUB_SYNC_AUDIT.md)
+  — dwukierunkowy worker systemd (`#170`), kanarek `PLF-21826` (`#202`), pełny
+  kanarek merge Heyasa → Willman → Validator (`#171` / `#209` / `PR #214`) oraz
+  zgłoszenia upstream (`semcod/planfile#403`, `subactor/coding-agent#320/#322/#323`).
 - [Uzgodnienie starego workspace](analysis/legacy-workspace-reconciliation.md)
-  — backup ticket-110, kwarantanna ticket-109, dowody i blokada własności.
+  — zrealizowana dyspozycja `archive-and-retire` dla backupu `ticket-110`,
+  kwarantanna `ticket-109`, zamknięcie `#174` i `wellmanifest/new-project#575`.
 - [Analiza diagnostyki miejsca](analysis/storage-diagnostics.md) — dostarczone
   reguły, dowody, ograniczenia i priorytety dalszego rozwoju.
 - [Standardy Wellmanifest w fixos](INFORMATION/WELLMANIFEST_STANDARDS.md)
-  — wellman, poa, mcp, nl-uri-dsl-llm, docs, logs, worktrees, license, report, ssot, semver.
+  — wellman, new-project, poa, mcp, nl-uri-dsl-llm, docs, logs, worktrees, license, report, ssot, semver.
 - [Decyzje SSOT](ssot/) — wersja pakietu i adres Ollamy.
 - [Rozwiązywanie problemów](SERVICE/TROUBLESHOOTING.md) — runbook.
 
