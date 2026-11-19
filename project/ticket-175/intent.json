@@ -1,0 +1,80 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-175",
+  "summary": "chore(integration): bump VERSION and pyproject.toml to 2.7.3",
+  "workstream": "integration",
+  "classification": {
+    "kind": "SERVICE",
+    "priority": "P2",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-175/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "VERSION",
+    "pyproject.toml"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "297f0293c3dacd3f06365b440955e02ed37add02",
+    "targetBranch": "main",
+    "outcome": "Updated VERSION and pyproject.toml to 2.7.3 for the PyPI 2.7.3 release.",
+    "nonGoals": [
+      "Adding new runtime dependencies or modifying application source code."
+    ],
+    "complexity": "XS",
+    "estimatedMinutes": 5,
+    "budgets": {
+      "maxAffectedComponents": 1,
+      "maxImplementationFiles": 2,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Synchronize VERSION and pyproject.toml to 2.7.3 in the integration workstream.",
+      "components": [
+        {
+          "name": "integration",
+          "paths": [
+            "VERSION",
+            "pyproject.toml"
+          ]
+        }
+      ],
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "responsibilityChanges": false,
+      "rollback": "Revert commit on ticket/175-bump-version-2-7-3.",
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      }
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "pytest -q tests/unit/test_version_parity.py"
+        ],
+        "evidence": "Version carrier parity tests pass for 2.7.3."
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "./project/governance-check.sh --base 297f0293c3dacd3f06365b440955e02ed37add02 --head HEAD"
+        ],
+        "evidence": "governance-check.sh passes with zero errors."
+      }
+    ]
+  }
+}
