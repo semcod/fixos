@@ -13,6 +13,14 @@ def _home_path(*parts: str) -> str:
     return str(Path.home().joinpath(*parts))
 
 
+def test_cargo_cleanup_targets_only_downloaded_archives():
+    command = ServiceCleaner.get_cleanup_command(
+        ServiceType.CARGO, _home_path(".cargo", "registry")
+    )
+
+    assert command == "rm -rf -- ~/.cargo/registry/cache"
+
+
 class TestChromeCleanup:
     def test_chrome_cleanup_command_targets_scanned_profile(self):
         path = _home_path(".config", "google-chrome")
