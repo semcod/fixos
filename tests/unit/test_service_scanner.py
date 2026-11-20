@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from fixos.diagnostics.service_cleanup import ServiceCleaner
 from fixos.diagnostics.service_scanner import (
     ServiceDataInfo,
     ServiceDataScanner,
     ServiceType,
 )
-from fixos.diagnostics.service_cleanup import ServiceCleaner
 
 
 def _home_path(*parts: str) -> str:
@@ -251,17 +251,15 @@ class TestDockerDaemonSizeFallback:
     ):
         monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
         scanner = ServiceDataScanner(threshold_mb=1)
-        output = "\n".join(
-            [
-                '{"Type":"Images","TotalCount":"1799","Active":"136",'
-                '"Size":"292.2GB","Reclaimable":"82.84GB (28%)"}',
-                '{"Type":"Containers","TotalCount":"169","Active":"108",'
-                '"Size":"17.39GB","Reclaimable":"764.3MB (4%)"}',
-                '{"Type":"Local Volumes","TotalCount":"564","Active":"66",'
-                '"Size":"125.1GB","Reclaimable":"89.81GB (71%)"}',
-                '{"Type":"Build Cache","TotalCount":"536","Active":"0",'
-                '"Size":"70.88GB","Reclaimable":"64.73GB"}',
-            ]
+        output = (
+            '{"Type":"Images","TotalCount":"1799","Active":"136",'
+            '"Size":"292.2GB","Reclaimable":"82.84GB (28%)"}\n'
+            '{"Type":"Containers","TotalCount":"169","Active":"108",'
+            '"Size":"17.39GB","Reclaimable":"764.3MB (4%)"}\n'
+            '{"Type":"Local Volumes","TotalCount":"564","Active":"66",'
+            '"Size":"125.1GB","Reclaimable":"89.81GB (71%)"}\n'
+            '{"Type":"Build Cache","TotalCount":"536","Active":"0",'
+            '"Size":"70.88GB","Reclaimable":"64.73GB"}'
         )
         calls = {"count": 0}
 
