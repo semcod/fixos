@@ -2141,7 +2141,7 @@ class ServiceCleaner:
             ServiceType.GRADLE: "rm -rf ~/.gradle/caches ~/.gradle/daemon ~/.gradle/wrapper",
             ServiceType.MAVEN: "rm -rf ~/.m2/repository",
             # Rust/Go
-            ServiceType.CARGO: "cargo clean --registry || rm -rf ~/.cargo/registry/cache",
+            ServiceType.CARGO: "rm -rf -- ~/.cargo/registry/cache",
             ServiceType.GO: "go clean -cache -modcache && rm -rf ~/go/pkg",
             # Mobile
             ServiceType.FLUTTER: "flutter pub cache clean && rm -rf ~/.pub-cache",

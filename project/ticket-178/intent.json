@@ -1,0 +1,85 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-178",
+  "summary": "Clean only the Cargo registry archive cache from the scanned directory",
+  "workstream": "application",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P2",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-178/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/diagnostics/service_cleanup.py",
+    "tests/unit/test_service_cleanup.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "targetBranch": "main",
+    "acceptedBaseSha": "95fd718579e1c7a7bc40037860b4ba78fbe377cc",
+    "outcome": "Run the Cargo registry archive cache cleanup without the unsupported Cargo CLI option.",
+    "complexity": "S",
+    "estimatedMinutes": 15,
+    "budgets": {
+      "maxImplementationFiles": 2,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "runtimeDependencies": [],
+    "nonGoals": [
+      "Change which Cargo data is selected for cleanup."
+    ],
+    "architecture": {
+      "status": "accepted",
+      "decision": "Use the existing archive cache removal command directly so Cargo CLI compatibility does not affect cleanup.",
+      "components": [
+        {
+          "name": "service cleanup commands",
+          "paths": [
+            "fixos/diagnostics/service_cleanup.py"
+          ]
+        },
+        {
+          "name": "service cleanup tests",
+          "paths": [
+            "tests/unit/test_service_cleanup.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the cleanup command and its regression test."
+    },
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "wellman run --root . --allow-primary-venv -- python -m pytest -q tests/unit/test_service_cleanup.py"
+        ],
+        "evidence": "The Cargo cleanup command addresses the exact registry archive cache."
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "wellman run --root . --allow-primary-venv -- python -m pytest -q tests/unit/test_service_cleanup.py tests/unit/test_cleanup_free_target.py"
+        ],
+        "evidence": "The focused regression and target-driven cleanup suite pass."
+      }
+    ]
+  }
+}
