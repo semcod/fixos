@@ -16,6 +16,17 @@ def _home_path(*parts: str) -> str:
     return str(Path.home().joinpath(*parts))
 
 
+def test_zero_threshold_includes_a_small_cache(tmp_path, monkeypatch):
+    cache = tmp_path / "pip"
+    cache.mkdir()
+    (cache / "wheel").write_bytes(b"x" * 4096)
+    monkeypatch.setitem(ServiceDataScanner.SERVICE_PATHS, ServiceType.PIP, [str(cache)])
+
+    assert ServiceDataScanner().scan_service(ServiceType.PIP) == []
+    entries = ServiceDataScanner(threshold_mb=0).scan_service(ServiceType.PIP)
+    assert [entry.path for entry in entries] == [str(cache)]
+
+
 class TestChromeSafetyClassification:
     def test_chrome_profile_is_marked_for_review(self, monkeypatch):
         scanner = ServiceDataScanner(threshold_mb=1)

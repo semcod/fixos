@@ -1,0 +1,86 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-177",
+  "summary": "Honor explicit zero when scanning service caches for cleanup",
+  "workstream": "application",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P2",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-177/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/diagnostics/service_scanner.py",
+    "tests/unit/test_service_scanner.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "targetBranch": "main",
+    "acceptedBaseSha": "4299b7b927493635bc69beaf1e714029be6f3964",
+    "outcome": "Include small service caches in on-demand cleanup inventories when an explicit zero minimum is passed.",
+    "complexity": "S",
+    "estimatedMinutes": 20,
+    "budgets": {
+      "maxImplementationFiles": 2,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "runtimeDependencies": [],
+    "nonGoals": [
+      "Automatic selection and removal policy changes."
+    ],
+    "architecture": {
+      "status": "accepted",
+      "decision": "Select the default threshold only when the constructor argument is omitted. Exercise a real cache path through the scanner.",
+      "components": [
+        {
+          "name": "service inventory",
+          "paths": [
+            "fixos/diagnostics/service_scanner.py"
+          ]
+        },
+        {
+          "name": "scanner tests",
+          "paths": [
+            "tests/unit/test_service_scanner.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the scanner threshold change."
+    },
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "wellman run --root . --allow-primary-venv -- python -m pytest -q tests/unit/test_service_scanner.py tests/unit/test_service_cleanup_usecase.py"
+        ],
+        "evidence": "Small-cache regression with explicit zero and default threshold."
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "./project/governance-check.sh --base origin/main",
+          "wellman run --root . --allow-primary-venv -- python -m fixos cleanup -c pip --threshold-gb 0 --dry-run"
+        ],
+        "evidence": "Read-only cleanup preview for a small cache."
+      }
+    ]
+  }
+}
