@@ -276,7 +276,9 @@ class ServiceDataScanner:
     )
 
     def __init__(self, threshold_mb: int | None = None):
-        self.threshold_mb = threshold_mb or self.DEFAULT_THRESHOLD_MB
+        self.threshold_mb = (
+            self.DEFAULT_THRESHOLD_MB if threshold_mb is None else threshold_mb
+        )
         self.threshold_gb = self.threshold_mb / 1024
         self._details_provider = ServiceDetailsProvider()
         self._cleaner = ServiceCleaner(self)

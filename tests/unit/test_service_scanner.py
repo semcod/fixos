@@ -4,16 +4,27 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from fixos.diagnostics.service_cleanup import ServiceCleaner
 from fixos.diagnostics.service_scanner import (
     ServiceDataInfo,
     ServiceDataScanner,
     ServiceType,
 )
-from fixos.diagnostics.service_cleanup import ServiceCleaner
 
 
 def _home_path(*parts: str) -> str:
     return str(Path.home().joinpath(*parts))
+
+
+def test_zero_threshold_includes_a_small_cache(tmp_path, monkeypatch):
+    cache = tmp_path / "pip"
+    cache.mkdir()
+    (cache / "wheel").write_bytes(b"x" * 4096)
+    monkeypatch.setitem(ServiceDataScanner.SERVICE_PATHS, ServiceType.PIP, [str(cache)])
+
+    assert ServiceDataScanner().scan_service(ServiceType.PIP) == []
+    entries = ServiceDataScanner(threshold_mb=0).scan_service(ServiceType.PIP)
+    assert [entry.path for entry in entries] == [str(cache)]
 
 
 class TestChromeSafetyClassification:
@@ -240,17 +251,15 @@ class TestDockerDaemonSizeFallback:
     ):
         monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
         scanner = ServiceDataScanner(threshold_mb=1)
-        output = "\n".join(
-            [
-                '{"Type":"Images","TotalCount":"1799","Active":"136",'
-                '"Size":"292.2GB","Reclaimable":"82.84GB (28%)"}',
-                '{"Type":"Containers","TotalCount":"169","Active":"108",'
-                '"Size":"17.39GB","Reclaimable":"764.3MB (4%)"}',
-                '{"Type":"Local Volumes","TotalCount":"564","Active":"66",'
-                '"Size":"125.1GB","Reclaimable":"89.81GB (71%)"}',
-                '{"Type":"Build Cache","TotalCount":"536","Active":"0",'
-                '"Size":"70.88GB","Reclaimable":"64.73GB"}',
-            ]
+        output = (
+            '{"Type":"Images","TotalCount":"1799","Active":"136",'
+            '"Size":"292.2GB","Reclaimable":"82.84GB (28%)"}\n'
+            '{"Type":"Containers","TotalCount":"169","Active":"108",'
+            '"Size":"17.39GB","Reclaimable":"764.3MB (4%)"}\n'
+            '{"Type":"Local Volumes","TotalCount":"564","Active":"66",'
+            '"Size":"125.1GB","Reclaimable":"89.81GB (71%)"}\n'
+            '{"Type":"Build Cache","TotalCount":"536","Active":"0",'
+            '"Size":"70.88GB","Reclaimable":"64.73GB"}'
         )
         calls = {"count": 0}
 
