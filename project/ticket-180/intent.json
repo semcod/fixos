@@ -1,0 +1,90 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-180",
+  "summary": "Expose read-only process anomalies to HostGuard",
+  "workstream": "application",
+  "classification": {
+    "kind": "FEATURE",
+    "priority": "P2",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-180/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/cli/anomalies_cmd.py",
+    "tests/unit/test_host_anomalies_process_only.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "targetBranch": "main",
+    "acceptedBaseSha": "85eece4168cdfa25b51b3981b6bd26e322f02def",
+    "outcome": "Publish a read-only process anomaly report for HostGuard that skips storage inventory.",
+    "complexity": "S",
+    "estimatedMinutes": 15,
+    "budgets": {
+      "maxImplementationFiles": 2,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 1,
+      "maxRuntimeDependencies": 0
+    },
+    "runtimeDependencies": [],
+    "nonGoals": [
+      "Changes to the storage cleanup policy or process remediation."
+    ],
+    "architecture": {
+      "status": "accepted",
+      "decision": "Select the existing read-only process scanner from the CLI and render its results in the existing JSON envelope.",
+      "components": [
+        {
+          "name": "process anomaly CLI",
+          "paths": [
+            "fixos/cli/anomalies_cmd.py",
+            "tests/unit/test_host_anomalies_process_only.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [
+        "Add fixos anomalies --processes-only with an additive scan_scope marker."
+      ],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert this CLI option and its tests."
+    },
+    "validation": [
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "wellman run --root . --allow-primary-venv -- python -m pytest -q tests/unit/test_host_anomalies.py tests/unit/test_host_anomalies_process_only.py"
+        ],
+        "evidence": "JSON process findings are available without running disk inventory."
+      },
+      {
+        "criterion": "AC-03",
+        "commands": [
+          "wellman run --root . --allow-primary-venv -- python -m pytest -q tests/unit/test_host_anomalies.py tests/unit/test_host_anomalies_process_only.py"
+        ],
+        "evidence": "Removal options return a usage error before either scanner runs."
+      },
+      {
+        "criterion": "AC-04",
+        "commands": [
+          "wellman run --root . --allow-primary-venv -- python -m pytest -q tests/unit/test_host_anomalies.py tests/unit/test_host_anomalies_process_only.py",
+          "./project/governance-check.sh"
+        ],
+        "evidence": "The full-scan and removal tests still pass."
+      }
+    ]
+  }
+}

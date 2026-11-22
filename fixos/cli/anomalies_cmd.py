@@ -3,18 +3,30 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 
 import click
 
 from fixos.cli._cleanup_utils import _format_bytes
-from fixos.diagnostics.host_anomalies import GIB, remove_paths, scan_all
+from fixos.diagnostics.host_anomalies import (
+    GIB,
+    SCHEMA,
+    remove_paths,
+    scan_all,
+    scan_processes,
+)
 
 _ORDER = {"high": 0, "medium": 1, "review": 2, "safe": 3, "low": 4, "protected": 5}
 
 
 @click.command("anomalies")
 @click.option("--json", "json_output", is_flag=True, help="Wynik maszynowy JSON.")
+@click.option(
+    "--processes-only",
+    is_flag=True,
+    help="Sprawdź procesy bez skanowania dysku i bez opcji usuwania.",
+)
 @click.option(
     "--min-size-gb",
     type=click.FloatRange(min=0.01),
@@ -42,7 +54,9 @@ _ORDER = {"high": 0, "medium": 1, "review": 2, "safe": 3, "low": 4, "protected":
     help="Usuń wszystkie pozycje 'safe' (indeksy IDE, gdy IDE nie działa).",
 )
 @click.option("--dry-run", is_flag=True, help="Pokaż, co zostałoby usunięte.")
-def anomalies(json_output, min_size_gb, min_age_days, remove, remove_safe, dry_run):
+def anomalies(
+    json_output, processes_only, min_size_gb, min_age_days, remove, remove_safe, dry_run
+):
     """Wykrywa anomalie hosta, których nie widzi zwykłe czyszczenie cache.
 
     \b
@@ -54,10 +68,22 @@ def anomalies(json_output, min_size_gb, min_age_days, remove, remove_safe, dry_r
     Przykłady:
       fixos anomalies                       # raport
       fixos anomalies --json                # raport maszynowy
+      fixos anomalies --processes-only --json  # procesy dla HostGuard
       fixos anomalies --remove-safe         # usuń indeksy niedziałających IDE
       fixos anomalies --remove ~/.local/state/x/backups --dry-run
     """
-    report = scan_all(min_bytes=int(min_size_gb * GIB), min_age_days=min_age_days)
+    if processes_only:
+        if remove or remove_safe:
+            raise click.UsageError("--processes-only nie obsługuje opcji usuwania.")
+        report = {
+            "schema": SCHEMA,
+            "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "scan_scope": "processes",
+            "findings": scan_processes(),
+            "reclaimable_bytes": 0,
+        }
+    else:
+        report = scan_all(min_bytes=int(min_size_gb * GIB), min_age_days=min_age_days)
     findings = report["findings"]
     targets = [path.expanduser() for path in remove]
     if remove_safe:
