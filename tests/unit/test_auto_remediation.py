@@ -150,7 +150,9 @@ def test_scan_tmp_reclaims_stale_ephemeral_test_dirs_after_2h(tmp_path) -> None:
 
     stale_pytest = tmp_path / "pytest-of-tester"
     stale_pytest.mkdir()
-    (stale_pytest / "data.bin").write_bytes(b"x" * 1024)
+    data_file = stale_pytest / "data.bin"
+    data_file.write_bytes(b"x" * 1024)
+    os.utime(data_file, (three_hours_ago, three_hours_ago))
     os.utime(stale_pytest, (three_hours_ago, three_hours_ago))
 
     fresh_pytest = tmp_path / "heyasa-pytest-active"
@@ -172,6 +174,32 @@ def test_scan_tmp_reclaims_stale_ephemeral_test_dirs_after_2h(tmp_path) -> None:
     assert "heyasa-pytest-active" not in names
     assert "user-work-dir" not in names
     assert "oqllm-symlink" not in names
+
+
+def test_scan_tmp_protects_ephemeral_dir_with_fresh_nested_file_or_open_handle(tmp_path) -> None:
+    now = time.time()
+    three_hours_ago = now - 3 * 3600
+
+    nested_fresh = tmp_path / "heyasa-pytest-nested-fresh"
+    (nested_fresh / "nested").mkdir(parents=True)
+    (nested_fresh / "nested" / "log.txt").write_text("active", encoding="utf-8")
+    os.utime(nested_fresh, (three_hours_ago, three_hours_ago))
+
+    open_fd_dir = tmp_path / "heyasa-pytest-open-fd"
+    open_fd_dir.mkdir()
+    lock_file = open_fd_dir / "active.lock"
+    lock_file.write_text("held", encoding="utf-8")
+    os.utime(lock_file, (three_hours_ago, three_hours_ago))
+    os.utime(open_fd_dir, (three_hours_ago, three_hours_ago))
+
+    with open(lock_file, "rb"):
+        during_open = {c["name"] for c in space._scan_tmp(days=1.0, tmp_dir=tmp_path)}
+    assert "heyasa-pytest-nested-fresh" not in during_open
+    assert "heyasa-pytest-open-fd" not in during_open
+
+    after_close = {c["name"] for c in space._scan_tmp(days=1.0, tmp_dir=tmp_path)}
+    assert "heyasa-pytest-nested-fresh" not in after_close
+    assert "heyasa-pytest-open-fd" in after_close
 
 
 def test_free_target_docker_remove_ephemeral_unused_images(monkeypatch) -> None:

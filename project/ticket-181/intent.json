@@ -1,0 +1,25 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-181",
+  "summary": "Protect live test scratch in _scan_tmp using nested mtime and active proc cwd/fd",
+  "workstream": "application",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P1",
+    "origin": "regression"
+  },
+  "allowedPaths": [
+    "project/ticket-181/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/cli/_cleanup_space.py",
+    "tests/unit/test_auto_remediation.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null
+}
