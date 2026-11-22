@@ -1399,6 +1399,90 @@ _EPHEMERAL_TMP_TEST_PREFIXES = (
 DEFAULT_TMP_EPHEMERAL_TEST_HOURS = 2.0
 
 
+def _active_proc_paths_under(
+    base_dir: Path,
+    proc_root: Path = Path("/proc"),
+) -> set[str]:
+    """Collect live process cwd and open fd targets under `base_dir`."""
+    active: set[str] = set()
+    try:
+        base_resolved = os.path.realpath(base_dir)
+    except OSError:
+        return active
+    prefix = base_resolved.rstrip(os.sep) + os.sep
+    try:
+        proc_entries = list(os.scandir(proc_root))
+    except OSError:
+        return active
+    for proc_entry in proc_entries:
+        if not proc_entry.name.isdigit():
+            continue
+        try:
+            target = os.path.realpath(os.readlink(os.path.join(proc_entry.path, "cwd")))
+            if target == base_resolved or target.startswith(prefix):
+                active.add(target)
+        except OSError:
+            pass
+        fd_dir = os.path.join(proc_entry.path, "fd")
+        try:
+            with os.scandir(fd_dir) as fd_it:
+                for idx, fd_entry in enumerate(fd_it):
+                    if idx >= 4096:
+                        break
+                    try:
+                        target = os.path.realpath(os.readlink(fd_entry.path))
+                        if target == base_resolved or target.startswith(prefix):
+                            active.add(target)
+                    except OSError:
+                        continue
+        except OSError:
+            continue
+    return active
+
+
+def _is_path_in_use(target: Path, active_paths: set[str]) -> bool:
+    if not active_paths:
+        return False
+    try:
+        resolved = os.path.realpath(target)
+    except OSError:
+        return True
+    prefix = resolved.rstrip(os.sep) + os.sep
+    return any(p == resolved or p.startswith(prefix) for p in active_paths)
+
+
+def _newest_mtime_bounded(
+    root: Path,
+    root_mtime: float,
+    *,
+    max_entries: int = 2000,
+    max_depth: int = 6,
+) -> float:
+    """Return newest descendant mtime in a bounded walk, failing closed on errors/budget."""
+    import time
+
+    newest = root_mtime
+    root_str = str(root)
+    visited = 0
+    try:
+        for current, dirs, files in os.walk(root_str, topdown=True, followlinks=False):
+            rel = os.path.relpath(current, root_str)
+            depth = 0 if rel == "." else len(Path(rel).parts)
+            if depth >= max_depth:
+                dirs[:] = []
+            for name in (*dirs, *files):
+                visited += 1
+                if visited > max_entries:
+                    return time.time()
+                try:
+                    newest = max(newest, os.lstat(os.path.join(current, name)).st_mtime)
+                except OSError:
+                    continue
+    except OSError:
+        return time.time()
+    return newest
+
+
 def _scan_tmp(
     days: float = DEFAULT_TMP_UNUSED_DAYS,
     tmp_dir: Path | str | None = None,
@@ -1408,7 +1492,8 @@ def _scan_tmp(
     System sockets, FIFOs, and protected directories (.X11-unix, .ICE-unix, .X*-lock,
     .tmux-*, ssh-*, systemd-private-*, etc.) are excluded. Known current-UID
     ephemeral test/qualification directories use a shorter 2-hour cutoff when
-    `days` is larger so autonomous cleanup reclaims finished test scratch promptly.
+    `days` is larger so autonomous cleanup reclaims finished test scratch promptly,
+    while preserving any directory with fresh nested activity or live process handles.
     """
     import stat as stat_module
     import time
@@ -1420,6 +1505,7 @@ def _scan_tmp(
     )
     current_uid = os.getuid() if hasattr(os, "getuid") else None
     tmp_path = Path(tmp_dir) if tmp_dir is not None else Path("/tmp")
+    active_proc_paths = _active_proc_paths_under(tmp_path) if tmp_path.is_dir() else set()
     candidates = []
     directories = []
 
@@ -1436,16 +1522,22 @@ def _scan_tmp(
                         stat_val.st_mode
                     ):
                         continue
-                    mtime = stat_val.st_mtime
-                    age_seconds = now - mtime
                     is_dir = stat_module.S_ISDIR(stat_val.st_mode)
                     is_link = stat_module.S_ISLNK(stat_val.st_mode)
+                    if is_dir and not is_link and _is_path_in_use(item, active_proc_paths):
+                        continue
                     is_ephemeral_test_dir = (
                         is_dir
                         and not is_link
                         and any(name.startswith(p) for p in _EPHEMERAL_TMP_TEST_PREFIXES)
                         and (current_uid is None or stat_val.st_uid == current_uid)
                     )
+                    mtime = (
+                        _newest_mtime_bounded(item, stat_val.st_mtime)
+                        if is_ephemeral_test_dir
+                        else stat_val.st_mtime
+                    )
+                    age_seconds = now - mtime
                     effective_cutoff = (
                         ephemeral_cutoff_seconds if is_ephemeral_test_dir else cutoff_seconds
                     )

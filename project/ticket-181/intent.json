@@ -1,0 +1,74 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-181",
+  "summary": "Protect live test scratch in _scan_tmp using nested mtime and active proc cwd/fd",
+  "workstream": "application",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P1",
+    "origin": "regression"
+  },
+  "allowedPaths": [
+    "project/ticket-181/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/cli/_cleanup_space.py",
+    "tests/unit/test_auto_remediation.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "targetBranch": "main",
+    "acceptedBaseSha": "30da2111b47678547a57b13c8bfc28e3779b296c",
+    "outcome": "Protect active temporary test scratch in _scan_tmp using bounded descendant mtime inspection and live process cwd/fd filtering.",
+    "complexity": "S",
+    "estimatedMinutes": 20,
+    "budgets": {
+      "maxImplementationFiles": 2,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "runtimeDependencies": [],
+    "nonGoals": [
+      "Changing retention thresholds outside ephemeral /tmp test directory scanning."
+    ],
+    "architecture": {
+      "status": "accepted",
+      "decision": "Add bounded _newest_mtime_bounded, _active_proc_paths_under, and _is_path_in_use guards to _scan_tmp in fixos/cli/_cleanup_space.py while preserving read-only scan semantics.",
+      "components": [
+        {
+          "name": "tmp cleanup scanner",
+          "paths": [
+            "fixos/cli/_cleanup_space.py",
+            "tests/unit/test_auto_remediation.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the commit touching fixos/cli/_cleanup_space.py and tests/unit/test_auto_remediation.py."
+    },
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python -m pytest -q tests/unit/test_auto_remediation.py tests/unit/test_cleanup_tmp.py",
+          "./project/governance-check.sh"
+        ],
+        "evidence": "Ephemeral test dirs with fresh nested descendants or open file descriptors are preserved while stale unreferenced dirs are still reported."
+      }
+    ]
+  }
+}
