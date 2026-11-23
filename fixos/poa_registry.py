@@ -440,6 +440,14 @@ CANONICAL_OPERATIONS: tuple[OperationSpec, ...] = (
         ("cli:mesh", "plugin:mesh"),
     ),
     _cli_only_op(
+        "diagnostics_dns",
+        "fixos://diagnostics/dns",
+        "fixos.report.dns",
+        "Deterministic DNS diagnostics and repair",
+        "Inspect /etc/resolv.conf, systemd-resolved timeouts, default-route router-only DNS links, and hostname resolution latency with reversible repair.",
+        ("cli:dns", "plugin:dns"),
+    ),
+    _cli_only_op(
         "diagnostics_storage",
         "fixos://diagnostics/storage",
         "fixos.report.storage-triage",

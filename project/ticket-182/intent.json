@@ -16,6 +16,7 @@
     "fixos/cli/main.py",
     "fixos/plugins/builtin/dns.py",
     "fixos/plugins/registry.py",
+    "fixos/poa_registry.py",
     "tests/unit/test_dns_plugin.py"
   ],
   "forbiddenPaths": [
@@ -33,23 +34,24 @@
       "Add runtime dependencies",
       "Modify fixos/cli/fix_cmd.py owned by ticket-163"
     ],
-    "complexity": "S",
-    "estimatedMinutes": 20,
+    "complexity": "M",
+    "estimatedMinutes": 25,
     "budgets": {
-      "maxImplementationFiles": 5,
+      "maxImplementationFiles": 6,
       "maxAffectedComponents": 2,
       "maxPublicInterfaceChanges": 0,
       "maxRuntimeDependencies": 0
     },
     "architecture": {
       "status": "accepted",
-      "decision": "Implement built-in DNS diagnostic/repair plugin in fixos/plugins/builtin/dns.py, register it in PluginRegistry for fixos auto/scan/fix, and expose CLI subcommand in fixos/cli/dns_cmd.py and fixos/cli/main.py.",
+      "decision": "Implement built-in DNS diagnostic/repair plugin in fixos/plugins/builtin/dns.py, register it in PluginRegistry for fixos auto/scan/fix and in fixos/poa_registry.py for capability parity, and expose CLI subcommand in fixos/cli/dns_cmd.py and fixos/cli/main.py.",
       "components": [
         {
           "name": "dns-plugin",
           "paths": [
             "fixos/plugins/builtin/dns.py",
             "fixos/plugins/registry.py",
+            "fixos/poa_registry.py",
             "tests/unit/test_dns_plugin.py"
           ]
         },
