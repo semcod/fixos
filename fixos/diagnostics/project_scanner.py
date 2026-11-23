@@ -438,7 +438,7 @@ def _check_open_pr_or_unmerged_veto(
         try:
             if open_pr_checker(target):
                 return "Target branch has an open pull request"
-        except Exception:
+        except (OSError, RuntimeError, ValueError, subprocess.SubprocessError):
             return "Open PR check failed (fail-closed HOLD_PROTECTED)"
 
     for lease_dir in _lease_dirs_for_target(target, repo_root):
