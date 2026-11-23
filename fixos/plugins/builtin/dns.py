@@ -10,7 +10,7 @@ import subprocess
 import time
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 from fixos.plugins.base import DiagnosticPlugin, DiagnosticResult, Finding, Severity
 
@@ -358,7 +358,7 @@ class Plugin(DiagnosticPlugin):
     description = (
         "Diagnostyka i naprawa DNS (systemd-resolved, NetworkManager, /etc/resolv.conf)"
     )
-    platforms = ["linux"]
+    platforms: ClassVar[list[str]] = ["linux"]
 
     def __init__(
         self,
