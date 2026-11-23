@@ -615,3 +615,240 @@ class TestProjectScannerActivityAwareStale:
         assert artifacts[0].stale is False
 
 
+class TestGitLifecycleHardVetos:
+    """Verify all 6 canonical wellmanifest/git-lifecycle hard vetos force HOLD_PROTECTED."""
+
+    @staticmethod
+    def _init_real_git_repo(repo_dir, *, with_remote=False, bare_dir=None):
+        import subprocess
+
+        repo_dir.mkdir(parents=True, exist_ok=True)
+        env = {
+            **os.environ,
+            "GIT_AUTHOR_NAME": "Test",
+            "GIT_AUTHOR_EMAIL": "test@example.com",
+            "GIT_COMMITTER_NAME": "Test",
+            "GIT_COMMITTER_EMAIL": "test@example.com",
+        }
+        subprocess.run(
+            ["git", "init", "-b", "main", str(repo_dir)],
+            check=True,
+            capture_output=True,
+            env=env,
+        )
+        (repo_dir / "README.md").write_text("hello\n", encoding="utf-8")
+        subprocess.run(
+            ["git", "-C", str(repo_dir), "add", "README.md"],
+            check=True,
+            capture_output=True,
+            env=env,
+        )
+        subprocess.run(
+            ["git", "-C", str(repo_dir), "commit", "-m", "init"],
+            check=True,
+            capture_output=True,
+            env=env,
+        )
+        if with_remote and bare_dir is not None:
+            subprocess.run(
+                ["git", "init", "--bare", str(bare_dir)],
+                check=True,
+                capture_output=True,
+                env=env,
+            )
+            subprocess.run(
+                ["git", "-C", str(repo_dir), "remote", "add", "origin", str(bare_dir)],
+                check=True,
+                capture_output=True,
+                env=env,
+            )
+            subprocess.run(
+                ["git", "-C", str(repo_dir), "push", "-u", "origin", "main"],
+                check=True,
+                capture_output=True,
+                env=env,
+            )
+        return env
+
+    @staticmethod
+    def _add_fake_venv(repo_dir):
+        venv = repo_dir / ".venv"
+        venv.mkdir(exist_ok=True)
+        (venv / "pyvenv.cfg").write_text("home = /usr/bin\n", encoding="utf-8")
+        return venv
+
+    def test_veto_1_active_process_forces_hold_protected(self, tmp_path, monkeypatch):
+        proj = _make_git_project(tmp_path, "active_proc_repo")
+        self._add_fake_venv(proj)
+        monkeypatch.setattr(ps, "_get_dir_size_mb", lambda p: 200.0)
+        monkeypatch.setattr(
+            ps,
+            "_check_active_process_veto",
+            lambda target, check_lsof=False: f"Active process PID 99999 in {target}",
+        )
+
+        report = ps.evaluate_cleanup_vetos(proj)
+        assert report.verdict == ps.VERDICT_HOLD_PROTECTED
+        assert report.protected is True
+        assert ps.VETO_ACTIVE_PROCESS in report.veto_codes
+        assert ps.scan_project_artifacts(proj, threshold_mb=1) == []
+
+        protected = ps.scan_project_artifacts(proj, threshold_mb=1, include_protected=True)
+        assert len(protected) == 1
+        assert protected[0].verdict == ps.VERDICT_HOLD_PROTECTED
+        assert protected[0].cleanup_command == ""
+
+    def test_veto_2_active_lease_forces_hold_protected(self, tmp_path, monkeypatch):
+        import json
+
+        proj = _make_git_project(tmp_path, "leased_repo")
+        self._add_fake_venv(proj)
+        lease_dir = proj / ".subactor" / "leases"
+        lease_dir.mkdir(parents=True)
+        (lease_dir / "ticket-001--demo.json").write_text(
+            json.dumps({"ticketId": "ticket-001", "phase": "claimed", "ownerActor": "agent:codex"}),
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(ps, "_get_dir_size_mb", lambda p: 200.0)
+
+        report = ps.evaluate_cleanup_vetos(proj)
+        assert report.verdict == ps.VERDICT_HOLD_PROTECTED
+        assert ps.VETO_ACTIVE_LEASE in report.veto_codes
+        assert ps.scan_project_artifacts(proj, threshold_mb=1) == []
+
+    def test_veto_3_unmerged_commits_and_open_pr_force_hold_protected(self, tmp_path, monkeypatch):
+        import subprocess
+
+        repo = tmp_path / "unmerged_repo"
+        env = self._init_real_git_repo(repo)
+        self._add_fake_venv(repo)
+        subprocess.run(
+            ["git", "-C", str(repo), "checkout", "-b", "feat/unmerged"],
+            check=True,
+            capture_output=True,
+            env=env,
+        )
+        (repo / "feature.txt").write_text("wip\n", encoding="utf-8")
+        subprocess.run(
+            ["git", "-C", str(repo), "add", "feature.txt"],
+            check=True,
+            capture_output=True,
+            env=env,
+        )
+        subprocess.run(
+            ["git", "-C", str(repo), "commit", "-m", "unmerged feature"],
+            check=True,
+            capture_output=True,
+            env=env,
+        )
+        monkeypatch.setattr(ps, "_get_dir_size_mb", lambda p: 200.0)
+
+        report = ps.evaluate_cleanup_vetos(repo)
+        assert report.verdict == ps.VERDICT_HOLD_PROTECTED
+        assert ps.VETO_OPEN_PR_OR_UNMERGED in report.veto_codes
+        assert ps.scan_project_artifacts(repo, threshold_mb=1) == []
+
+        # Also verify explicit open_pr_checker forces HOLD_PROTECTED on a clean repo
+        clean_proj = _make_git_project(tmp_path, "open_pr_repo")
+        self._add_fake_venv(clean_proj)
+        pr_report = ps.evaluate_cleanup_vetos(clean_proj, open_pr_checker=lambda _: True)
+        assert pr_report.verdict == ps.VERDICT_HOLD_PROTECTED
+        assert ps.VETO_OPEN_PR_OR_UNMERGED in pr_report.veto_codes
+        assert ps.scan_project_artifacts(clean_proj, threshold_mb=1, open_pr_checker=lambda _: True) == []
+
+    def test_veto_4_dirty_tree_and_stash_force_hold_protected(self, tmp_path, monkeypatch):
+        import subprocess
+
+        repo = tmp_path / "dirty_repo"
+        env = self._init_real_git_repo(repo)
+        self._add_fake_venv(repo)
+        (repo / "README.md").write_text("modified\n", encoding="utf-8")
+        monkeypatch.setattr(ps, "_get_dir_size_mb", lambda p: 200.0)
+
+        report_dirty = ps.evaluate_cleanup_vetos(repo)
+        assert report_dirty.verdict == ps.VERDICT_HOLD_PROTECTED
+        assert ps.VETO_DIRTY_OR_STASH in report_dirty.veto_codes
+        assert ps.scan_project_artifacts(repo, threshold_mb=1) == []
+
+        # Stash the change -> tree is clean, stash list is non-empty -> still HOLD_PROTECTED
+        subprocess.run(
+            ["git", "-C", str(repo), "stash", "push", "-m", "saved wip"],
+            check=True,
+            capture_output=True,
+            env=env,
+        )
+        report_stash = ps.evaluate_cleanup_vetos(repo)
+        assert report_stash.verdict == ps.VERDICT_HOLD_PROTECTED
+        assert ps.VETO_DIRTY_OR_STASH in report_stash.veto_codes
+        assert ps.scan_project_artifacts(repo, threshold_mb=1) == []
+
+    def test_veto_5_unpushed_refs_force_hold_protected(self, tmp_path, monkeypatch):
+        import subprocess
+
+        bare = tmp_path / "remote.git"
+        repo = tmp_path / "unpushed_repo"
+        env = self._init_real_git_repo(repo, with_remote=True, bare_dir=bare)
+        self._add_fake_venv(repo)
+        (repo / "local.txt").write_text("unpushed\n", encoding="utf-8")
+        subprocess.run(
+            ["git", "-C", str(repo), "add", "local.txt"],
+            check=True,
+            capture_output=True,
+            env=env,
+        )
+        subprocess.run(
+            ["git", "-C", str(repo), "commit", "-m", "local ahead"],
+            check=True,
+            capture_output=True,
+            env=env,
+        )
+        monkeypatch.setattr(ps, "_get_dir_size_mb", lambda p: 200.0)
+
+        report = ps.evaluate_cleanup_vetos(repo)
+        assert report.verdict == ps.VERDICT_HOLD_PROTECTED
+        assert ps.VETO_UNPUSHED_REFS in report.veto_codes
+        assert ps.scan_project_artifacts(repo, threshold_mb=1) == []
+
+    def test_veto_6_linked_worktree_primary_and_ide_force_hold_protected(
+        self, tmp_path, monkeypatch
+    ):
+        import subprocess
+
+        bare = tmp_path / "remote_wt.git"
+        primary = tmp_path / "primary_repo"
+        env = self._init_real_git_repo(primary, with_remote=True, bare_dir=bare)
+        self._add_fake_venv(primary)
+        wt_path = primary / ".worktrees" / "ticket-999--demo"
+        subprocess.run(
+            ["git", "-C", str(primary), "worktree", "add", "-b", "ticket/999-demo", str(wt_path)],
+            check=True,
+            capture_output=True,
+            env=env,
+        )
+        self._add_fake_venv(wt_path)
+        monkeypatch.setattr(ps, "_get_dir_size_mb", lambda p: 200.0)
+
+        # Linked worktree must be HOLD_PROTECTED
+        wt_report = ps.evaluate_cleanup_vetos(wt_path)
+        assert wt_report.verdict == ps.VERDICT_HOLD_PROTECTED
+        assert ps.VETO_WORKTREE_OR_IDE_OWNERSHIP in wt_report.veto_codes
+        assert ps.scan_project_artifacts(wt_path, threshold_mb=1) == []
+
+        # Primary checkout owning linked worktrees must be HOLD_PROTECTED
+        primary_report = ps.evaluate_cleanup_vetos(primary)
+        assert primary_report.verdict == ps.VERDICT_HOLD_PROTECTED
+        assert ps.VETO_WORKTREE_OR_IDE_OWNERSHIP in primary_report.veto_codes
+        assert ps.scan_project_artifacts(primary, threshold_mb=1) == []
+
+        # IDE ownership marker must force HOLD_PROTECTED
+        ide_proj = _make_git_project(tmp_path, "ide_repo")
+        self._add_fake_venv(ide_proj)
+        (ide_proj / ".idea").mkdir()
+        (ide_proj / ".idea" / ".lock").write_text("locked\n", encoding="utf-8")
+        ide_report = ps.evaluate_cleanup_vetos(ide_proj)
+        assert ide_report.verdict == ps.VERDICT_HOLD_PROTECTED
+        assert ps.VETO_WORKTREE_OR_IDE_OWNERSHIP in ide_report.veto_codes
+        assert ps.scan_project_artifacts(ide_proj, threshold_mb=1) == []
+
+
+
