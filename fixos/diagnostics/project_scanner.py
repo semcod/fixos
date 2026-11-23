@@ -12,12 +12,39 @@ roots first, then inspects each one.
 
 from __future__ import annotations
 
+import json
 import os
 import shlex
 import subprocess
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+
+VERDICT_ALLOW = "ALLOW"
+VERDICT_HOLD_PROTECTED = "HOLD_PROTECTED"
+
+VETO_ACTIVE_PROCESS = "VETO_ACTIVE_PROCESS"
+VETO_ACTIVE_LEASE = "VETO_ACTIVE_LEASE"
+VETO_OPEN_PR_OR_UNMERGED = "VETO_OPEN_PR_OR_UNMERGED"
+VETO_DIRTY_OR_STASH = "VETO_DIRTY_OR_STASH"
+VETO_UNPUSHED_REFS = "VETO_UNPUSHED_REFS"
+VETO_WORKTREE_OR_IDE_OWNERSHIP = "VETO_WORKTREE_OR_IDE_OWNERSHIP"
+
+ACTIVE_LEASE_PHASES: frozenset[str] = frozenset(
+    {"claimed", "editing", "validating", "publication_frozen"}
+)
+_DEFAULT_BRANCH_REFS: tuple[str, ...] = (
+    "origin/main",
+    "origin/master",
+    "main",
+    "master",
+)
+_IDE_OWNERSHIP_MARKERS: tuple[str, ...] = (
+    ".idea/.lock",
+    ".idea/workspace.xml",
+    ".vscode/.lock",
+)
 
 # A directory is a "project root" worth inspecting if it has one of these.
 PROJECT_MARKERS: tuple[str, ...] = (
@@ -85,6 +112,20 @@ _REQUIRES_PROJECT_MARKER: dict[str, str] = {
 _PRUNE_DIR_NAMES = frozenset({".git"} | set(REMOVABLE_ARTIFACTS))
 
 
+@dataclass(frozen=True)
+class CleanupVetoReport:
+    """Result of evaluating the 6 canonical wellmanifest/git-lifecycle hard vetos."""
+
+    target: str
+    verdict: str
+    veto_codes: tuple[str, ...] = ()
+    reasons: tuple[str, ...] = ()
+
+    @property
+    def protected(self) -> bool:
+        return self.verdict == VERDICT_HOLD_PROTECTED
+
+
 @dataclass
 class ProjectArtifact:
     """A single removable artifact directory found inside a project."""
@@ -102,6 +143,8 @@ class ProjectArtifact:
     stale: bool
     cleanup_command: str
     project_has_recent_activity: bool = False
+    verdict: str = VERDICT_ALLOW
+    veto_codes: tuple[str, ...] = ()
 
 
 def _get_dir_size_mb(path: str) -> float:
@@ -266,12 +309,312 @@ def _project_source_has_recent_activity(
     return False
 
 
+def _run_git(repo: Path, *args: str) -> subprocess.CompletedProcess[str] | None:
+    try:
+        return subprocess.run(
+            ["git", "-C", str(repo), *args],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
+def _is_real_git_worktree(target: Path) -> bool:
+    proc = _run_git(target, "rev-parse", "--is-inside-work-tree")
+    return proc is not None and proc.returncode == 0 and proc.stdout.strip() == "true"
+
+
+def _path_is_within(candidate: str, root: str) -> bool:
+    return candidate == root or candidate.startswith(root + os.sep)
+
+
+def _check_active_process_veto(target: Path, *, check_lsof: bool = False) -> str | None:
+    """Hard veto 1: active process has cwd or open fd inside target."""
+    try:
+        resolved = str(target.resolve())
+    except OSError:
+        resolved = str(target)
+
+    skip_pids = {str(os.getpid()), str(os.getppid())}
+    proc_root = Path("/proc")
+    if proc_root.is_dir():
+        try:
+            proc_entries = os.listdir(proc_root)
+        except OSError:
+            proc_entries = []
+        for pid in proc_entries:
+            if not pid.isdigit() or pid in skip_pids:
+                continue
+            pid_dir = proc_root / pid
+            try:
+                cwd = os.readlink(pid_dir / "cwd")
+                if _path_is_within(cwd, resolved):
+                    return f"Active process PID {pid} has cwd inside {resolved}"
+            except OSError:
+                pass
+            fd_dir = pid_dir / "fd"
+            try:
+                fds = os.listdir(fd_dir)
+            except OSError:
+                continue
+            for fd in fds:
+                try:
+                    link = os.readlink(fd_dir / fd)
+                except OSError:
+                    continue
+                if _path_is_within(link, resolved):
+                    return f"Active process PID {pid} holds open fd inside {resolved}"
+
+    if check_lsof:
+        try:
+            proc = subprocess.run(
+                ["lsof", "+D", resolved],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+            if proc.stdout.strip():
+                return f"lsof reports open file handles under {resolved}"
+        except (OSError, subprocess.SubprocessError):
+            pass
+    return None
+
+
+def _lease_dirs_for_target(target: Path, repo_root: Path | None) -> list[Path]:
+    candidates: list[Path] = []
+    for base in (repo_root, target):
+        if base is not None:
+            ld = base / ".subactor" / "leases"
+            if ld.is_dir() and ld not in candidates:
+                candidates.append(ld)
+    if target.parent.name == ".worktrees":
+        primary_ld = target.parent.parent / ".subactor" / "leases"
+        if primary_ld.is_dir() and primary_ld not in candidates:
+            candidates.append(primary_ld)
+    return candidates
+
+
+def _check_active_lease_veto(
+    target: Path, *, repo_root: Path | None = None
+) -> str | None:
+    """Hard veto 2: active or unreadable/foreign lease in .subactor/leases/*.json."""
+    wt_name = target.name if target.parent.name == ".worktrees" else None
+    for lease_dir in _lease_dirs_for_target(target, repo_root):
+        try:
+            lease_files = sorted(lease_dir.glob("*.json"))
+        except OSError:
+            continue
+        for lf in lease_files:
+            if lf.is_symlink():
+                return f"Symlinked lease file {lf.name} requires HOLD_PROTECTED"
+            if wt_name is not None and lf.stem != wt_name:
+                continue
+            try:
+                data = json.loads(lf.read_text(encoding="utf-8"))
+            except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+                return f"Unreadable/foreign lease file {lf.name}"
+            if not isinstance(data, dict):
+                return f"Malformed lease file {lf.name}"
+            phase = data.get("phase")
+            if phase in ACTIVE_LEASE_PHASES:
+                owner = data.get("ownerActor") or data.get("owner") or "unknown"
+                return f"Active lease {lf.name} (phase={phase}, owner={owner})"
+    return None
+
+
+def _check_open_pr_or_unmerged_veto(
+    target: Path,
+    *,
+    repo_root: Path | None = None,
+    is_git: bool = False,
+    open_pr_checker: Callable[[Path], bool] | None = None,
+) -> str | None:
+    """Hard veto 3: open PRs or unmerged commits against default branch."""
+    if open_pr_checker is not None:
+        try:
+            if open_pr_checker(target):
+                return "Target branch has an open pull request"
+        except (OSError, RuntimeError, ValueError, subprocess.SubprocessError):
+            return "Open PR check failed (fail-closed HOLD_PROTECTED)"
+
+    for lease_dir in _lease_dirs_for_target(target, repo_root):
+        try:
+            lease_files = sorted(lease_dir.glob("*.json"))
+        except OSError:
+            continue
+        for lf in lease_files:
+            try:
+                data = json.loads(lf.read_text(encoding="utf-8"))
+            except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+                continue
+            if not isinstance(data, dict):
+                continue
+            pr = data.get("pullRequest")
+            if isinstance(pr, dict):
+                pr_state = str(pr.get("state", "open")).lower()
+                if pr_state not in {"merged", "closed"}:
+                    return f"Open PR recorded in lease {lf.name}"
+            elif isinstance(pr, (int, str)) and pr:
+                return f"PR reference recorded in lease {lf.name}"
+
+    if is_git:
+        default_ref = None
+        for ref in _DEFAULT_BRANCH_REFS:
+            chk = _run_git(target, "rev-parse", "--verify", "--quiet", ref)
+            if chk is not None and chk.returncode == 0:
+                default_ref = ref
+                break
+        if default_ref is not None:
+            cnt = _run_git(target, "rev-list", "--count", f"{default_ref}..HEAD")
+            if cnt is not None and cnt.returncode == 0:
+                try:
+                    ahead = int(cnt.stdout.strip() or "0")
+                except ValueError:
+                    ahead = 0
+                if ahead > 0:
+                    return f"Branch has {ahead} unmerged commit(s) ahead of {default_ref}"
+    return None
+
+
+def _check_dirty_or_stash_veto(target: Path, *, is_git: bool = False) -> str | None:
+    """Hard veto 4: dirty working tree or stashes."""
+    if not is_git:
+        return None
+    status = _run_git(target, "status", "--porcelain")
+    if status is not None and status.returncode == 0 and status.stdout.strip():
+        return "Dirty working tree (uncommitted changes or untracked files)"
+    stash = _run_git(target, "stash", "list")
+    if stash is not None and stash.returncode == 0 and stash.stdout.strip():
+        return "Repository has unapplied Git stashes"
+    return None
+
+
+def _check_unpushed_refs_veto(target: Path, *, is_git: bool = False) -> str | None:
+    """Hard veto 5: unpushed refs or branches ahead of upstream."""
+    if not is_git:
+        return None
+    ahead_proc = _run_git(target, "rev-list", "--count", "@{u}..HEAD")
+    if ahead_proc is not None and ahead_proc.returncode == 0:
+        try:
+            ahead = int(ahead_proc.stdout.strip() or "0")
+        except ValueError:
+            ahead = 0
+        if ahead > 0:
+            return f"Branch has {ahead} unpushed commit(s) ahead of upstream"
+        return None
+
+    remotes = _run_git(target, "remote")
+    if remotes is not None and remotes.returncode == 0 and remotes.stdout.strip():
+        head_cnt = _run_git(target, "rev-list", "--count", "HEAD")
+        if head_cnt is not None and head_cnt.returncode == 0:
+            try:
+                commits = int(head_cnt.stdout.strip() or "0")
+            except ValueError:
+                commits = 0
+            if commits > 0:
+                return "Branch has commits with no configured upstream tracking ref"
+    return None
+
+
+def _check_worktree_or_ide_veto(
+    target: Path, *, is_git: bool = False, is_directory_cleanup: bool = False
+) -> str | None:
+    """Hard veto 6: active linked worktree, primary checkout, or IDE ownership."""
+    for marker in _IDE_OWNERSHIP_MARKERS:
+        if (target / marker).exists():
+            return f"IDE ownership marker present ({marker})"
+
+    git_entry = target / ".git"
+    if git_entry.is_file():
+        return "Target is an active linked Git worktree"
+
+    if is_git:
+        wt_list = _run_git(target, "worktree", "list", "--porcelain")
+        if wt_list is not None and wt_list.returncode == 0:
+            wt_count = sum(
+                1 for line in wt_list.stdout.splitlines() if line.startswith("worktree ")
+            )
+            if wt_count > 1:
+                return f"Primary checkout owns {wt_count - 1} active linked worktree(s)"
+        if is_directory_cleanup and git_entry.is_dir():
+            return "Target is a primary Git checkout"
+    return None
+
+
+def evaluate_cleanup_vetos(
+    target: Path,
+    *,
+    repo_root: Path | None = None,
+    is_directory_cleanup: bool = False,
+    check_lsof: bool = False,
+    open_pr_checker: Callable[[Path], bool] | None = None,
+) -> CleanupVetoReport:
+    """Evaluate all 6 canonical wellmanifest/git-lifecycle hard vetos for ``target``.
+
+    Any triggered veto forces ``HOLD_PROTECTED`` so callers never propose unsafe
+    directory or worktree deletion.
+    """
+    is_git = _is_real_git_worktree(target)
+    checks: tuple[tuple[str, str | None], ...] = (
+        (VETO_ACTIVE_PROCESS, _check_active_process_veto(target, check_lsof=check_lsof)),
+        (VETO_ACTIVE_LEASE, _check_active_lease_veto(target, repo_root=repo_root)),
+        (
+            VETO_OPEN_PR_OR_UNMERGED,
+            _check_open_pr_or_unmerged_veto(
+                target,
+                repo_root=repo_root,
+                is_git=is_git,
+                open_pr_checker=open_pr_checker,
+            ),
+        ),
+        (VETO_DIRTY_OR_STASH, _check_dirty_or_stash_veto(target, is_git=is_git)),
+        (VETO_UNPUSHED_REFS, _check_unpushed_refs_veto(target, is_git=is_git)),
+        (
+            VETO_WORKTREE_OR_IDE_OWNERSHIP,
+            _check_worktree_or_ide_veto(
+                target, is_git=is_git, is_directory_cleanup=is_directory_cleanup
+            ),
+        ),
+    )
+
+    codes: list[str] = []
+    reasons: list[str] = []
+    for code, reason in checks:
+        if reason is not None:
+            codes.append(code)
+            reasons.append(reason)
+
+    verdict = VERDICT_HOLD_PROTECTED if codes else VERDICT_ALLOW
+    return CleanupVetoReport(
+        target=str(target),
+        verdict=verdict,
+        veto_codes=tuple(codes),
+        reasons=tuple(reasons),
+    )
+
+
 def scan_project_artifacts(
     project_root: Path,
     threshold_mb: float = 50,
     stale_days: int = 7,
+    *,
+    enforce_vetos: bool = True,
+    include_protected: bool = False,
+    open_pr_checker: Callable[[Path], bool] | None = None,
 ) -> list[ProjectArtifact]:
     """Find removable artifacts directly under a single project root."""
+    veto_report: CleanupVetoReport | None = None
+    if enforce_vetos:
+        veto_report = evaluate_cleanup_vetos(
+            project_root, open_pr_checker=open_pr_checker
+        )
+        if veto_report.protected and not include_protected:
+            return []
+
     artifacts: list[ProjectArtifact] = []
     try:
         entries = os.listdir(project_root)
@@ -305,6 +648,28 @@ def scan_project_artifacts(
             is_stale = not has_recent_activity
         else:
             is_stale = False
+
+        if veto_report is not None and veto_report.protected:
+            artifacts.append(
+                ProjectArtifact(
+                    project_name=project_root.name,
+                    project_path=str(project_root),
+                    artifact_name=entry,
+                    artifact_path=str(artifact_path),
+                    size_mb=round(size_mb, 2),
+                    size_gb=round(size_mb / 1024, 3),
+                    description=description,
+                    ecosystem=ecosystem,
+                    risk_level="protected",
+                    days_since_modified=days,
+                    stale=False,
+                    cleanup_command="",
+                    project_has_recent_activity=bool(has_recent_activity),
+                    verdict=VERDICT_HOLD_PROTECTED,
+                    veto_codes=veto_report.veto_codes,
+                )
+            )
+            continue
 
         artifacts.append(
             ProjectArtifact(

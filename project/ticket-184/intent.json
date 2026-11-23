@@ -1,0 +1,76 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-184",
+  "summary": "Enforce wellmanifest git-lifecycle 6 hard vetos in project_scanner",
+  "workstream": "application",
+  "classification": {
+    "kind": "SERVICE",
+    "priority": "P1",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-184/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/diagnostics/project_scanner.py",
+    "tests/unit/test_project_scanner.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "targetBranch": "main",
+    "acceptedBaseSha": "ed56842e3f4e78055629df7d42a10648be4eba75",
+    "outcome": "Enforce all 6 canonical wellmanifest/git-lifecycle hard vetos in fixos/diagnostics/project_scanner.py so protected repos and worktrees resolve to HOLD_PROTECTED and never emit unsafe deletion candidates.",
+    "complexity": "S",
+    "estimatedMinutes": 25,
+    "budgets": {
+      "maxImplementationFiles": 2,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 1,
+      "maxRuntimeDependencies": 0
+    },
+    "runtimeDependencies": [],
+    "nonGoals": [
+      "Modifying fixos/cli/fix_cmd.py or any file reserved by active foreign leases."
+    ],
+    "architecture": {
+      "status": "accepted",
+      "decision": "Add CleanupVetoReport and evaluate_cleanup_vetos covering active processes, active leases, open PRs/unmerged commits, dirty/stash state, unpushed refs, and linked worktree/primary/IDE ownership in fixos/diagnostics/project_scanner.py, enforced by default in scan_project_artifacts.",
+      "components": [
+        {
+          "name": "project_scanner hard vetos",
+          "paths": [
+            "fixos/diagnostics/project_scanner.py",
+            "tests/unit/test_project_scanner.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [
+        "Add CleanupVetoReport, evaluate_cleanup_vetos, and optional enforce_vetos/include_protected/open_pr_checker parameters to scan_project_artifacts"
+      ],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the commit touching fixos/diagnostics/project_scanner.py and tests/unit/test_project_scanner.py."
+    },
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python -m pytest -q tests/unit/test_project_scanner.py tests/unit/test_venv_cleanup.py",
+          "./project/governance-check.sh"
+        ],
+        "evidence": "All 6 canonical hard vetos force HOLD_PROTECTED and suppress unsafe deletion proposals in unit tests while keeping existing scanner tests passing."
+      }
+    ]
+  }
+}
