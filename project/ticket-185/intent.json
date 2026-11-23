@@ -1,0 +1,78 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-185",
+  "summary": "Emit uritime urtlog records for fixos diagnostics and cleanup vetos",
+  "workstream": "application",
+  "classification": {
+    "kind": "SERVICE",
+    "priority": "P1",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-185/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/diagnostics/urtlog_emit.py",
+    "fixos/diagnostics/project_scanner.py",
+    "tests/unit/test_urtlog_emit.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "targetBranch": "main",
+    "acceptedBaseSha": "2b15b92a35a3c56f6b8cb72c147d1ec129b0498f",
+    "outcome": "Add fail-open uritime.urtlog.record/v2 emitter in fixos/diagnostics/urtlog_emit.py and emit veto telemetry from evaluate_cleanup_vetos.",
+    "complexity": "S",
+    "estimatedMinutes": 20,
+    "budgets": {
+      "maxImplementationFiles": 3,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 1,
+      "maxRuntimeDependencies": 0
+    },
+    "runtimeDependencies": [],
+    "nonGoals": [
+      "Touching fixos/cli/fix_cmd.py or any file reserved by foreign leases."
+    ],
+    "architecture": {
+      "status": "accepted",
+      "decision": "Introduce fixos/diagnostics/urtlog_emit.py with fail-open JSONL emission controlled by FIXOS_URTLOG_STATE_DIR / URTLOG_STATE_DIR and invoke emit_cleanup_veto when evaluate_cleanup_vetos returns HOLD_PROTECTED.",
+      "components": [
+        {
+          "name": "fixos urtlog telemetry emitter",
+          "paths": [
+            "fixos/diagnostics/urtlog_emit.py",
+            "fixos/diagnostics/project_scanner.py",
+            "tests/unit/test_urtlog_emit.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [
+        "Add fixos.diagnostics.urtlog_emit (emit_urtlog_record, emit_cleanup_veto, emit_cleanup_summary)"
+      ],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the commit adding fixos/diagnostics/urtlog_emit.py and its call in fixos/diagnostics/project_scanner.py."
+    },
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python -m pytest -q tests/unit/test_urtlog_emit.py tests/unit/test_project_scanner.py",
+          "./project/governance-check.sh"
+        ],
+        "evidence": "Unit tests verify uritime.urtlog.record/v2 emission, no-op when unconfigured, fail-open on OSError, and veto event emission from evaluate_cleanup_vetos."
+      }
+    ]
+  }
+}
