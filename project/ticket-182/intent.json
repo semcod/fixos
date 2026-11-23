@@ -1,0 +1,92 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-182",
+  "summary": "Add deterministic DNS diagnostics and repair command (fixos dns and auto plugin)",
+  "workstream": "application",
+  "classification": {
+    "kind": "FEATURE",
+    "priority": "P2",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-182/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/cli/dns_cmd.py",
+    "fixos/cli/main.py",
+    "fixos/plugins/builtin/dns.py",
+    "fixos/plugins/registry.py",
+    "tests/unit/test_dns_plugin.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "6c539ad6573408c2b3101a0598a0d5fbcc1988b3",
+    "targetBranch": "main",
+    "outcome": "Add deterministic DNS diagnostic plugin and `fixos dns` CLI command with safe systemd-resolved/NetworkManager repair plan.",
+    "nonGoals": [
+      "Add runtime dependencies",
+      "Modify fixos/cli/fix_cmd.py owned by ticket-163"
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 20,
+    "budgets": {
+      "maxImplementationFiles": 5,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Implement built-in DNS diagnostic/repair plugin in fixos/plugins/builtin/dns.py, register it in PluginRegistry for fixos auto/scan/fix, and expose CLI subcommand in fixos/cli/dns_cmd.py and fixos/cli/main.py.",
+      "components": [
+        {
+          "name": "dns-plugin",
+          "paths": [
+            "fixos/plugins/builtin/dns.py",
+            "fixos/plugins/registry.py",
+            "tests/unit/test_dns_plugin.py"
+          ]
+        },
+        {
+          "name": "dns-cli",
+          "paths": [
+            "fixos/cli/dns_cmd.py",
+            "fixos/cli/main.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert commit on ticket/182-add-deterministic-dns-diagnostics-and-repair-command-fixos-dns-and-auto-plugin."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "pytest -q tests/unit/test_dns_plugin.py"
+        ],
+        "evidence": "All DNS plugin, repair plan, registry, and CLI unit tests pass."
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "./project/governance-check.sh"
+        ],
+        "evidence": "Governance check passes with 0 errors."
+      }
+    ]
+  }
+}

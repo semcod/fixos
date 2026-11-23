@@ -37,6 +37,7 @@ class PluginRegistry:
         from fixos.plugins.builtin import (
             audio,
             disk,
+            dns,
             hardware,
             mesh,
             printers,
@@ -54,6 +55,7 @@ class PluginRegistry:
             thumbnails,
             printers,
             mesh,
+            dns,
         ]:
             plugin = module.Plugin()
             self._plugins[plugin.name] = plugin

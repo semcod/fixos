@@ -15,6 +15,7 @@ LAZY_COMMANDS: dict[str, tuple[str, str]] = {
     "cleanup": ("fixos.cli.cleanup_cmd", "cleanup_services"),
     "config": ("fixos.cli.config_cmd", "config"),
     "dashboard": ("fixos.cli.dashboard", "dashboard_cmd"),
+    "dns": ("fixos.cli.dns_cmd", "dns"),
     "features": ("fixos.cli.features_cmd", "features"),
     "fix": ("fixos.cli.fix_cmd", "fix"),
     "history": ("fixos.cli.history_cmd", "history"),
