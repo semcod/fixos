@@ -181,4 +181,5 @@ This file indexes governance tickets without taking ownership of
 | **ticket-183** | [`README.md`](./ticket-183/README.md) | - | - | - | - | - |
 | **ticket-184** | [`README.md`](./ticket-184/README.md) | - | - | - | - | - |
 | **ticket-185** | [`README.md`](./ticket-185/README.md) | - | - | - | - | - |
+| **ticket-186** | [`README.md`](./ticket-186/README.md) | - | - | - | - | - |
 <!-- AUTO:TICKET_INDEX:END -->
