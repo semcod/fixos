@@ -589,12 +589,22 @@ def evaluate_cleanup_vetos(
             reasons.append(reason)
 
     verdict = VERDICT_HOLD_PROTECTED if codes else VERDICT_ALLOW
-    return CleanupVetoReport(
+    report = CleanupVetoReport(
         target=str(target),
         verdict=verdict,
         veto_codes=tuple(codes),
         reasons=tuple(reasons),
     )
+    if report.protected:
+        from fixos.diagnostics.urtlog_emit import emit_cleanup_veto
+
+        emit_cleanup_veto(
+            target=report.target,
+            verdict=report.verdict,
+            veto_codes=report.veto_codes,
+            reasons=report.reasons,
+        )
+    return report
 
 
 def scan_project_artifacts(
