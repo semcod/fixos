@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 
 import click
 
@@ -89,9 +90,20 @@ def dns(
             click.echo(click.style("\nPlan naprawy DNS:", fg="cyan", bold=True))
             for item in plan:
                 click.echo(f"  - {item['description']}")
-            should_execute = click.confirm("Wykonać powyższy plan naprawy DNS?", default=True)
+            if not sys.stdin.isatty():
+                click.echo(
+                    click.style(
+                        "Tryb nieinteraktywny wymaga flagi --yes do wykonania naprawy DNS.",
+                        fg="yellow",
+                    )
+                )
+                should_execute = False
+            else:
+                should_execute = click.confirm("Wykonać powyższy plan naprawy DNS?", default=True)
         if should_execute:
-            repair_results = apply_dns_repair(plan, dry_run=dry_run)
+            repair_results = apply_dns_repair(
+                plan, dry_run=dry_run, non_interactive=yes or not sys.stdin.isatty()
+            )
 
     if as_json:
         payload = result.to_dict()

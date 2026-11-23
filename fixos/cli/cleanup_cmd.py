@@ -581,7 +581,7 @@ def _single_service_target(service_name: str, scanner) -> dict | None:
 
 
 def _cleanup_single_service(
-    service_name: str, scanner, json_output: bool, dry_run: bool
+    service_name: str, scanner, json_output: bool, dry_run: bool, yes: bool = False
 ) -> None:
     """Handle cleanup of a single specific service."""
     target = _single_service_target(service_name, scanner)
@@ -630,7 +630,9 @@ def _cleanup_single_service(
             )
         )
         click.echo(f"  {target['cleanup_command']}")
-        if not click.confirm(f"Wykonać ograniczone czyszczenie {target['name']}?"):
+        if not yes and not click.confirm(
+            f"Wykonać ograniczone czyszczenie {target['name']}?"
+        ):
             click.echo("Anulowano.")
             return
 
@@ -2460,7 +2462,9 @@ def _dispatch_scanner_route(req: CleanupCliRequest, route: CleanupRouteDecision)
         if route.action_name == "flatpak":
             _cleanup_flatpak_detailed(scanner, req.json_output, req.dry_run)
         else:
-            _cleanup_single_service(route.action_name, scanner, req.json_output, req.dry_run)
+            _cleanup_single_service(
+                route.action_name, scanner, req.json_output, req.dry_run, yes=req.yes
+            )
     else:
         _run_service_plan_route(req, route, scanner)
 

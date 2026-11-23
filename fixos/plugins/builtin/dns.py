@@ -7,6 +7,7 @@ import re
 import shutil
 import socket
 import subprocess
+import sys
 import time
 from collections.abc import Sequence
 from pathlib import Path
@@ -276,20 +277,32 @@ def build_repair_plan(
     return plan
 
 
+def _with_non_interactive_sudo(cmd: list[str], *, non_interactive: bool) -> list[str]:
+    """Add ``-n`` to ``sudo`` invocations in non-interactive mode so sudo fails fast."""
+    if non_interactive and cmd and cmd[0] == "sudo" and "-n" not in cmd[1:3]:
+        return ["sudo", "-n", *cmd[1:]]
+    return list(cmd)
+
+
 def apply_dns_repair(
-    plan: Sequence[dict[str, Any]], dry_run: bool = False
+    plan: Sequence[dict[str, Any]],
+    dry_run: bool = False,
+    *,
+    non_interactive: bool | None = None,
 ) -> list[dict[str, Any]]:
     """Execute or simulate a DNS repair plan built by ``build_repair_plan``."""
+    is_non_interactive = (not sys.stdin.isatty()) if non_interactive is None else bool(non_interactive)
     results: list[dict[str, Any]] = []
     for item in plan:
         step = str(item.get("step", "unknown"))
-        cmd = [str(part) for part in item.get("command", [])]
+        raw_cmd = [str(part) for part in item.get("command", [])]
+        cmd = _with_non_interactive_sudo(raw_cmd, non_interactive=is_non_interactive)
         if dry_run:
             results.append(
                 {
                     "step": step,
                     "description": item.get("description", ""),
-                    "command": " ".join(cmd),
+                    "command": " ".join(raw_cmd),
                     "ok": True,
                     "dry_run": True,
                     "output": "dry-run",
@@ -311,9 +324,12 @@ def apply_dns_repair(
                     }
                 )
                 continue
+            tee_cmd = _with_non_interactive_sudo(
+                ["sudo", "tee", str(item["path"])], non_interactive=is_non_interactive
+            )
             try:
                 proc = subprocess.run(
-                    ["sudo", "tee", str(item["path"])],
+                    tee_cmd,
                     input=str(item["content"]),
                     capture_output=True,
                     text=True,
@@ -329,7 +345,7 @@ def apply_dns_repair(
                 {
                     "step": step,
                     "description": item.get("description", ""),
-                    "command": f"sudo tee {item['path']}",
+                    "command": " ".join(tee_cmd),
                     "ok": ok,
                     "dry_run": False,
                     "output": output,
@@ -388,7 +404,7 @@ class Plugin(DiagnosticPlugin):
                         f"Plik {self.resolv_conf_path} nie zawiera żadnego wpisu nameserver."
                     ),
                     suggestion="Uruchom deterministyczną naprawę DNS przez `fixos dns --fix`.",
-                    command="fixos dns --fix",
+                    command="fixos dns --fix --yes",
                 )
             )
 
@@ -408,7 +424,7 @@ class Plugin(DiagnosticPlugin):
                         "Dodaj niezawodne serwery DNS (1.1.1.1, 8.8.8.8) z zachowaniem "
                         "lokalnej domeny przez `fixos dns --fix`."
                     ),
-                    command="fixos dns --fix",
+                    command="fixos dns --fix --yes",
                     data={"total_timeouts": total_timeouts},
                 )
             )
@@ -448,7 +464,7 @@ class Plugin(DiagnosticPlugin):
                         "Skonfiguruj 1.1.1.1 i 8.8.8.8 przed DNS routera, zachowując "
                         "rozwiązywanie domeny lokalnej: `fixos dns --fix`."
                     ),
-                    command="fixos dns --fix",
+                    command="fixos dns --fix --yes",
                     data={"devices": [link["device"] for link in router_only_links]},
                 )
             )
@@ -463,7 +479,7 @@ class Plugin(DiagnosticPlugin):
                         severity=Severity.CRITICAL,
                         description=f"Błąd rozwiązywania nazwy {probe['host']}: {probe['error']}",
                         suggestion="Uruchom `fixos dns --fix` aby odświeżyć i naprawić konfigurację DNS.",
-                        command="fixos dns --fix",
+                        command="fixos dns --fix --yes",
                         data=probe,
                     )
                 )
@@ -480,7 +496,7 @@ class Plugin(DiagnosticPlugin):
                             f"(próg ostrzeżenia: {LATENCY_WARNING_MS:.0f} ms)."
                         ),
                         suggestion="Przełącz DNS na 1.1.1.1 / 8.8.8.8 przez `fixos dns --fix`.",
-                        command="fixos dns --fix",
+                        command="fixos dns --fix --yes",
                         data=probe,
                     )
                 )

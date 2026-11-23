@@ -799,6 +799,34 @@ def test_orphaned_projects_dry_run_is_read_only_and_uses_safe_defaults(monkeypat
     assert "brak zmian w Dockerze i procesach" in result.output
 
 
+def test_single_service_cleanup_respects_yes_for_dangerous_service(monkeypatch):
+    cleaned = []
+
+    class FakeScanner:
+        def cleanup_service(self, service_name, *, dry_run=False, planned_service=None):
+            cleaned.append((service_name, dry_run))
+            return {"success": True, "space_freed_gb": 0.0, "output": "ok"}
+
+    monkeypatch.setattr(
+        cleanup_cmd,
+        "_single_service_target",
+        lambda _name, _scanner: {
+            "name": "Docker",
+            "can_cleanup": True,
+            "risk_level": "dangerous",
+            "cleanup_command": "docker builder prune --force --filter until=168h",
+        },
+    )
+    monkeypatch.setattr(
+        cleanup_cmd.click,
+        "confirm",
+        lambda *_a, **_k: (_ for _ in ()).throw(AssertionError("must not prompt when yes=True")),
+    )
+
+    cleanup_cmd._cleanup_single_service("docker", FakeScanner(), json_output=False, dry_run=False, yes=True)
+    assert cleaned == [("docker", False)]
+
+
 def test_orphaned_projects_applies_only_exact_selected_identities(monkeypatch):
     captured = {}
 
