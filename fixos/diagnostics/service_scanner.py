@@ -198,8 +198,16 @@ class ServiceDataScanner:
             "~/.config/google-chrome/*/ShaderCache",
             "~/.config/google-chrome/*/Service Worker",
         ],
-        ServiceType.FIREFOX: ["~/.cache/mozilla", "~/.mozilla/firefox/*/cache2"],
-        ServiceType.EDGE: ["~/.cache/microsoft-edge"],
+        # Flatpak builds keep XDG_CACHE_HOME under ~/.var/app/<app-id>/cache.
+        ServiceType.FIREFOX: [
+            "~/.cache/mozilla",
+            "~/.mozilla/firefox/*/cache2",
+            "~/.var/app/org.mozilla.firefox/cache/mozilla",
+        ],
+        ServiceType.EDGE: [
+            "~/.cache/microsoft-edge",
+            "~/.var/app/com.microsoft.Edge/cache/microsoft-edge",
+        ],
         ServiceType.VSCODE: ["~/.vscode/extensions", "~/.config/Code/Cache"],
         ServiceType.CURSOR: [
             "~/.config/Cursor/Cache",
