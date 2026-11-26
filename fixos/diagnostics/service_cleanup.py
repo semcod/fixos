@@ -2162,8 +2162,14 @@ class ServiceCleaner:
             ServiceType.BREW: "brew cleanup --prune=all && brew autoremove",
             # Browsers
             ServiceType.CHROME: ServiceCleaner._chrome_cleanup_command(path),
-            ServiceType.FIREFOX: "rm -rf ~/.cache/mozilla ~/.mozilla/firefox/*/cache2",
-            ServiceType.EDGE: "rm -rf ~/.cache/microsoft-edge",
+            ServiceType.FIREFOX: (
+                "rm -rf ~/.cache/mozilla ~/.mozilla/firefox/*/cache2"
+                " ~/.var/app/org.mozilla.firefox/cache/mozilla"
+            ),
+            ServiceType.EDGE: (
+                "rm -rf ~/.cache/microsoft-edge"
+                " ~/.var/app/com.microsoft.Edge/cache/microsoft-edge"
+            ),
             # IDEs
             ServiceType.VSCODE: "rm -rf ~/.config/Code/Cache ~/.config/Code/CachedData",
             ServiceType.CURSOR: "rm -rf ~/.config/Cursor/Cache ~/.config/Cursor/CachedData",

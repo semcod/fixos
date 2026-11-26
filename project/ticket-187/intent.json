@@ -1,0 +1,76 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-187",
+  "summary": "Clean Flatpak browser caches (Firefox, Edge) in fixos cleanup",
+  "workstream": "application",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P2",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-187/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/diagnostics/service_scanner.py",
+    "fixos/diagnostics/service_cleanup.py",
+    "tests/unit/test_flatpak_browser_cache.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "targetBranch": "main",
+    "acceptedBaseSha": "7a4462761fe7eb474067559c4be19d2753161dfd",
+    "outcome": "fixos cleanup finds and safely removes Firefox and Edge caches installed as Flatpak (~/.var/app/<app-id>/cache), which were invisible before.",
+    "complexity": "S",
+    "estimatedMinutes": 20,
+    "budgets": {
+      "maxImplementationFiles": 3,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "runtimeDependencies": [],
+    "nonGoals": [
+      "Cleaning Flatpak app data outside the browser HTTP cache directory (profiles, ~/.var/app/*/cache/tmp, other apps)."
+    ],
+    "architecture": {
+      "status": "accepted",
+      "decision": "Add the Flatpak XDG cache paths of Firefox and Edge to ServiceDataScanner.SERVICE_PATHS and to the matching rm -rf commands in ServiceCleaner.get_cleanup_command; risk level stays SAFE as for the non-Flatpak caches.",
+      "components": [
+        {
+          "name": "browser cache service paths",
+          "paths": [
+            "fixos/diagnostics/service_scanner.py",
+            "fixos/diagnostics/service_cleanup.py",
+            "tests/unit/test_flatpak_browser_cache.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the commit touching service_scanner.py and service_cleanup.py."
+    },
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python -m pytest -q tests/unit/test_flatpak_browser_cache.py tests/unit/test_service_cleanup.py tests/unit/test_cleanup_safety.py",
+          "./project/governance-check.sh"
+        ],
+        "evidence": "New Flatpak cache tests and existing cleanup tests pass; governance-check passes."
+      }
+    ]
+  }
+}
