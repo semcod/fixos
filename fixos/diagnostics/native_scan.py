@@ -15,6 +15,51 @@ import subprocess
 from pathlib import Path
 
 PROTOCOL = "fixos-scan/v1"
+_NON_NEGATIVE_INT_FIELDS = ("bytes", "entries", "mtime_ns", "atime_ns")
+
+
+def _is_non_negative_int(value: object) -> bool:
+    """Accept only genuine non-negative int values (never bool)."""
+    return type(value) is int and value >= 0
+
+
+def _valid_error_list(value: object) -> list[str] | None:
+    """Return a copied list of string errors, or None when malformed."""
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        return None
+    return list(value)
+
+
+def _valid_timeout(timeout: object) -> bool:
+    """Reject booleans, zero, negative, or non-numeric timeouts."""
+    return isinstance(timeout, (int, float)) and not isinstance(timeout, bool) and timeout > 0
+
+
+def _validate_measurement_record(
+    record: object, *, expected_path: str, require_protocol: bool
+) -> dict | None:
+    """Validate a native measurement payload and return normalized copy or None."""
+    if not isinstance(record, dict):
+        return None
+    if require_protocol:
+        if record.get("protocol") != PROTOCOL or record.get("path") != expected_path:
+            return None
+    elif "path" in record and record.get("path") != expected_path:
+        return None
+    if not all(_is_non_negative_int(record.get(k)) for k in _NON_NEGATIVE_INT_FIELDS):
+        return None
+    errors = _valid_error_list(record.get("errors"))
+    if errors is None:
+        return None
+    normalized = {
+        "protocol": PROTOCOL,
+        "path": expected_path,
+        **{k: record[k] for k in _NON_NEGATIVE_INT_FIELDS},
+        "errors": errors,
+    }
+    if not require_protocol:
+        normalized["complete"] = len(errors) == 0
+    return normalized
 
 
 def find_native_binary() -> Path | None:
@@ -54,15 +99,11 @@ def measure_tree(
                     check=True,
                 )
                 data = json.loads(result.stdout)
-                fields = ("bytes", "entries", "mtime_ns", "atime_ns")
-                if (
-                    isinstance(data, dict)
-                    and data.get("protocol") == PROTOCOL
-                    and data.get("path") == str(path)
-                    and all(type(data.get(k)) is int and data[k] >= 0 for k in fields)
-                    and isinstance(data.get("errors"), list)
-                ):
-                    return data
+                validated = _validate_measurement_record(
+                    data, expected_path=str(path), require_protocol=True
+                )
+                if validated is not None:
+                    return validated
             except (OSError, ValueError, subprocess.SubprocessError):
                 pass
     return measure_python(path, exclude)
@@ -79,75 +120,189 @@ def measure_batch(
     """Measure multiple paths, accelerating with Rust batch measurement if available.
 
     Results are keyed by the resolved path.  ``python_fallback=False`` returns
-    ``{}`` instead of an unbounded Python walk when the native batch is
-    missing, fails or exceeds ``timeout``; time-budgeted callers use it.
+    only verified native results (or ``{}`` when unavailable/failing) instead
+    of an unbounded Python walk or fabricated empty records.
     """
     if not paths:
         return {}
-    if native:
+    requested: dict[str, Path] = {}
+    for p in paths:
+        requested.setdefault(str(p.resolve()), p)
+
+    res: dict[str, dict] = {}
+    if native and not exclude and _valid_timeout(timeout):
         executable = find_native_binary()
         if executable and executable.is_absolute():
-            abs_paths = [str(p.resolve()) for p in paths if p.is_absolute() or p.exists()]
-            if abs_paths:
-                try:
-                    result = subprocess.run(
-                        [str(executable), "batch-measure", *abs_paths],
-                        capture_output=True,
-                        text=True,
-                        timeout=timeout,
-                        check=True,
-                    )
-                    data = json.loads(result.stdout)
-                    if (
-                        isinstance(data, dict)
-                        and data.get("protocol") == PROTOCOL
-                        and isinstance(data.get("measurements"), dict)
-                    ):
-                        measurements = data["measurements"]
-                        res = {}
-                        for p_str, m in measurements.items():
-                            fields = ("bytes", "entries", "mtime_ns", "atime_ns")
-                            if all(type(m.get(k)) is int and m[k] >= 0 for k in fields):
-                                res[p_str] = m
-                        if res:
-                            return res
-                except (OSError, ValueError, subprocess.SubprocessError):
-                    pass
-    if not python_fallback:
-        return {}
-    return {str(p.resolve()): measure_python(p, exclude) for p in paths}
+            try:
+                result = subprocess.run(
+                    [str(executable), "batch-measure", *requested.keys()],
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout,
+                    check=True,
+                )
+                data = json.loads(result.stdout)
+                if (
+                    isinstance(data, dict)
+                    and data.get("protocol") == PROTOCOL
+                    and isinstance(data.get("measurements"), dict)
+                    and set(data["measurements"].keys()).issubset(requested.keys())
+                ):
+                    measurements = data["measurements"]
+                    for p_str in requested:
+                        if p_str in measurements:
+                            validated = _validate_measurement_record(
+                                measurements[p_str],
+                                expected_path=p_str,
+                                require_protocol=False,
+                            )
+                            if validated is not None:
+                                res[p_str] = validated
+            except (OSError, ValueError, subprocess.SubprocessError):
+                res = {}
+
+    missing = [p_str for p_str in requested if p_str not in res]
+    if missing and python_fallback:
+        for p_str in missing:
+            fallback = measure_python(requested[p_str], exclude)
+            res[p_str] = {
+                **fallback,
+                "path": p_str,
+                "complete": len(fallback["errors"]) == 0,
+            }
+    return res
+
+
+def _scan_dir_root_binding_valid(data: dict, base_str: str) -> bool:
+    """Verify scan-dir response binds explicitly to expected base path without root errors."""
+    if data.get("protocol") != PROTOCOL:
+        return False
+    has_binding = False
+    for key in ("path", "base"):
+        if key in data:
+            if data[key] != base_str:
+                return False
+            has_binding = True
+    if not has_binding:
+        return False
+    if "errors" in data:
+        root_errors = _valid_error_list(data.get("errors"))
+        if root_errors is None or root_errors:
+            return False
+    return isinstance(data.get("entries"), list)
+
+
+def _validate_scan_dir_entry(
+    entry: object, base_resolved: Path, min_bytes: int, exclude_set: set[str], seen_names: set[str]
+) -> dict | None:
+    """Validate one scan-dir entry dictionary against root, exclude, and size contracts."""
+    if not isinstance(entry, dict):
+        return None
+    name = entry.get("name")
+    if (
+        not isinstance(name, str)
+        or not name
+        or name in {".", ".."}
+        or "/" in name
+        or "\\" in name
+        or name in exclude_set
+        or name in seen_names
+    ):
+        return None
+    if entry.get("path") != str(base_resolved / name):
+        return None
+    size_bytes = entry.get("bytes")
+    if not _is_non_negative_int(size_bytes) or size_bytes < min_bytes:
+        return None
+    for opt_field in ("entries", "mtime_ns", "atime_ns"):
+        if opt_field in entry and not _is_non_negative_int(entry.get(opt_field)):
+            return None
+    if "errors" in entry:
+        entry_errors = _valid_error_list(entry.get("errors"))
+        if entry_errors is None:
+            return None
+    else:
+        entry_errors = []
+    seen_names.add(name)
+    validated = {
+        "name": name,
+        "path": str(base_resolved / name),
+        "bytes": size_bytes,
+        "errors": entry_errors,
+        "complete": len(entry_errors) == 0,
+    }
+    for opt_field in ("entries", "mtime_ns", "atime_ns"):
+        if opt_field in entry:
+            validated[opt_field] = entry[opt_field]
+    return validated
 
 
 def scan_dir_native(
-    base: Path, min_bytes: int = 0, exclude: tuple[str, ...] = ()
+    base: Path,
+    min_bytes: int = 0,
+    exclude: tuple[str, ...] = (),
+    *,
+    timeout: float = 120,
 ) -> list[dict] | None:
-    """Scan subdirectories of base in Rust, returning sorted list of directory measurements."""
-    if not base.is_absolute() or not base.is_dir():
+    """Scan subdirectories of base in Rust, returning validated entries or None on incomplete/invalid output."""
+    if (
+        not isinstance(base, Path)
+        or not base.is_absolute()
+        or base.is_symlink()
+        or not base.is_dir()
+        or not _is_non_negative_int(min_bytes)
+        or not _valid_timeout(timeout)
+    ):
         return None
+    base_resolved = base.resolve()
+    exclude_set = {item for item in exclude if item}
+    observed_subdirs: set[str] = set()
+    unreadable_subdirs: set[str] = set()
+    try:
+        with os.scandir(base_resolved) as entries:
+            for dir_entry in entries:
+                if dir_entry.name in exclude_set:
+                    continue
+                if dir_entry.is_dir(follow_symlinks=False):
+                    observed_subdirs.add(dir_entry.name)
+                    if not os.access(dir_entry.path, os.R_OK | os.X_OK):
+                        unreadable_subdirs.add(dir_entry.name)
+    except OSError:
+        return None
+
     executable = find_native_binary()
     if not executable or not executable.is_absolute():
         return None
     try:
-        cmd = [str(executable), "scan-dir", str(base.resolve()), str(min_bytes)]
-        if exclude:
-            cmd.append(",".join(sorted(exclude)))
+        cmd = [str(executable), "scan-dir", str(base_resolved), str(min_bytes)]
+        if exclude_set:
+            cmd.append(",".join(sorted(exclude_set)))
         result = subprocess.run(
             cmd,
             capture_output=True,
             text=True,
-            timeout=120,
+            timeout=timeout,
             check=True,
         )
         data = json.loads(result.stdout)
-        if (
-            isinstance(data, dict)
-            and data.get("protocol") == PROTOCOL
-            and isinstance(data.get("entries"), list)
-        ):
-            return data["entries"]
+        if not isinstance(data, dict) or not _scan_dir_root_binding_valid(data, str(base_resolved)):
+            return None
+        validated: list[dict] = []
+        seen_names: set[str] = set()
+        for raw_entry in data["entries"]:
+            item = _validate_scan_dir_entry(
+                raw_entry, base_resolved, min_bytes, exclude_set, seen_names
+            )
+            if item is None:
+                return None
+            validated.append(item)
+        if min_bytes == 0 and not observed_subdirs.issubset(seen_names):
+            return None
+        if unreadable_subdirs - seen_names:
+            return None
+        return validated
     except (OSError, ValueError, subprocess.SubprocessError):
-        pass
-    return None
+        return None
 
 
 

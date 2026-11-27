@@ -1,0 +1,85 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-188",
+  "summary": "Harden native batch and directory scan completeness contract",
+  "workstream": "application",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P1",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-188/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/diagnostics/native_scan.py",
+    "fixos/diagnostics/quick_snapshot.py",
+    "tests/unit/test_native_scan.py",
+    "tests/unit/test_quick_snapshot.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "targetBranch": "main",
+    "acceptedBaseSha": "5e7279687fb68c598cc78646a85c1109d385b770",
+    "outcome": "Harden fixos.diagnostics.native_scan (measure_batch, scan_dir_native, measure_tree) and quick_snapshot._measure_caches so missing paths, malformed outputs, permission errors, timeouts, and unsupported native CLIs fail closed or fall back safely without fabricated empty success.",
+    "complexity": "M",
+    "estimatedMinutes": 30,
+    "budgets": {
+      "maxImplementationFiles": 4,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "runtimeDependencies": [],
+    "nonGoals": [
+      "Modifying or applying the retained stash in semcod/fixos-native."
+    ],
+    "architecture": {
+      "status": "accepted",
+      "decision": "Validate all native JSON envelopes and per-entry/per-path completeness strictly against requested resolved paths and observed subdirectories before trusting native measurements; fall back per missing path when python_fallback=True and preserve per-path error/complete metadata into quick_snapshot.",
+      "components": [
+        {
+          "name": "native scan completeness adapters",
+          "paths": [
+            "fixos/diagnostics/native_scan.py",
+            "fixos/diagnostics/quick_snapshot.py",
+            "tests/unit/test_native_scan.py",
+            "tests/unit/test_quick_snapshot.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the commit touching native_scan.py, quick_snapshot.py, and their unit tests."
+    },
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "python -m pytest -q tests/unit/test_native_scan.py tests/unit/test_quick_snapshot.py tests/unit/test_dashboard.py tests/unit/test_venv_cleanup.py tests/unit/test_disk_analyzer.py tests/unit/test_project_scanner.py"
+        ],
+        "evidence": "Contract tests pass across supported binary schemas, unavailable executable, nonzero exit, malformed JSON, absent results, non-empty exclude, and permission errors."
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "python -m pytest -q tests/unit",
+          "./project/governance-check.sh --base main"
+        ],
+        "evidence": "Full unit test suite and governance checks pass."
+      }
+    ]
+  }
+}
