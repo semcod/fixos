@@ -19,7 +19,7 @@
       "artifacts": [
         {
           "target": ".governance/manifest.json",
-          "sha256": "affbc0cbabb9e41654fe8e112c98d678a08f8a6fd0a078a56a514bf551b7fe08"
+          "sha256": "786f7ed499e4e6b5ca853d327153926e12d12df6974b41b571d1b5bda6ee56e5"
         },
         {
           "target": ".governance/standard-packs.json",
@@ -103,7 +103,7 @@
       "artifacts": [
         {
           "target": ".governance/manifest.json",
-          "sha256": "affbc0cbabb9e41654fe8e112c98d678a08f8a6fd0a078a56a514bf551b7fe08"
+          "sha256": "786f7ed499e4e6b5ca853d327153926e12d12df6974b41b571d1b5bda6ee56e5"
         },
         {
           "target": ".governance/standard-packs.json",
@@ -162,7 +162,7 @@
       "artifacts": [
         {
           "target": ".governance/manifest.json",
-          "sha256": "affbc0cbabb9e41654fe8e112c98d678a08f8a6fd0a078a56a514bf551b7fe08"
+          "sha256": "786f7ed499e4e6b5ca853d327153926e12d12df6974b41b571d1b5bda6ee56e5"
         },
         {
           "target": ".governance/standard-packs.json",
@@ -206,7 +206,7 @@
       "artifacts": [
         {
           "target": ".governance/manifest.json",
-          "sha256": "affbc0cbabb9e41654fe8e112c98d678a08f8a6fd0a078a56a514bf551b7fe08"
+          "sha256": "786f7ed499e4e6b5ca853d327153926e12d12df6974b41b571d1b5bda6ee56e5"
         },
         {
           "target": ".governance/standard-packs.json",
@@ -265,7 +265,7 @@
       "artifacts": [
         {
           "target": ".governance/manifest.json",
-          "sha256": "affbc0cbabb9e41654fe8e112c98d678a08f8a6fd0a078a56a514bf551b7fe08"
+          "sha256": "786f7ed499e4e6b5ca853d327153926e12d12df6974b41b571d1b5bda6ee56e5"
         },
         {
           "target": ".governance/standard-packs.json",
@@ -304,7 +304,7 @@
       "artifacts": [
         {
           "target": ".governance/manifest.json",
-          "sha256": "affbc0cbabb9e41654fe8e112c98d678a08f8a6fd0a078a56a514bf551b7fe08"
+          "sha256": "786f7ed499e4e6b5ca853d327153926e12d12df6974b41b571d1b5bda6ee56e5"
         },
         {
           "target": ".governance/standard-packs.json",
@@ -348,7 +348,7 @@
       "artifacts": [
         {
           "target": ".governance/manifest.json",
-          "sha256": "affbc0cbabb9e41654fe8e112c98d678a08f8a6fd0a078a56a514bf551b7fe08"
+          "sha256": "786f7ed499e4e6b5ca853d327153926e12d12df6974b41b571d1b5bda6ee56e5"
         },
         {
           "target": ".governance/standard-packs.json",

@@ -1,0 +1,78 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-189",
+  "summary": "enable-idle-takeover-policy",
+  "workstream": "governance",
+  "classification": {
+    "kind": "SERVICE",
+    "priority": "P2",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-189/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    ".governance/manifest.json"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "targetBranch": "main",
+    "acceptedBaseSha": "5e7279687fb68c598cc78646a85c1109d385b770",
+    "outcome": "Enable coordination.idleTakeover in .governance/manifest.json so declared controller CAS handoff can legally reclaim expired ticket leases.",
+    "complexity": "XS",
+    "estimatedMinutes": 10,
+    "budgets": {
+      "maxImplementationFiles": 1,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "runtimeDependencies": [],
+    "nonGoals": [
+      "Modifying any application source code or existing ticket leases directly."
+    ],
+    "architecture": {
+      "status": "accepted",
+      "decision": "Add coordination.idleTakeover with enabled=true, idleMinutes=15, and leaseMinutes=120 to .governance/manifest.json matching .governance/manifest.schema.json.",
+      "components": [
+        {
+          "name": "governance coordination policy",
+          "paths": [
+            ".governance/manifest.json"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the commit updating .governance/manifest.json."
+    },
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "./project/governance-check.sh --base main"
+        ],
+        "evidence": "GOV-PASS with zero errors on .governance/manifest.json schema and intent."
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "wellman check"
+        ],
+        "evidence": "Standards check reports zero errors."
+      }
+    ]
+  }
+}
