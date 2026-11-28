@@ -827,6 +827,7 @@ def _profile_thresholds(profile_name: str) -> dict[str, int | float]:
         "memory_usage_warning": 80,
         "memory_usage_critical": 90,
         "swap_usage_warning": 75,
+        "swap_usage_critical": 90,
         "cpu_usage_warning": 90,
     }
     try:
@@ -853,6 +854,7 @@ def _alerts(
     memory_warning = thresholds["memory_usage_warning"]
     memory_critical = thresholds["memory_usage_critical"]
     swap_warning = thresholds["swap_usage_warning"]
+    swap_critical = thresholds.get("swap_usage_critical", 90)
     cpu_warning = thresholds["cpu_usage_warning"]
     if disk["percent"] >= disk_critical:
         free_bytes = disk.get("free_bytes", 0)
@@ -905,7 +907,15 @@ def _alerts(
                 "message": f"Zajętość RAM przekroczyła {memory_warning:.0f}%.",
             }
         )
-    if swap["total_bytes"] and swap["percent"] >= swap_warning:
+    if swap["total_bytes"] and swap["percent"] >= swap_critical:
+        alerts.append(
+            {
+                "resource": "swap",
+                "severity": "critical",
+                "message": f"Swap przekroczył próg krytyczny {swap_critical:.0f}%.",
+            }
+        )
+    elif swap["total_bytes"] and swap["percent"] >= swap_warning:
         alerts.append(
             {
                 "resource": "swap",
