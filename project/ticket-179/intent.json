@@ -1,0 +1,81 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-179",
+  "summary": "Report incomplete storage scan measurements safely",
+  "workstream": "application",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P1",
+    "origin": "regression"
+  },
+  "allowedPaths": [
+    "project/ticket-179/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/diagnostics/service_scanner.py",
+    "tests/unit/test_service_scanner.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "targetBranch": "main",
+    "acceptedBaseSha": "ded0b7c5eab873f9ebc241c44726ba617ca446a4",
+    "outcome": "Retain incomplete storage measurement state and errors from measure_tree, du, and analysis exceptions through scan_service threshold checks and same-risk merges without allowing silent cleanups on unknown sizes while keeping complete measurements unchanged.",
+    "complexity": "S",
+    "estimatedMinutes": 30,
+    "budgets": {
+      "maxImplementationFiles": 2,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "runtimeDependencies": [],
+    "nonGoals": [
+      "Changing complete successful measurement behavior or Docker daemon timeout handling."
+    ],
+    "architecture": {
+      "status": "accepted",
+      "decision": "Introduce PathMeasurement outcome tracking in ServiceDataScanner so measure_tree errors, non-zero du exits, os.walk permission errors, and analysis exceptions propagate completeness and error metadata through _analyze_service_path, scan_service, and _merge_service_entries and block unsafe cleanup.",
+      "components": [
+        {
+          "name": "service scanner completeness",
+          "paths": [
+            "fixos/diagnostics/service_scanner.py",
+            "tests/unit/test_service_scanner.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the commit touching service_scanner.py and test_service_scanner.py."
+    },
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "pytest -q tests/unit/test_service_scanner.py tests/unit/test_cleanup_safety.py tests/unit/test_cleanup_effectiveness.py"
+        ],
+        "evidence": "Regression tests cover measure_tree errors with nonzero bytes, du nonzero exit with partial output, analysis errors below threshold, merge preservation, and unchanged complete scans."
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "pytest -q",
+          "./project/governance-check.sh --base origin/main"
+        ],
+        "evidence": "Full unit test suite and repository governance gate pass."
+      }
+    ]
+  }
+}

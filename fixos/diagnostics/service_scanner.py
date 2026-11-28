@@ -112,6 +112,16 @@ class RiskLevel(str, Enum):
     DANGEROUS = "dangerous"
 
 
+@dataclass(frozen=True)
+class PathMeasurement:
+    """Outcome of measuring a single filesystem path."""
+
+    size_mb: float
+    complete: bool = True
+    errors: tuple[str, ...] = ()
+    source: str = ""
+
+
 @dataclass
 class ServiceDataInfo:
     """Information about service data."""
@@ -294,6 +304,26 @@ class ServiceDataScanner:
         self._docker_usage_failed = False
         self._docker_usage_timed_out = False
         self.scan_warnings: list[str] = []
+        self._path_measurements: dict[str, PathMeasurement] = {}
+
+    @staticmethod
+    def _is_incomplete_or_error(info: ServiceDataInfo) -> bool:
+        details = info.details or {}
+        return bool(
+            details.get("size_unknown")
+            or details.get("measurement_incomplete")
+            or details.get("error")
+            or details.get("measurement_errors")
+        )
+
+    @staticmethod
+    def _has_measurement_failure(info: ServiceDataInfo) -> bool:
+        details = info.details or {}
+        return bool(
+            details.get("measurement_incomplete")
+            or details.get("error")
+            or details.get("measurement_errors")
+        )
 
     def scan_all_services(self) -> list[ServiceDataInfo]:
         """Scan all known services for data above threshold."""
@@ -340,11 +370,12 @@ class ServiceDataScanner:
             for path in matching_paths:
                 if os.path.exists(path):
                     info = self._analyze_service_path(service_type, path)
-                    # An unmeasurable entry (slow Docker daemon) has no size to
-                    # compare; dropping it hid hundreds of GB from the report.
+                    # An unmeasurable or incomplete entry (slow Docker daemon,
+                    # permission error, or analysis failure) must stay visible
+                    # instead of being silently dropped by threshold filtering.
                     if info and (
                         info.size_mb >= self.threshold_mb
-                        or info.details.get("size_unknown")
+                        or self._is_incomplete_or_error(info)
                     ):
                         results.append(info)
         if len(results) > 1:
@@ -374,6 +405,44 @@ class ServiceDataScanner:
         primary = max(results, key=lambda item: item.size_mb)
         total_mb = sum(item.size_mb for item in results)
         paths = [item.path for item in results]
+        any_size_unknown = any(
+            bool((item.details or {}).get("size_unknown")) for item in results
+        )
+        any_failure = any(self._has_measurement_failure(item) for item in results)
+        incomplete_paths = [
+            item.path for item in results if self._is_incomplete_or_error(item)
+        ]
+        merged_errors: list[str] = []
+        for item in results:
+            details = item.details or {}
+            for err in details.get("measurement_errors") or ():
+                text = str(err)
+                if text and text not in merged_errors:
+                    merged_errors.append(text)
+            if details.get("error"):
+                text = str(details["error"])
+                if text and text not in merged_errors:
+                    merged_errors.append(text)
+
+        merged_details: dict[str, Any] = {
+            **primary.details,
+            "paths": paths,
+            "merged_count": len(results),
+        }
+        if any_size_unknown:
+            merged_details["size_unknown"] = True
+        if any_failure:
+            merged_details["measurement_incomplete"] = True
+            merged_details["incomplete_paths"] = incomplete_paths
+            if merged_errors:
+                merged_details["measurement_errors"] = merged_errors
+                merged_details["error"] = merged_errors[0]
+
+        can_cleanup = all(item.can_cleanup for item in results) and not any_failure
+        cleanup_command = primary.cleanup_command if can_cleanup else ""
+        safe_to_cleanup = (
+            all(item.safe_to_cleanup for item in results) and not any_size_unknown
+        )
 
         return ServiceDataInfo(
             service_type=primary.service_type,
@@ -382,17 +451,13 @@ class ServiceDataScanner:
             size_mb=round(total_mb, 2),
             size_gb=round(total_mb / 1024, 3),
             description=primary.description,
-            can_cleanup=primary.can_cleanup,
-            cleanup_command=primary.cleanup_command,
+            can_cleanup=can_cleanup,
+            cleanup_command=cleanup_command,
             preview_command=primary.preview_command,
-            safe_to_cleanup=all(item.safe_to_cleanup for item in results),
+            safe_to_cleanup=safe_to_cleanup,
             impact="high" if total_mb / 1024 > 1.0 else "medium",
             items_count=primary.items_count,
-            details={
-                **primary.details,
-                "paths": paths,
-                "merged_count": len(results),
-            },
+            details=merged_details,
             risk_level=primary.risk_level,
         )
 
@@ -401,7 +466,9 @@ class ServiceDataScanner:
     ) -> ServiceDataInfo | None:
         """Analyze a specific service path."""
         try:
+            self._path_measurements.pop(path, None)
             size_mb = self.measure_service_size_mb(service_type, path)
+            measurement = self._path_measurements.get(path)
 
             if service_type == ServiceType.DOCKER and path == "/var/lib/docker":
                 # /var/lib/docker is normally root-only (0710), so `du` sees
@@ -411,11 +478,19 @@ class ServiceDataScanner:
                 daemon_size_mb = self._get_docker_daemon_size_mb()
                 if daemon_size_mb and daemon_size_mb > size_mb:
                     size_mb = daemon_size_mb
-                if daemon_size_mb is None and self._docker_usage_timed_out:
+                if daemon_size_mb is not None:
+                    measurement = PathMeasurement(
+                        size_mb=size_mb,
+                        complete=True,
+                        errors=(),
+                        source="docker-system-df",
+                    )
+                elif self._docker_usage_timed_out:
                     return self._docker_unknown_size_service(path)
 
+            is_incomplete = measurement is not None and not measurement.complete
             size_gb = size_mb / 1024
-            if size_mb < self.threshold_mb:
+            if not is_incomplete and size_mb < self.threshold_mb:
                 return None
             if service_type == ServiceType.DOCKER and self._docker_usage_cache:
                 details = self._docker_usage_details(self._docker_usage_cache)
@@ -429,6 +504,50 @@ class ServiceDataScanner:
                 and os.path.basename(path.rstrip("/")) == "extensions"
             ):
                 name = f"{name} Extensions"
+            if is_incomplete:
+                errors = list(measurement.errors) or [
+                    f"{path}: incomplete storage measurement"
+                ]
+                warning = (
+                    f"{name} ({path}): niepełny pomiar "
+                    f"({measurement.source or 'scan'}): {errors[0]}"
+                )
+                if warning not in self.scan_warnings:
+                    self.scan_warnings.append(warning)
+                effective_risk = (
+                    RiskLevel.REVIEW.value
+                    if risk_level == RiskLevel.SAFE.value
+                    else risk_level
+                )
+                return ServiceDataInfo(
+                    service_type=service_type,
+                    name=name,
+                    path=path,
+                    size_mb=round(size_mb, 2),
+                    size_gb=round(size_gb, 3),
+                    description=(
+                        f"{ServiceCleaner.get_service_description(service_type)} "
+                        "(niepełny pomiar)"
+                    ),
+                    can_cleanup=False,
+                    cleanup_command="",
+                    preview_command=ServiceCleaner.get_preview_command(
+                        service_type, path
+                    ),
+                    safe_to_cleanup=False,
+                    impact="high" if size_gb > 1.0 else "medium",
+                    items_count=details.get("items_count"),
+                    details={
+                        **details,
+                        "size_unknown": True,
+                        "measurement_incomplete": True,
+                        "measurement_errors": errors,
+                        "measurement_source": measurement.source,
+                        "observed_partial_size_mb": round(size_mb, 2),
+                        "error": errors[0],
+                    },
+                    risk_level=effective_risk,
+                )
             return ServiceDataInfo(
                 service_type=service_type,
                 name=name,
@@ -446,6 +565,9 @@ class ServiceDataScanner:
                 risk_level=risk_level,
             )
         except Exception as e:  # noqa: BLE001 - one bad path must not abort the whole scan
+            warning = f"{service_type.value.title()} ({path}): błąd analizy pomiaru: {e!s}"
+            if warning not in self.scan_warnings:
+                self.scan_warnings.append(warning)
             return ServiceDataInfo(
                 service_type=service_type,
                 name=service_type.value.title(),
@@ -458,27 +580,80 @@ class ServiceDataScanner:
                 preview_command="",
                 safe_to_cleanup=False,
                 impact="none",
-                details={"error": str(e)},
+                details={
+                    "error": str(e),
+                    "size_unknown": True,
+                    "measurement_incomplete": True,
+                    "measurement_errors": [str(e)],
+                },
                 risk_level=RiskLevel.REVIEW.value,
             )
 
-    def _get_path_size_mb(self, path: str) -> float:
-        """Get size of path in MB using native measure_tree, falling back to du / os.walk."""
+    def _measure_path_mb(self, path: str) -> PathMeasurement:
+        """Measure path size while preserving incomplete-scan and error state."""
         p = Path(path)
-        if p.is_file():
-            try:
-                return p.stat().st_size / (1024 * 1024)
-            except OSError:
-                return 0.0
+        try:
+            is_file = p.is_file()
+            is_dir = p.is_dir()
+        except OSError as exc:
+            return PathMeasurement(
+                size_mb=0.0, complete=False, errors=(f"{path}: {exc}",), source="stat"
+            )
 
-        if p.is_dir():
+        if is_file:
+            try:
+                return PathMeasurement(
+                    size_mb=p.stat().st_size / (1024 * 1024),
+                    complete=True,
+                    errors=(),
+                    source="stat",
+                )
+            except OSError as exc:
+                return PathMeasurement(
+                    size_mb=0.0,
+                    complete=False,
+                    errors=(f"{path}: {exc}",),
+                    source="stat",
+                )
+
+        if is_dir:
             try:
                 m = measure_tree(p, native=True)
-                if isinstance(m, dict) and "bytes" in m and m["bytes"] > 0:
-                    return m["bytes"] / (1024 * 1024)
+                if (
+                    isinstance(m, dict)
+                    and "bytes" in m
+                    and isinstance(m["bytes"], (int, float))
+                    and not isinstance(m["bytes"], bool)
+                    and m["bytes"] >= 0
+                ):
+                    raw_errors = m.get("errors")
+                    errors = (
+                        tuple(str(err) for err in raw_errors if str(err))
+                        if isinstance(raw_errors, list)
+                        else ()
+                    )
+                    complete = (m.get("complete") is not False) and (
+                        raw_errors is None
+                        or (isinstance(raw_errors, list) and len(errors) == 0)
+                    )
+                    size_mb = float(m["bytes"]) / (1024 * 1024)
+                    if complete:
+                        return PathMeasurement(
+                            size_mb=size_mb,
+                            complete=True,
+                            errors=(),
+                            source="measure_tree",
+                        )
+                    return PathMeasurement(
+                        size_mb=size_mb,
+                        complete=False,
+                        errors=errors or (f"{path}: incomplete measure_tree result",),
+                        source="measure_tree",
+                    )
             except (OSError, ValueError, TypeError, subprocess.SubprocessError):
                 pass
 
+        du_error: str | None = None
         try:
             result = subprocess.run(
                 ["du", "-sk", "--", path],
@@ -487,36 +662,100 @@ class ServiceDataScanner:
                 timeout=120,
                 check=False,
             )
-            # du exits 1 when a subdirectory is unreadable but still prints the
-            # readable total; walking the tree again in Python sees no more.
-            if result.stdout.strip():
-                kb = int(result.stdout.strip().splitlines()[-1].split()[0])
-                return kb / 1024
-        except (OSError, ValueError, subprocess.TimeoutExpired, IndexError):
-            pass
+            stdout = (result.stdout or "").strip()
+            if result.returncode == 0 and stdout:
+                kb = int(stdout.splitlines()[-1].split()[0])
+                return PathMeasurement(
+                    size_mb=kb / 1024, complete=True, errors=(), source="du"
+                )
+            if result.returncode != 0:
+                stderr_detail = (
+                    result.stderr or ""
+                ).strip() or f"du exited with status {result.returncode}"
+                du_error = f"{path}: {stderr_detail}"
+                # du exits 1 when a subdirectory is unreadable but still prints
+                # the readable total; keep the total while marking incomplete.
+                if stdout:
+                    kb = int(stdout.splitlines()[-1].split()[0])
+                    return PathMeasurement(
+                        size_mb=kb / 1024,
+                        complete=False,
+                        errors=(du_error,),
+                        source="du",
+                    )
+        except (OSError, ValueError, subprocess.TimeoutExpired, IndexError) as exc:
+            du_error = f"{path}: {exc}"
 
         total_size = 0
         if os.path.isfile(path):
-            return os.path.getsize(path) / (1024 * 1024)
+            try:
+                return PathMeasurement(
+                    size_mb=os.path.getsize(path) / (1024 * 1024),
+                    complete=True,
+                    errors=(),
+                    source="stat",
+                )
+            except OSError as exc:
+                return PathMeasurement(
+                    size_mb=0.0,
+                    complete=False,
+                    errors=(f"{path}: {exc}",),
+                    source="stat",
+                )
 
+        walk_errors: list[str] = []
         try:
             root_dev = os.stat(path).st_dev if os.path.exists(path) else None
-            for dirpath, dirnames, filenames in os.walk(path):
+            for dirpath, dirnames, filenames in os.walk(
+                path,
+                onerror=lambda exc: walk_errors.append(
+                    f"{getattr(exc, 'filename', path) or path}: {exc}"
+                ),
+            ):
                 if root_dev is not None:
-                    dirnames[:] = [
-                        name
-                        for name in dirnames
-                        if self._should_descend(os.path.join(dirpath, name), root_dev)
-                    ]
+                    kept_dirs: list[str] = []
+                    for name in dirnames:
+                        child = os.path.join(dirpath, name)
+                        if self._should_descend(child, root_dev):
+                            kept_dirs.append(name)
+                        else:
+                            try:
+                                os.stat(child)
+                            except OSError as exc:
+                                walk_errors.append(f"{child}: {exc}")
+                    dirnames[:] = kept_dirs
                 for filename in filenames:
                     filepath = os.path.join(dirpath, filename)
                     try:
                         total_size += os.path.getsize(filepath)
-                    except (OSError, FileNotFoundError):
-                        continue
-        except (OSError, PermissionError):
-            pass
-        return total_size / (1024 * 1024)
+                    except OSError as exc:
+                        walk_errors.append(f"{filepath}: {exc}")
+        except OSError as exc:
+            walk_errors.append(f"{path}: {exc}")
+
+        if walk_errors:
+            return PathMeasurement(
+                size_mb=total_size / (1024 * 1024),
+                complete=False,
+                errors=tuple(walk_errors),
+                source="os.walk",
+            )
+        if du_error and not os.path.exists(path):
+            return PathMeasurement(
+                size_mb=0.0, complete=False, errors=(du_error,), source="du"
+            )
+        return PathMeasurement(
+            size_mb=total_size / (1024 * 1024),
+            complete=True,
+            errors=(),
+            source="os.walk",
+        )
+
+    def _get_path_size_mb(self, path: str) -> float:
+        """Get size of path in MB using native measure_tree, falling back to du / os.walk."""
+        measurement = self._measure_path_mb(path)
+        self._path_measurements[path] = measurement
+        return measurement.size_mb
 
     def measure_service_size_mb(
         self, service_type: ServiceType, path: str, *, refresh: bool = False
@@ -528,6 +767,7 @@ class ServiceDataScanner:
         falsely reporting that the whole Docker directory was freed when the
         post-cleanup ``du`` returned zero due to permissions.
         """
+        self._path_measurements.pop(path, None)
         if service_type == ServiceType.DOCKER and path == "/var/lib/docker":
             daemon_size = (
                 self._get_docker_daemon_size_mb(refresh=True)
@@ -535,6 +775,12 @@ class ServiceDataScanner:
                 else self._get_docker_daemon_size_mb()
             )
             if daemon_size is not None:
+                self._path_measurements[path] = PathMeasurement(
+                    size_mb=daemon_size,
+                    complete=True,
+                    errors=(),
+                    source="docker-system-df",
+                )
                 return daemon_size
         return self._get_path_size_mb(path)
 
