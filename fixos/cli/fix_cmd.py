@@ -554,12 +554,23 @@ def auto_cmd(
 
     tmp_days = parse_retention_days(retention, default_days=1.0)
     steps_executed: list[str] = []
+    target_free_bytes = int(free_gb * 1024**3)
+    current_free_bytes = before_free_bytes
+
+    def needs_cleanup() -> bool:
+        # A dry run previews the selected stages even when the target is met.
+        return dry_run or current_free_bytes < target_free_bytes
+
+    def refresh_free_bytes() -> None:
+        nonlocal current_free_bytes
+        if not dry_run:
+            current_free_bytes = shutil.disk_usage("/").free
 
     from contextlib import nullcontext, redirect_stdout
 
     with redirect_stdout(sys.stderr) if json_output else nullcontext():
         if disc:
-            if clean_tmp:
+            if clean_tmp and needs_cleanup():
                 if not json_output:
                     click.echo(
                         click.style(
@@ -576,8 +587,9 @@ def auto_cmd(
                     days=tmp_days,
                 )
                 steps_executed.append("tmp")
+                refresh_free_bytes()
 
-            if clean_user_cache:
+            if clean_user_cache and needs_cleanup():
                 if not json_output:
                     click.echo(
                         click.style(
@@ -593,10 +605,13 @@ def auto_cmd(
                     yes=yes,
                 )
                 steps_executed.append("user-cache")
-                cleanup_additional_caches(dry_run=dry_run, yes=yes)
-                steps_executed.append("additional-cache")
+                refresh_free_bytes()
+                if needs_cleanup():
+                    cleanup_additional_caches(dry_run=dry_run, yes=yes)
+                    steps_executed.append("additional-cache")
+                    refresh_free_bytes()
 
-            if clean_jetbrains:
+            if clean_jetbrains and needs_cleanup():
                 if not json_output:
                     click.echo(
                         click.style(
@@ -612,8 +627,9 @@ def auto_cmd(
                     yes=yes,
                 )
                 steps_executed.append("jetbrains")
+                refresh_free_bytes()
 
-            if clean_build_cache or clean_state_old or clean_projects_old:
+            if (clean_build_cache or clean_state_old or clean_projects_old) and needs_cleanup():
                 if not json_output:
                     click.echo(
                         click.style(
@@ -638,14 +654,16 @@ def auto_cmd(
                     steps_executed.append("state-old")
                 if clean_projects_old:
                     steps_executed.append("projects-old")
+                refresh_free_bytes()
 
-            if clean_docker_build_cache:
+            if clean_docker_build_cache and needs_cleanup():
                 if not json_output:
                     click.echo("\n[+] Nieużywany cache budowania Dockera (retencja: 7 dni)...")
                 cleanup_docker_builder(dry_run=dry_run, yes=yes)
                 steps_executed.append("docker-build-cache")
+                refresh_free_bytes()
 
-            if clean_snap_old or (clean_services and shutil.which("snap")):
+            if (clean_snap_old or (clean_services and shutil.which("snap"))) and needs_cleanup():
                 if not json_output:
                     click.echo(
                         click.style(
@@ -661,8 +679,9 @@ def auto_cmd(
                     yes=yes,
                 )
                 steps_executed.append("snap-old")
+                refresh_free_bytes()
 
-            if clean_journal:
+            if clean_journal and needs_cleanup():
                 if not json_output:
                     click.echo(
                         click.style(
@@ -678,8 +697,9 @@ def auto_cmd(
                     yes=yes,
                 )
                 steps_executed.append("journal")
+                refresh_free_bytes()
 
-            if clean_trash:
+            if clean_trash and needs_cleanup():
                 if not json_output:
                     click.echo(
                         click.style(
@@ -695,8 +715,9 @@ def auto_cmd(
                     yes=yes,
                 )
                 steps_executed.append("trash")
+                refresh_free_bytes()
 
-            if clean_thumbnails:
+            if clean_thumbnails and needs_cleanup():
                 if not json_output:
                     click.echo(
                         click.style(
@@ -712,8 +733,9 @@ def auto_cmd(
                     yes=yes,
                 )
                 steps_executed.append("thumbnails")
+                refresh_free_bytes()
 
-            if clean_services:
+            if clean_services and needs_cleanup():
                 from fixos.cli.cleanup_cmd import _execute_yes_cleanup
                 from fixos.diagnostics.service_scanner import ServiceDataScanner
 
@@ -729,6 +751,7 @@ def auto_cmd(
                 plan = scanner.get_cleanup_plan()
                 _execute_yes_cleanup(plan, scanner, dry_run=dry_run)
                 steps_executed.append("services")
+                refresh_free_bytes()
 
     cfg = FixOsConfig.load(
         provider=provider,
@@ -769,7 +792,6 @@ def auto_cmd(
             tmp_freed_bytes = 0
     # /tmp may be tmpfs: its free-space increase must never inflate disk recovery.
     freed_bytes = root_freed_bytes
-    target_free_bytes = int(free_gb * 1024**3)
     goal_reached = after_free_bytes >= target_free_bytes
     disk_pressure_remaining = (
         not goal_reached

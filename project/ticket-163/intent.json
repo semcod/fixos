@@ -1,0 +1,81 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-163",
+  "summary": "Stop auto cleanup at the free space goal",
+  "workstream": "application",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P1",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-163/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/cli/fix_cmd.py",
+    "tests/unit/test_auto_cleanup.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "targetBranch": "main",
+    "acceptedBaseSha": "59beafce6383ff1e90b9a69b90dc93e0ea9e2967",
+    "outcome": "Stop automatic disk cleanup stages in fixos auto once the root filesystem free space reaches the requested --free-gb target, skip cleanup when already satisfied, and preserve dry-run preview and unmet-target reporting.",
+    "complexity": "S",
+    "estimatedMinutes": 25,
+    "budgets": {
+      "maxImplementationFiles": 2,
+      "maxAffectedComponents": 1,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "runtimeDependencies": [],
+    "nonGoals": [
+      "Adding new cleanup candidates or changing dry-run preview semantics."
+    ],
+    "architecture": {
+      "status": "accepted",
+      "decision": "Evaluate root free space against target_free_bytes before each cleanup stage in auto_cmd via needs_cleanup() and refresh_free_bytes(), skipping subsequent stages once the target is met while preserving dry-run preview.",
+      "components": [
+        {
+          "name": "auto cleanup stage gating",
+          "paths": [
+            "fixos/cli/fix_cmd.py",
+            "tests/unit/test_auto_cleanup.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the commit touching fix_cmd.py and test_auto_cleanup.py."
+    },
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "pytest -q tests/unit/test_auto_cleanup.py tests/unit/test_auto_no_llm.py tests/unit/test_autonomous_reporting.py"
+        ],
+        "evidence": "Tests verify initially satisfied targets skip cleanup, mid-run satisfied targets stop after the stage reaching the goal, dry-run continues previewing, and unmet targets execute all stages and report goal_unmet."
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "pytest -q",
+          "./project/governance-check.sh --base origin/main"
+        ],
+        "evidence": "Full test suite and governance gate pass."
+      }
+    ]
+  }
+}

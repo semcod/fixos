@@ -162,6 +162,9 @@ def test_docker_timeout_does_not_stop_cleanup(monkeypatch, capsys):
 @pytest.fixture
 def auto_cli(monkeypatch):
     monkeypatch.setattr(
+        "shutil.disk_usage", lambda _: SimpleNamespace(total=100 * 1024**3, free=1024**3)
+    )
+    monkeypatch.setattr(
         "fixos.config.FixOsConfig.load", lambda **k: SimpleNamespace(api_key="")
     )
     monkeypatch.setattr("fixos.diagnostics.quick_snapshot.collect_quick_snapshot", dict)
@@ -187,20 +190,89 @@ def auto_cli(monkeypatch):
     return extra, docker
 
 
+@pytest.mark.parametrize("dry_run", [False, True])
+def test_auto_target_already_met_skips_cleanup_except_preview(auto_cli, monkeypatch, dry_run):
+    monkeypatch.setattr(
+        "shutil.disk_usage", lambda _: SimpleNamespace(total=100 * 1024**3, free=20 * 1024**3)
+    )
+    args = ["auto", "--json", "--free-gb", "10"]
+    if dry_run:
+        args.append("--dry-run")
+    result = _cli_runner().invoke(cli, args)
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert payload["goal_reached"]
+    if dry_run:
+        assert "tmp" in payload["steps_executed"]
+        assert space._cleanup_tmp.call_args.kwargs["dry_run"] is True
+    else:
+        assert payload["steps_executed"] == []
+        space._cleanup_tmp.assert_not_called()
+        space._cleanup_user_cache.assert_not_called()
+        for action in auto_cli:
+            action.assert_not_called()
+
+
+def test_auto_stops_between_cache_stages_when_target_is_reached(auto_cli, monkeypatch):
+    free = [1024**3]
+    monkeypatch.setattr(
+        "shutil.disk_usage", lambda _: SimpleNamespace(total=100 * 1024**3, free=free[0])
+    )
+    space._cleanup_user_cache.side_effect = lambda **_: free.__setitem__(0, 11 * 1024**3)
+    result = _cli_runner().invoke(cli, ["auto", "--json", "--free-gb", "10"])
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert payload["steps_executed"] == ["tmp", "user-cache"]
+    assert payload["goal_reached"]
+    auto_cli[0].assert_not_called()
+    space._cleanup_build_caches.assert_not_called()
+
+
+def test_auto_unmet_target_runs_all_default_stages_and_reports_goal_unmet(
+    auto_cli, monkeypatch
+):
+    monkeypatch.setattr(
+        "shutil.disk_usage",
+        lambda _: SimpleNamespace(total=100 * 1024**3, free=20 * 1024**3),
+    )
+    result = _cli_runner().invoke(cli, ["auto", "--json", "--free-gb", "50"])
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert payload["status"] == "goal_unmet"
+    assert payload["goal_reached"] is False
+    assert payload["disk_pressure_remaining"] is False
+    assert payload["steps_executed"] == [
+        "tmp",
+        "user-cache",
+        "additional-cache",
+        "jetbrains",
+        "build-cache",
+        "state-old",
+        "projects-old",
+        "docker-build-cache",
+        "journal",
+        "thumbnails",
+    ]
+
+
 def test_root_accounting_excludes_tmp_and_reports_remaining_pressure(
     auto_cli, monkeypatch
 ):
     import shutil
 
-    usage = iter(
-        [
-            SimpleNamespace(total=1000 * 1024**3, free=1024**3),
-            SimpleNamespace(total=32 * 1024**3, free=1024**3),
-            SimpleNamespace(total=1000 * 1024**3, free=2 * 1024**3),
-            SimpleNamespace(total=32 * 1024**3, free=6 * 1024**3),
-        ]
+    root_free = [1024**3]
+    tmp_free = [1024**3]
+
+    def disk_usage(path):
+        if str(path) == "/tmp":
+            return SimpleNamespace(total=32 * 1024**3, free=tmp_free[0])
+        return SimpleNamespace(total=1000 * 1024**3, free=root_free[0])
+
+    space._cleanup_tmp.side_effect = lambda **_: tmp_free.__setitem__(0, 6 * 1024**3)
+    space._cleanup_user_cache.side_effect = lambda **_: root_free.__setitem__(
+        0, 2 * 1024**3
     )
-    monkeypatch.setattr(shutil, "disk_usage", lambda _: next(usage))
+    monkeypatch.setattr(shutil, "disk_usage", disk_usage)
     original = Path.is_dir
     monkeypatch.setattr(
         Path, "is_dir", lambda p: True if str(p) == "/tmp" else original(p)
