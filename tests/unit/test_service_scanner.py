@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 from fixos.diagnostics.service_cleanup import ServiceCleaner
@@ -326,3 +327,234 @@ class TestServicePathTargets:
 
         assert "~/.npm/_npx" in paths
         assert "~/.npm/_npx" in command
+
+
+class TestIncompleteMeasurementReporting:
+    def test_measure_tree_errors_with_nonzero_bytes_marked_incomplete_and_not_cleanable(
+        self, tmp_path, monkeypatch
+    ):
+        cache = tmp_path / "pip"
+        cache.mkdir()
+        monkeypatch.setitem(
+            ServiceDataScanner.SERVICE_PATHS, ServiceType.PIP, [str(cache)]
+        )
+        scanner = ServiceDataScanner(threshold_mb=100)
+        monkeypatch.setattr(
+            scanner._details_provider, "get_details", lambda *args: {}
+        )
+        monkeypatch.setattr(
+            "fixos.diagnostics.service_scanner.measure_tree",
+            lambda path, native=True: {
+                "bytes": 150 * 1024 * 1024,
+                "entries": 5,
+                "mtime_ns": 0,
+                "atime_ns": 0,
+                "errors": ["/cache/secret: Permission denied"],
+            },
+        )
+
+        entries = scanner.scan_service(ServiceType.PIP)
+
+        assert len(entries) == 1
+        entry = entries[0]
+        assert entry.details["size_unknown"] is True
+        assert entry.details["measurement_incomplete"] is True
+        assert entry.details["measurement_errors"] == [
+            "/cache/secret: Permission denied"
+        ]
+        assert entry.details["measurement_source"] == "measure_tree"
+        assert entry.can_cleanup is False
+        assert entry.cleanup_command == ""
+        assert entry.safe_to_cleanup is False
+        assert entry.risk_level == "review"
+        assert any("Permission denied" in w for w in scanner.scan_warnings)
+
+    def test_measure_tree_errors_below_threshold_retained_by_scan_service(
+        self, tmp_path, monkeypatch
+    ):
+        cache = tmp_path / "pip"
+        cache.mkdir()
+        monkeypatch.setitem(
+            ServiceDataScanner.SERVICE_PATHS, ServiceType.PIP, [str(cache)]
+        )
+        scanner = ServiceDataScanner(threshold_mb=100)
+        monkeypatch.setattr(
+            scanner._details_provider, "get_details", lambda *args: {}
+        )
+        monkeypatch.setattr(
+            "fixos.diagnostics.service_scanner.measure_tree",
+            lambda path, native=True: {
+                "bytes": 1024,
+                "entries": 1,
+                "mtime_ns": 0,
+                "atime_ns": 0,
+                "errors": ["/cache/locked: Permission denied"],
+            },
+        )
+
+        entries = scanner.scan_service(ServiceType.PIP)
+
+        assert len(entries) == 1
+        assert entries[0].details["size_unknown"] is True
+        assert entries[0].details["measurement_incomplete"] is True
+        assert entries[0].can_cleanup is False
+        assert entries[0].safe_to_cleanup is False
+
+    def test_du_nonzero_exit_marked_incomplete_and_blocks_cleanup(
+        self, tmp_path, monkeypatch
+    ):
+        cache = tmp_path / "pip"
+        cache.mkdir()
+        monkeypatch.setitem(
+            ServiceDataScanner.SERVICE_PATHS, ServiceType.PIP, [str(cache)]
+        )
+        scanner = ServiceDataScanner(threshold_mb=100)
+        monkeypatch.setattr(
+            scanner._details_provider, "get_details", lambda *args: {}
+        )
+
+        def fail_measure(*args, **kwargs):
+            raise OSError("native unavailable")
+
+        def fake_du(cmd, **kwargs):
+            return subprocess.CompletedProcess(
+                cmd,
+                1,
+                stdout=f"2048\t{cache}\n",
+                stderr="du: cannot read directory: Permission denied",
+            )
+
+        monkeypatch.setattr(
+            "fixos.diagnostics.service_scanner.measure_tree", fail_measure
+        )
+        monkeypatch.setattr(
+            "fixos.diagnostics.service_scanner.subprocess.run", fake_du
+        )
+
+        assert scanner._get_path_size_mb(str(cache)) == 2.0
+        entries = scanner.scan_service(ServiceType.PIP)
+
+        assert len(entries) == 1
+        entry = entries[0]
+        assert entry.size_mb == 2.0
+        assert entry.details["size_unknown"] is True
+        assert entry.details["measurement_incomplete"] is True
+        assert entry.details["measurement_source"] == "du"
+        assert entry.can_cleanup is False
+        assert entry.cleanup_command == ""
+        assert entry.safe_to_cleanup is False
+
+    def test_analysis_error_below_threshold_retained_by_scan_service(
+        self, tmp_path, monkeypatch
+    ):
+        cache = tmp_path / "pip"
+        cache.mkdir()
+        monkeypatch.setitem(
+            ServiceDataScanner.SERVICE_PATHS, ServiceType.PIP, [str(cache)]
+        )
+        scanner = ServiceDataScanner(threshold_mb=500)
+
+        def blow_up(*args, **kwargs):
+            raise RuntimeError("disk io failure")
+
+        monkeypatch.setattr(scanner, "measure_service_size_mb", blow_up)
+
+        entries = scanner.scan_service(ServiceType.PIP)
+
+        assert len(entries) == 1
+        entry = entries[0]
+        assert entry.details["error"] == "disk io failure"
+        assert entry.details["size_unknown"] is True
+        assert entry.details["measurement_incomplete"] is True
+        assert entry.details["measurement_errors"] == ["disk io failure"]
+        assert entry.can_cleanup is False
+        assert entry.safe_to_cleanup is False
+        assert any("disk io failure" in w for w in scanner.scan_warnings)
+
+    def test_merge_preserves_incomplete_and_error_state_and_blocks_cleanup(
+        self, tmp_path, monkeypatch
+    ):
+        path_a = tmp_path / "profile-a"
+        path_b = tmp_path / "profile-b"
+        path_a.mkdir()
+        path_b.mkdir()
+        monkeypatch.setitem(
+            ServiceDataScanner.SERVICE_PATHS,
+            ServiceType.CHROME,
+            [str(path_a), str(path_b)],
+        )
+        scanner = ServiceDataScanner(threshold_mb=100)
+        monkeypatch.setattr(
+            scanner._details_provider, "get_details", lambda *args: {}
+        )
+        monkeypatch.setattr(ServiceCleaner, "get_risk_level", lambda *args: "review")
+        monkeypatch.setattr(
+            ServiceCleaner, "get_cleanup_command", lambda st, p: f"rm -rf {p}"
+        )
+
+        def fake_measure(path, native=True):
+            if str(path) == str(path_a):
+                return {
+                    "bytes": 500 * 1024 * 1024,
+                    "entries": 10,
+                    "mtime_ns": 0,
+                    "atime_ns": 0,
+                    "errors": [],
+                }
+            return {
+                "bytes": 1 * 1024 * 1024,
+                "entries": 1,
+                "mtime_ns": 0,
+                "atime_ns": 0,
+                "errors": ["denied"],
+            }
+
+        monkeypatch.setattr(
+            "fixos.diagnostics.service_scanner.measure_tree", fake_measure
+        )
+
+        entries = scanner.scan_service(ServiceType.CHROME)
+
+        assert len(entries) == 1
+        merged = entries[0]
+        assert merged.details["size_unknown"] is True
+        assert merged.details["measurement_incomplete"] is True
+        assert merged.details["incomplete_paths"] == [str(path_b)]
+        assert merged.details["measurement_errors"] == ["denied"]
+        assert merged.details["error"] == "denied"
+        assert merged.can_cleanup is False
+        assert merged.cleanup_command == ""
+        assert merged.safe_to_cleanup is False
+
+    def test_complete_measurement_behavior_unchanged(self, tmp_path, monkeypatch):
+        cache = tmp_path / "pip"
+        cache.mkdir()
+        monkeypatch.setitem(
+            ServiceDataScanner.SERVICE_PATHS, ServiceType.PIP, [str(cache)]
+        )
+        scanner = ServiceDataScanner(threshold_mb=100)
+        monkeypatch.setattr(
+            scanner._details_provider, "get_details", lambda *args: {}
+        )
+        monkeypatch.setattr(
+            "fixos.diagnostics.service_scanner.measure_tree",
+            lambda path, native=True: {
+                "bytes": 250 * 1024 * 1024,
+                "entries": 10,
+                "mtime_ns": 0,
+                "atime_ns": 0,
+                "errors": [],
+            },
+        )
+
+        entries = scanner.scan_service(ServiceType.PIP)
+
+        assert len(entries) == 1
+        entry = entries[0]
+        assert entry.size_mb == 250.0
+        assert entry.safe_to_cleanup is True
+        assert entry.can_cleanup is True
+        assert entry.risk_level == "safe"
+        assert "size_unknown" not in entry.details
+        assert "measurement_incomplete" not in entry.details
+        assert scanner.scan_warnings == []
