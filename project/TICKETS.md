@@ -160,7 +160,7 @@ This file indexes governance tickets without taking ownership of
 | **ticket-159** | [`README.md`](./ticket-159/README.md) | - | - | - | - | - |
 | **ticket-160** | [`README.md`](./ticket-160/README.md) | - | - | - | - | - |
 | **ticket-162** | [`README.md`](./ticket-162/README.md) | - | - | - | - | - |
-| **ticket-163** | [`README.md`](./ticket-163/README.md) | - | - | - | - | - |
+| **ticket-163** | [`README.md`](./ticket-163/README.md) | - | - |  [`ai-cline.md`](./ticket-163/ai-cline.md) | - | - |
 | **ticket-164** | [`README.md`](./ticket-164/README.md) | - | - | - | - | - |
 | **ticket-165** | [`README.md`](./ticket-165/README.md) | - | - | - | - | - |
 | **ticket-166** | [`README.md`](./ticket-166/README.md) | - | - | - | - | - |
@@ -187,4 +187,5 @@ This file indexes governance tickets without taking ownership of
 | **ticket-187** | [`README.md`](./ticket-187/README.md) | - | - | - | - | - |
 | **ticket-188** | [`README.md`](./ticket-188/README.md) | - | - | - | - | - |
 | **ticket-189** | [`README.md`](./ticket-189/README.md) | - | - | - | - | - |
+| **ticket-190** | [`README.md`](./ticket-190/README.md) | - | - | - | - | - |
 <!-- AUTO:TICKET_INDEX:END -->

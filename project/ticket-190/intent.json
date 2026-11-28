@@ -1,0 +1,106 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-190",
+  "summary": "Offer idle memory candidates in fixos auto",
+  "workstream": "application",
+  "classification": {
+    "kind": "FEATURE",
+    "priority": "P1",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-190/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "fixos/cli/fix_cmd.py",
+    "fixos/diagnostics/memory_candidates.py",
+    "fixos/diagnostics/quick_snapshot.py",
+    "tests/unit/test_auto_memory_candidates.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "targetBranch": "main",
+    "acceptedBaseSha": "c3bb0361ec51a4d9c7ffdc655196dfedfe44d5a1",
+    "outcome": "Rank processes by RSS + VmSwap with CPU idle time and age when fixos auto detects critical RAM or swap, list idle long-running user GUI apps as opt-in candidates reusing OrphanedWorkloadCleaner PID+create_time identity checks, add --close-idle-apps and interactive opt-in without killing by default, and print a memory before/after summary next to disk.",
+    "complexity": "M",
+    "estimatedMinutes": 35,
+    "budgets": {
+      "maxImplementationFiles": 4,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 1,
+      "maxRuntimeDependencies": 0
+    },
+    "runtimeDependencies": [],
+    "nonGoals": [
+      "Automatically terminating processes without explicit --close-idle-apps or interactive confirmation, or ever targeting agent sessions or services."
+    ],
+    "architecture": {
+      "status": "accepted",
+      "decision": "Add IdleMemoryCandidateCleaner subclassing OrphanedWorkloadCleaner in fixos/diagnostics/memory_candidates.py to rank RSS+VmSwap processes and safely gate allowlisted idle GUI apps with PID+create_time identity checks, emit critical swap alerts at 90% in quick_snapshot.py, and integrate opt-in candidate reporting and before/after memory summaries into fixos auto.",
+      "components": [
+        {
+          "name": "diagnostics",
+          "paths": [
+            "fixos/diagnostics/memory_candidates.py",
+            "fixos/diagnostics/quick_snapshot.py"
+          ]
+        },
+        {
+          "name": "cli",
+          "paths": [
+            "fixos/cli/fix_cmd.py",
+            "tests/unit/test_auto_memory_candidates.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [
+        "Add optional --close-idle-apps/--no-close-idle-apps flag and additive memory telemetry fields to fixos auto"
+      ],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the commit touching memory_candidates.py, quick_snapshot.py, fix_cmd.py, and test_auto_memory_candidates.py."
+    },
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "pytest -q tests/unit/test_auto_memory_candidates.py"
+        ],
+        "evidence": "Processes rank by RSS+VmSwap with idle time and age, idle long-running GUI apps become opt-in candidates, and agent sessions/services remain protected."
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "pytest -q tests/unit/test_auto_memory_candidates.py tests/unit/test_auto_cleanup.py tests/unit/test_auto_no_llm.py tests/unit/test_autonomous_reporting.py"
+        ],
+        "evidence": "fixos auto never kills by default, supports --close-idle-apps and interactive confirmation bound to PID+create_time, and prints memory before/after next to disk summary."
+      },
+      {
+        "criterion": "AC-03",
+        "commands": [
+          "python3 -m ruff check fixos/diagnostics/memory_candidates.py fixos/diagnostics/quick_snapshot.py fixos/cli/fix_cmd.py tests/unit/test_auto_memory_candidates.py",
+          "pytest -q"
+        ],
+        "evidence": "Linter and full unit test suite pass without regressions."
+      },
+      {
+        "criterion": "AC-04",
+        "commands": [
+          "./project/governance-check.sh --base origin/main"
+        ],
+        "evidence": "Governance checks pass with 0 errors and 0 warnings."
+      }
+    ]
+  }
+}

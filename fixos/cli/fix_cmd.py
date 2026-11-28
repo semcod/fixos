@@ -298,6 +298,33 @@ def fix(
     )
 
 
+def _is_interactive_terminal() -> bool:
+    try:
+        return sys.stdin.isatty() and sys.stdout.isatty()
+    except (AttributeError, OSError):
+        return False
+
+
+def _build_memory_cleaner():
+    from fixos.diagnostics.memory_candidates import IdleMemoryCandidateCleaner
+
+    return IdleMemoryCandidateCleaner()
+
+
+def _format_memory_rank_line(entry: dict[str, Any], fmt_bytes) -> str:
+    label = " ".join(entry.get("command") or [entry.get("name") or "?"])[:80]
+    tags = ["chroniony"] if entry.get("protected") else []
+    if entry.get("allowlisted_gui_app"):
+        tags.append("GUI")
+    tag_suffix = f" [{' · '.join(tags)}]" if tags else ""
+    return (
+        f"    • {label} (PID {entry['pid']}): "
+        f"RSS {fmt_bytes(entry['rss_bytes'])} + VmSwap {fmt_bytes(entry['vmswap_bytes'])} = "
+        f"{fmt_bytes(entry['total_memory_bytes'])} · CPU {entry['cpu_percent']:.1f}% · "
+        f"wiek {entry['age_hours']:.1f}h · bezczynny {entry['idle_hours']:.1f}h{tag_suffix}"
+    )
+
+
 @click.command("auto")
 @add_common_options
 @click.option(
@@ -421,6 +448,13 @@ def fix(
     help="Skanuj i czyść także dane usług (Docker/Ollama/npm/cargo)",
 )
 @click.option(
+    "--close-idle-apps/--no-close-idle-apps",
+    "close_idle_apps",
+    default=False,
+    show_default=True,
+    help="Zamknij bezczynne długodziałające aplikacje GUI zgłoszone przy krytycznym RAM/swap",
+)
+@click.option(
     "--retention",
     default="24h",
     show_default=True,
@@ -468,6 +502,7 @@ def auto_cmd(
     free_gb,
     clean_journal,
     clean_services,
+    close_idle_apps,
     retention,
     modules,
     max_fixes,
@@ -516,6 +551,10 @@ def auto_cmd(
     )
     from fixos.cli._cleanup_utils import _format_bytes
     from fixos.constants import PROJECT_SCAN_STALE_DAYS
+    from fixos.diagnostics.memory_candidates import (
+        capture_memory_snapshot,
+        has_critical_memory_pressure,
+    )
     from fixos.diagnostics.quick_snapshot import collect_quick_snapshot
 
     if not no_banner and not json_output:
@@ -530,6 +569,7 @@ def auto_cmd(
 
     before_usage = shutil.disk_usage("/")
     before_free_bytes = before_usage.free
+    before_memory = capture_memory_snapshot()
     tmp_separate_mount = False
     before_tmp_free_bytes = 0
     try:
@@ -540,6 +580,7 @@ def auto_cmd(
         tmp_separate_mount = False
 
     quick_snapshot = collect_quick_snapshot()
+    memory_pressure_critical = has_critical_memory_pressure(quick_snapshot)
 
     if not json_output:
         from fixos.cli.quick_cmd import render_quick_snapshot
@@ -565,6 +606,19 @@ def auto_cmd(
         nonlocal current_free_bytes
         if not dry_run:
             current_free_bytes = shutil.disk_usage("/").free
+
+    memory_scan: dict[str, Any] = {
+        "top_processes": [],
+        "candidates": [],
+        "estimated_reclaimable_bytes": 0,
+    }
+    memory_close_result: dict[str, Any] = {
+        "dry_run": dry_run,
+        "planned": [],
+        "closed": [],
+        "failed": [],
+        "success": True,
+    }
 
     from contextlib import nullcontext, redirect_stdout
 
@@ -753,6 +807,88 @@ def auto_cmd(
                 steps_executed.append("services")
                 refresh_free_bytes()
 
+        if memory_pressure_critical or close_idle_apps:
+            cleaner = _build_memory_cleaner()
+            memory_scan = cleaner.scan_memory()
+            top_processes = memory_scan.get("top_processes", [])
+            memory_candidates = memory_scan.get("candidates", [])
+            if not json_output:
+                if top_processes:
+                    click.echo(
+                        click.style(
+                            "\n[+] Procesy według pamięci (RSS + VmSwap):",
+                            fg="cyan",
+                            bold=True,
+                        )
+                    )
+                    for entry in top_processes:
+                        click.echo(_format_memory_rank_line(entry, _format_bytes))
+                if memory_candidates:
+                    click.echo(
+                        click.style(
+                            "\n[+] Bezczynne aplikacje GUI (kandydaci opt-in do zamknięcia):",
+                            fg="yellow",
+                            bold=True,
+                        )
+                    )
+                    for candidate in memory_candidates:
+                        click.echo(
+                            f"    • {candidate['name']} (PID {candidate['root_pid']}, "
+                            f"start {candidate['started_at']}): "
+                            f"RSS {_format_bytes(candidate['rss_bytes'])} + "
+                            f"VmSwap {_format_bytes(candidate['vmswap_bytes'])} = "
+                            f"{_format_bytes(candidate['reclaimable_memory_bytes'])} "
+                            f"(wiek {candidate['age_hours']:.1f}h, bezczynny {candidate['idle_hours']:.1f}h, "
+                            f"CPU {candidate['cpu_percent']:.1f}%)"
+                        )
+                    if not close_idle_apps and yes:
+                        click.echo(
+                            click.style(
+                                "  Podpowiedź: procesy nie są zamykane automatycznie; "
+                                "użyj --close-idle-apps lub --interactive, aby zamknąć wybrane aplikacje.",
+                                fg="yellow",
+                            )
+                        )
+                elif memory_pressure_critical:
+                    click.echo(
+                        "\n[+] Brak bezpiecznych, bezczynnych aplikacji GUI kwalifikujących się do zamknięcia."
+                    )
+
+            selected_identities: list[tuple[int, float]] = []
+            if close_idle_apps:
+                selected_identities = [
+                    (int(item["root_pid"]), float(item["create_time"]))
+                    for item in memory_candidates
+                ]
+            elif (
+                (not yes)
+                and (not json_output)
+                and (not dry_run)
+                and _is_interactive_terminal()
+                and memory_candidates
+            ):
+                for candidate in memory_candidates:
+                    if click.confirm(
+                        f"Zamknąć bezczynną aplikację {candidate['name']} "
+                        f"(PID {candidate['root_pid']}, start {candidate['started_at']}, "
+                        f"zwolni ~{_format_bytes(candidate['reclaimable_memory_bytes'])})?",
+                        default=False,
+                    ):
+                        selected_identities.append(
+                            (int(candidate["root_pid"]), float(candidate["create_time"]))
+                        )
+
+            if selected_identities:
+                memory_close_result = cleaner.close_candidates(
+                    process_identities=selected_identities,
+                    apply=not dry_run,
+                    force=False,
+                )
+                if memory_close_result["closed"] or (
+                    dry_run and close_idle_apps and memory_close_result["planned"]
+                ):
+                    steps_executed.append("idle-apps")
+
     cfg = FixOsConfig.load(
         provider=provider,
         api_key=token,
@@ -783,6 +919,7 @@ def auto_cmd(
 
     after_usage = shutil.disk_usage("/")
     after_free_bytes = after_usage.free
+    after_memory = capture_memory_snapshot()
     root_freed_bytes = 0 if dry_run else max(0, after_free_bytes - before_free_bytes)
     tmp_freed_bytes = 0
     if tmp_separate_mount and not dry_run:
@@ -797,6 +934,20 @@ def auto_cmd(
         not goal_reached
         and (after_usage.total - after_free_bytes) / after_usage.total >= 0.95
         if after_usage.total else False
+    )
+    ram_available_delta_bytes = (
+        0
+        if dry_run
+        else int(
+            after_memory["ram_available_bytes"] - before_memory["ram_available_bytes"]
+        )
+    )
+    swap_freed_bytes = (
+        0
+        if dry_run
+        else max(
+            0, int(before_memory["swap_used_bytes"] - after_memory["swap_used_bytes"])
+        )
     )
 
     summary_payload = {
@@ -819,6 +970,26 @@ def auto_cmd(
         "disk_free_before_human": _format_bytes(before_free_bytes),
         "disk_free_after_human": _format_bytes(after_free_bytes),
         "disk_freed_human": _format_bytes(freed_bytes),
+        "memory_pressure_critical": memory_pressure_critical,
+        "memory_available_before_bytes": before_memory["ram_available_bytes"],
+        "memory_available_after_bytes": after_memory["ram_available_bytes"],
+        "memory_available_delta_bytes": ram_available_delta_bytes,
+        "memory_available_before_human": _format_bytes(
+            before_memory["ram_available_bytes"]
+        ),
+        "memory_available_after_human": _format_bytes(
+            after_memory["ram_available_bytes"]
+        ),
+        "swap_total_bytes": after_memory["swap_total_bytes"],
+        "swap_used_before_bytes": before_memory["swap_used_bytes"],
+        "swap_used_after_bytes": after_memory["swap_used_bytes"],
+        "swap_freed_bytes": swap_freed_bytes,
+        "swap_used_before_human": _format_bytes(before_memory["swap_used_bytes"]),
+        "swap_used_after_human": _format_bytes(after_memory["swap_used_bytes"]),
+        "memory_top_processes": memory_scan.get("top_processes", []),
+        "memory_candidates": memory_scan.get("candidates", []),
+        "memory_closed_apps": memory_close_result.get("closed", []),
+        "memory_close_failed": memory_close_result.get("failed", []),
     }
 
     if output:
@@ -846,6 +1017,15 @@ def auto_cmd(
     if tmp_separate_mount and tmp_freed_bytes > 0:
         click.echo(f"  Osobny /tmp      : {_format_bytes(tmp_freed_bytes)} (poza bilansem /)")
     click.echo(f"  Cel wolnego (/)  : {_format_bytes(target_free_bytes)}")
+    click.echo(
+        f"  RAM dostępny     : {_format_bytes(before_memory['ram_available_bytes'])} -> "
+        f"{_format_bytes(after_memory['ram_available_bytes'])}"
+    )
+    if before_memory["swap_total_bytes"] or after_memory["swap_total_bytes"]:
+        click.echo(
+            f"  Swap użyty       : {_format_bytes(before_memory['swap_used_bytes'])} -> "
+            f"{_format_bytes(after_memory['swap_used_bytes'])}"
+        )
     if not dry_run and (disk_pressure_remaining or not goal_reached):
         click.echo(click.style(
             "  UWAGA: czyszczenie nie rozwiązało problemu miejsca w /. "
