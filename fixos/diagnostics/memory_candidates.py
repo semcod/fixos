@@ -19,7 +19,6 @@ import psutil
 from fixos.diagnostics.orphaned_workloads import OrphanedWorkloadCleaner
 from fixos.diagnostics.process_chains import ProcessRecord
 
-
 DEFAULT_MIN_APP_AGE_HOURS = 1.0
 DEFAULT_MIN_IDLE_HOURS = 1.0
 DEFAULT_MAX_IDLE_CPU_PERCENT = 1.0
@@ -239,8 +238,7 @@ class IdleMemoryCandidateCleaner(OrphanedWorkloadCleaner):
     @staticmethod
     def _executable_name(record: ProcessRecord) -> str:
         raw = Path(record.cmdline[0]).name if record.cmdline else record.name
-        normalized = raw.casefold()
-        return normalized[:-4] if normalized.endswith(".exe") else normalized
+        return raw.casefold().removesuffix(".exe")
 
     @staticmethod
     def _is_system_service_cgroup(value: str | None) -> bool:
@@ -248,9 +246,7 @@ class IdleMemoryCandidateCleaner(OrphanedWorkloadCleaner):
 
     @classmethod
     def _is_protected_executable_or_wrapper(cls, record: ProcessRecord) -> bool:
-        proc_name = record.name.casefold()
-        if proc_name.endswith(".exe"):
-            proc_name = proc_name[:-4]
+        proc_name = record.name.casefold().removesuffix(".exe")
         exe_name = cls._executable_name(record)
         if (
             proc_name in PROTECTED_AGENT_AND_SERVICE_NAMES

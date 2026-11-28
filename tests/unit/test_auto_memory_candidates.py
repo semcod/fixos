@@ -18,7 +18,6 @@ from fixos.diagnostics import memory_candidates as mc
 from fixos.diagnostics import quick_snapshot
 from fixos.diagnostics.process_chains import ProcessRecord
 
-
 NOW = datetime(2026, 11, 28, 18, 0, tzinfo=timezone.utc)
 NOW_EPOCH = NOW.timestamp()
 GIB = 1024**3
