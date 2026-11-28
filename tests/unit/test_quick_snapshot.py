@@ -252,6 +252,59 @@ def test_measure_caches_bounds_native_batch(tmp_path, monkeypatch):
     assert kwargs["python_fallback"] is False
 
 
+def test_measure_caches_propagates_native_batch_errors_to_completeness(
+    tmp_path, monkeypatch
+):
+    cache_dir = tmp_path / ".cache" / "pip"
+    cache_dir.mkdir(parents=True)
+    from unittest.mock import MagicMock
+
+    mock_batch = MagicMock(
+        return_value={
+            str(cache_dir.resolve()): {
+                "bytes": 4096,
+                "errors": [f"{cache_dir}/secret: Permission denied"],
+                "complete": False,
+            }
+        }
+    )
+    monkeypatch.setattr("fixos.diagnostics.native_scan.measure_batch", mock_batch)
+
+    safe, _review, complete = quick_snapshot._measure_caches(tmp_path)
+    pip_item = next(item for item in safe if item["id"] == "pip")
+    assert complete is False
+    assert pip_item["complete"] is False
+    assert pip_item["measurement_errors"] == [f"{cache_dir}/secret: Permission denied"]
+
+
+def test_measure_caches_falls_back_to_du_for_paths_omitted_by_partial_native_batch(
+    tmp_path, monkeypatch
+):
+    pip_dir = tmp_path / ".cache" / "pip"
+    uv_dir = tmp_path / ".cache" / "uv"
+    pip_dir.mkdir(parents=True)
+    uv_dir.mkdir(parents=True)
+    from unittest.mock import MagicMock
+
+    mock_batch = MagicMock(
+        return_value={
+            str(pip_dir.resolve()): {"bytes": 2048, "errors": [], "complete": True}
+        }
+    )
+    du_mock = MagicMock(return_value=(512, None))
+    monkeypatch.setattr("fixos.diagnostics.native_scan.measure_batch", mock_batch)
+    monkeypatch.setattr(quick_snapshot, "_du_kib", du_mock)
+
+    safe, _review, complete = quick_snapshot._measure_caches(tmp_path)
+    items = {item["id"]: item for item in safe}
+    assert complete is True
+    assert items["pip"]["size_bytes"] == 2048
+    assert items["uv"]["size_bytes"] == 512 * 1024
+    du_called_paths = {call.args[0] for call in du_mock.call_args_list}
+    assert uv_dir in du_called_paths
+    assert pip_dir not in du_called_paths
+
+
 def test_timed_out_cache_shows_last_complete_size():
     items = [
         {"id": "uv", "size_bytes": 0, "size_gb": 0.0, "complete": False},

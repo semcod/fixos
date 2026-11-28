@@ -436,9 +436,22 @@ def _measure_caches(
                 unresolved_jobs: list[tuple[CacheRule, Path]] = []
                 for rule, path in jobs:
                     m = batch_result.get(str(path.resolve()))
-                    if isinstance(m, dict) and "bytes" in m:
+                    if (
+                        isinstance(m, dict)
+                        and type(m.get("bytes")) is int
+                        and m["bytes"] >= 0
+                    ):
                         kib = (m["bytes"] + 1023) // 1024
                         measured.setdefault(rule.id, []).append((path, kib))
+                        m_errors = m.get("errors")
+                        if isinstance(m_errors, list) and m_errors:
+                            errors.setdefault(rule.id, []).extend(
+                                str(item) for item in m_errors
+                            )
+                        elif m.get("complete") is False:
+                            errors.setdefault(rule.id, []).append(
+                                f"{path}: incomplete native measurement"
+                            )
                     else:
                         unresolved_jobs.append((rule, path))
                 remaining_jobs = unresolved_jobs
