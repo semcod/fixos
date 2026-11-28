@@ -359,22 +359,25 @@ class TestMeasureBatchContract:
         assert entry["complete"] is False
         assert entry["errors"] == [f"{d1}/secret: Permission denied"]
 
-    def test_python_fallback_permission_error_marks_incomplete(self, tmp_path):
-        import pytest
-
-        if os.geteuid() == 0:
-            pytest.skip("root bypasses DAC read permissions")
+    def test_python_fallback_permission_error_marks_incomplete(
+        self, tmp_path, monkeypatch
+    ):
         secret = tmp_path / "secret"
         secret.mkdir()
         (secret / "hidden.txt").write_text("hidden", encoding="utf-8")
-        secret.chmod(0o000)
-        try:
-            res = measure_batch([tmp_path], native=False, python_fallback=True)
-            entry = res[str(tmp_path.resolve())]
-            assert entry["complete"] is False
-            assert entry["errors"]
-        finally:
-            secret.chmod(0o755)
+        secret_resolved = secret.resolve()
+        real_scandir = os.scandir
+
+        def fake_scandir(path="."):
+            if isinstance(path, (str, os.PathLike)) and Path(path).resolve() == secret_resolved:
+                raise PermissionError(13, "Permission denied", str(path))
+            return real_scandir(path)
+
+        monkeypatch.setattr("fixos.diagnostics.native_scan.os.scandir", fake_scandir)
+        res = measure_batch([tmp_path], native=False, python_fallback=True)
+        entry = res[str(tmp_path.resolve())]
+        assert entry["complete"] is False
+        assert entry["errors"]
 
 
 class TestScanDirNativeContract:
@@ -454,10 +457,6 @@ class TestScanDirNativeContract:
     def test_root_and_child_permission_errors_return_none_when_omitted(
         self, tmp_path, monkeypatch
     ):
-        import pytest
-
-        if os.geteuid() == 0:
-            pytest.skip("root bypasses DAC read permissions")
         monkeypatch.setattr(
             "fixos.diagnostics.native_scan.find_native_binary", lambda: Path("/bin/fake")
         )
@@ -465,25 +464,35 @@ class TestScanDirNativeContract:
         # Unreadable child omitted by min_bytes filtering must not look complete.
         secret = tmp_path / "secret"
         secret.mkdir()
-        secret.chmod(0o000)
-        try:
-            payload = {"protocol": PROTOCOL, "path": str(tmp_path.resolve()), "entries": []}
-            monkeypatch.setattr(
-                "fixos.diagnostics.native_scan.subprocess.run",
-                lambda *a, **kw: subprocess.CompletedProcess(a[0], 0, json.dumps(payload), ""),
-            )
-            assert scan_dir_native(tmp_path, min_bytes=1024) is None
-        finally:
-            secret.chmod(0o755)
+        secret_resolved = secret.resolve()
+        real_access = os.access
+
+        def fake_access(path, mode):
+            if isinstance(path, (str, os.PathLike)) and Path(path).resolve() == secret_resolved:
+                return False
+            return real_access(path, mode)
+
+        monkeypatch.setattr("fixos.diagnostics.native_scan.os.access", fake_access)
+        payload = {"protocol": PROTOCOL, "path": str(tmp_path.resolve()), "entries": []}
+        monkeypatch.setattr(
+            "fixos.diagnostics.native_scan.subprocess.run",
+            lambda *a, **kw: subprocess.CompletedProcess(a[0], 0, json.dumps(payload), ""),
+        )
+        assert scan_dir_native(tmp_path, min_bytes=1024) is None
 
         # Unreadable root returns None before trusting empty native results.
         root_dir = tmp_path / "locked_root"
         root_dir.mkdir()
-        root_dir.chmod(0o000)
-        try:
-            assert scan_dir_native(root_dir) is None
-        finally:
-            root_dir.chmod(0o755)
+        root_resolved = root_dir.resolve()
+        real_scandir = os.scandir
+
+        def fake_scandir(path="."):
+            if isinstance(path, (str, os.PathLike)) and Path(path).resolve() == root_resolved:
+                raise PermissionError(13, "Permission denied", str(path))
+            return real_scandir(path)
+
+        monkeypatch.setattr("fixos.diagnostics.native_scan.os.scandir", fake_scandir)
+        assert scan_dir_native(root_dir) is None
 
     def test_child_entry_errors_mark_complete_false(self, tmp_path, monkeypatch):
         sub = tmp_path / "cache"
